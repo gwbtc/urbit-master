@@ -247,6 +247,10 @@
     =/  chat-id=@ux  (rash i.t.t.site hex)
     (handle-delete:claude-routes chat-id)
   ::
+      [%master %claude @ %interrupt ~]
+    =/  chat-id=@ux  (rash i.t.t.site hex)
+    (handle-interrupt:claude-routes chat-id)
+  ::
       [%master %claude @ ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))

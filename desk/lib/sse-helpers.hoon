@@ -13,6 +13,17 @@
     `%message-update
   ==
 ::
+++  notify-chat-state
+  |=  chat-id=@ux
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Sending SSE event for state update to chat {<chat-id>}"
+  %:  send-sse-event:io
+    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    ~
+    `%state-update
+  ==
+::
 ++  notify-chat-title
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)

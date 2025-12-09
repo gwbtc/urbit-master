@@ -34,6 +34,60 @@
     %-  manx-to-wain:sailbox
     ;div: Chat not found
   ?+    event  !!
+      [~ %state-update]
+    ~&  >  "Rendering state-update SSE event"
+    ::  Only send button and thinking indicator updates, no messages
+    =/  thinking-indicator=manx
+      ?^  api-request-pid.u.chat
+        ;div(id "thinking-indicator", hx-swap-oob "outerHTML:#thinking-indicator", style "position: sticky; bottom: 0; left: 50%; transform: translateX(-50%); width: fit-content; padding: 0.75rem 1.25rem; margin-top: 1rem; background: var(--b2); border: 1px solid var(--b3); border-radius: 20px; font-style: italic; opacity: 0.85; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10;")
+          ; Claude is thinking...
+        ==
+      ;div(id "thinking-indicator", hx-swap-oob "outerHTML:#thinking-indicator", style "display: none;");
+    =/  stop-btn=manx
+      ?^  api-request-pid.u.chat
+        ;button
+          =id     "interrupt-btn"
+          =type   "button"
+          =title  "Stop (Ctrl+C)"
+          =style  "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;"
+          =onclick  "interruptRequest()"
+          =hx-swap-oob  "outerHTML:#interrupt-btn"
+          ;+  (make:fi 'stop-circle')
+        ==
+      ;button
+        =id     "interrupt-btn"
+        =type   "button"
+        =title  "Stop (Ctrl+C)"
+        =style  "display: none;"
+        =hx-swap-oob  "outerHTML:#interrupt-btn"
+        ;+  (make:fi 'stop-circle')
+      ==
+    =/  send-btn=manx
+      ?~  api-request-pid.u.chat
+        ;button
+          =id     "send-btn"
+          =type   "submit"
+          =title  "Send (Enter)"
+          =style  "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;"
+          =hx-swap-oob  "outerHTML:#send-btn"
+          ;+  (make:fi 'send')
+        ==
+      ;button
+        =id     "send-btn"
+        =type   "submit"
+        =title  "Send (Enter)"
+        =style  "display: none;"
+        =hx-swap-oob  "outerHTML:#send-btn"
+        ;+  (make:fi 'send')
+      ==
+    =/  combined=wain
+      ;:  welp
+        (manx-to-wain:sailbox thinking-indicator)
+        (manx-to-wain:sailbox stop-btn)
+        (manx-to-wain:sailbox send-btn)
+      ==
+    ~&  >  "SSE state-update response has {<(lent combined)>} lines"
+    combined
       [~ %message-update]
     ~&  >  "Rendering message-update SSE event with id {<id>}"
     ::  Convert mop to list for rendering
@@ -82,18 +136,63 @@
     ::  Also remove the placeholder if it exists (for first message)
     =/  placeholder-remover=manx
       ;div(hx-swap-oob "delete:#chat-placeholder");
-    ::  Update thinking indicator based on current chat state
-    =/  is-thinking=?  (is-chat-thinking messages-by-time.u.chat)
+    ::  Update thinking indicator and buttons based on api-request-pid
     =/  thinking-indicator=manx
-      ?:  is-thinking
+      ?^  api-request-pid.u.chat
         ;div(id "thinking-indicator", hx-swap-oob "outerHTML:#thinking-indicator", style "position: sticky; bottom: 0; left: 50%; transform: translateX(-50%); width: fit-content; padding: 0.75rem 1.25rem; margin-top: 1rem; background: var(--b2); border: 1px solid var(--b3); border-radius: 20px; font-style: italic; opacity: 0.85; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10;")
           ; Claude is thinking...
         ==
       ;div(id "thinking-indicator", hx-swap-oob "outerHTML:#thinking-indicator", style "display: none;");
+    ::  Update both buttons based on api-request-pid
+    ::  When request is in flight: show stop button, hide send button
+    ::  When no request: hide stop button, show send button
+    =/  stop-btn=manx
+      ?^  api-request-pid.u.chat
+        ;button
+          =id     "interrupt-btn"
+          =type   "button"
+          =title  "Stop (Ctrl+C)"
+          =style  "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;"
+          =onclick  "interruptRequest()"
+          =hx-swap-oob  "outerHTML:#interrupt-btn"
+          ;+  (make:fi 'stop-circle')
+        ==
+      ;button
+        =id     "interrupt-btn"
+        =type   "button"
+        =title  "Stop (Ctrl+C)"
+        =style  "display: none;"
+        =hx-swap-oob  "outerHTML:#interrupt-btn"
+        ;+  (make:fi 'stop-circle')
+      ==
+    =/  send-btn=manx
+      ?~  api-request-pid.u.chat
+        ;button
+          =id     "send-btn"
+          =type   "submit"
+          =title  "Send (Enter)"
+          =style  "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;"
+          =hx-swap-oob  "outerHTML:#send-btn"
+          ;+  (make:fi 'send')
+        ==
+      ;button
+        =id     "send-btn"
+        =type   "submit"
+        =title  "Send (Enter)"
+        =style  "display: none;"
+        =hx-swap-oob  "outerHTML:#send-btn"
+        ;+  (make:fi 'send')
+      ==
     ::  Combine all out-of-band swaps
     =/  combined=wain
-      :(welp (manx-to-wain:sailbox wrapper) (manx-to-wain:sailbox placeholder-remover) (manx-to-wain:sailbox thinking-indicator))
-    ~&  >  "SSE response has {<(lent combined)>} lines (is-thinking: {<is-thinking>})"
+      ;:  welp
+        (manx-to-wain:sailbox wrapper)
+        (manx-to-wain:sailbox placeholder-remover)
+        (manx-to-wain:sailbox thinking-indicator)
+        (manx-to-wain:sailbox stop-btn)
+        (manx-to-wain:sailbox send-btn)
+      ==
+    ~&  >  "SSE response has {<(lent combined)>} lines"
     combined
       [~ %title-update]
     ~&  >  "Rendering title-update SSE event"
@@ -645,7 +744,7 @@
           ;p(style "font-size: clamp(0.9rem, 3vw, 1rem); opacity: 0.8;"): Ask me anything
         ==
         ::  Hidden SSE connection
-        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:sailbox id.chat)}", sse-swap "message-update,title-update", style "display:none;");
+        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:sailbox id.chat)}", sse-swap "message-update,title-update,state-update", style "display:none;");
         ;div(style "display: flex; gap: 0.5rem; align-items: stretch; flex: 1; min-height: 0;")
           ::  Vertical navigation bar
           ;div
@@ -684,12 +783,14 @@
               =style  "display: flex; flex-direction: column; gap: 1rem;"
               ;*  rendered-messages
             ==
-            ::  Thinking indicator - shown when waiting for Claude's response
-            ;div
-              =id  "thinking-indicator"
-              =style  ?:((is-chat-thinking messages-by-time.chat) "position: sticky; bottom: 0; left: 50%; transform: translateX(-50%); width: fit-content; padding: 0.75rem 1.25rem; margin-top: 1rem; background: var(--b2); border: 1px solid var(--b3); border-radius: 20px; font-style: italic; opacity: 0.85; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10;" "display: none;")
-              ; {?:((is-chat-thinking messages-by-time.chat) "Claude is thinking..." "")}
-            ==
+            ::  Thinking indicator - shown when API request is in flight
+            ;+  ?^  api-request-pid.chat
+                  ;div
+                    =id  "thinking-indicator"
+                    =style  "position: sticky; bottom: 0; left: 50%; transform: translateX(-50%); width: fit-content; padding: 0.75rem 1.25rem; margin-top: 1rem; background: var(--b2); border: 1px solid var(--b3); border-radius: 20px; font-style: italic; opacity: 0.85; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10;"
+                    ; Claude is thinking...
+                  ==
+                ;div(id "thinking-indicator", style "display: none;");
           ==
         ==
         ;form
@@ -705,10 +806,22 @@
             =required     ""
             =rows         "1"
             =style        "flex: 1; padding: 0.875rem; border: 1px solid var(--b2); border-radius: 6px; background: var(--b0); color: var(--f0); font-size: 1rem; min-height: 44px; max-height: 200px; resize: vertical; box-sizing: border-box; font-family: inherit;";
+          ::  Stop button - shown when API request in flight
           ;button
+            =id     "interrupt-btn"
+            =type   "button"
+            =title  "Stop (Ctrl+C)"
+            =style  ?^(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+            =onclick  "interruptRequest()"
+            ;+  (make:fi 'stop-circle')
+          ==
+          ::  Send button - shown when no API request
+          ;button
+            =id     "send-btn"
             =type   "submit"
-            =style  "padding: 0.875rem 1.5rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; min-height: 44px; box-sizing: border-box;"
-            ; Send
+            =title  "Send (Enter)"
+            =style  ?~(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+            ;+  (make:fi 'send')
           ==
         ==
         ;script
@@ -743,6 +856,29 @@
           ;   .catch(function(err) {
           ;     console.error('Branch failed:', err);
           ;     alert('Failed to create branch');
+          ;   });
+          ; }
+          ; function interruptRequest() {
+          ;   var chatId = window.location.pathname.split('/').pop();
+          ;   var interruptBtn = document.getElementById('interrupt-btn');
+          ;   interruptBtn.disabled = true;
+          ;   interruptBtn.style.opacity = '0.5';
+          ;   fetch('/master/claude/' + chatId + '/interrupt', {
+          ;     method: 'POST',
+          ;     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+          ;   })
+          ;   .then(function(response) {
+          ;     if (!response.ok) {
+          ;       alert('Failed to interrupt request');
+          ;       interruptBtn.disabled = false;
+          ;       interruptBtn.style.opacity = '1';
+          ;     }
+          ;   })
+          ;   .catch(function(err) {
+          ;     console.error('Interrupt failed:', err);
+          ;     alert('Failed to interrupt request');
+          ;     interruptBtn.disabled = false;
+          ;     interruptBtn.style.opacity = '1';
           ;   });
           ; }
           ;
@@ -849,6 +985,16 @@
           ;   }
           ;   attachFormHandlers();
           ;   document.body.addEventListener('htmx:afterSwap', attachFormHandlers);
+          ;   document.addEventListener('keydown', function(e) {
+          ;     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+          ;       var interruptBtn = document.getElementById('interrupt-btn');
+          ;       var selection = window.getSelection();
+          ;       if (interruptBtn && interruptBtn.style.display !== 'none' && (!selection || selection.toString().length === 0)) {
+          ;         e.preventDefault();
+          ;         interruptRequest();
+          ;       }
+          ;     }
+          ;   });
           ;   window.chatObserver = observer;
           ; })();
         ==

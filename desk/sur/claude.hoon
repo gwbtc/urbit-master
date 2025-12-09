@@ -48,6 +48,7 @@
       messages-by-chars=((mop @ud message) lth)    :: keyed by cumulative character count
       next-index=@ud                                       :: next message index to assign
       total-chars=@ud                                      :: total character count so far
+      api-request-pid=(unit @ta)                            :: fiber PID of in-flight API request
       created=@da
   ==
 ::

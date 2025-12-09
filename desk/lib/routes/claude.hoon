@@ -92,6 +92,7 @@
   |=  [chat-id=@ux message=@t api-key=@t ai-model=@t user-timezone=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  pid=@ta  bind:m  get-pid:io
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
@@ -118,6 +119,14 @@
   =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[200 ~] ~])
+  ::  Store PID in chat before API call
+  =.  api-request-pid.u.chat  `pid
+  ;<  ~  bind:m  (put-chat chat-id u.chat)
+  ::  Send SSE to update UI (show thinking indicator and stop button)
+  ;<  ~  bind:m  (notify-chat-state:sse chat-id)
+  ::  Return HTTP response immediately so HTMX doesn't hang
+  ;<  ~  bind:m  (give-simple-payload:io [[200 ~] ~])
+  ::  Now continue with Claude API call in background
   =/  messages-before=((mop @ud message:claude) lth)  messages-by-time.u.chat
   =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   ;<  [response=@t updated-chat=chat:claude]  bind:m
@@ -129,7 +138,8 @@
     (give-simple-payload:io [[200 ~] ~])
   ~&  >  "Chat name after tools: '{<name.u.chat-after>}'"
   ::  Update chat with new messages (preserving name from updated-chat, which may have been changed by tools)
-  =.  updated-chat  updated-chat(name name.u.chat-after)
+  ::  Also clear the API request PID now that the call is complete
+  =.  updated-chat  updated-chat(name name.u.chat-after, api-request-pid ~)
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
   ::  Get all message timestamps from updated chat (already in order)
   =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
@@ -139,9 +149,44 @@
     %+  skip  all-timestamps
     |=(t=@ud (~(has in (silt before-timestamps)) t))
   ::  Send SSE events for all new messages
-  ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
-  ::  Return empty success response
-  (give-simple-payload:io [[200 ~] ~])
+  (notify-multiple-messages:sse chat-id new-timestamps)
+::
+::  POST /master/claude/{id}/interrupt - Interrupt an in-flight API request
+::
+++  handle-interrupt
+  |=  chat-id=@ux
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
+  ?~  chat
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
+  ::  Check if there's an API request in flight
+  ?~  api-request-pid.u.chat
+    (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 No API request in flight')])
+  ::  Kill the fiber with the stored PID
+  ;<  ~  bind:m  (fiber-kill:io u.api-request-pid.u.chat)
+  ::  Add a system message indicating the interruption
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  interrupt-timestamp=@ud  (unm:chrono:userlib now.bowl)
+  =/  interrupt-content=json
+    :-  %a
+    :~  %-  pairs:enjs:format
+        :~  ['type' s+'text']
+            ['text' s+'[Request interrupted by user]']
+        ==
+    ==
+  =/  interrupt-msg=message:claude  ['assistant' interrupt-content %error chat-id 0 0 0 0]
+  =/  chat-with-msg=chat:claude
+    (add-message:chat-index u.chat interrupt-timestamp interrupt-msg)
+  ::  Clear the PID from the chat and save
+  =/  updated-chat=chat:claude  chat-with-msg(api-request-pid ~)
+  ;<  ~  bind:m  (put-chat chat-id updated-chat)
+  ::  Send SSE events: message for interrupt text, state for button swap
+  ;<  ~  bind:m  (notify-chat-message:sse chat-id interrupt-timestamp)
+  ;<  ~  bind:m  (notify-chat-state:sse chat-id)
+  ::  Return success
+  (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
 ::
 ::  POST /master/claude/{id}/rename - Rename a chat
 ::
@@ -212,6 +257,7 @@
         ~                               :: messages-by-chars (empty)
         0                               :: next-index
         0                               :: total-chars
+        ~                               :: api-request-pid (none)
         now.bowl
     ==
   ::  Update parent chat to add this child to its children map
@@ -261,6 +307,7 @@
         ~                                      :: messages-by-chars
         0                                      :: next-index
         0                                      :: total-chars
+        ~                                      :: api-request-pid (none)
         now.bowl
     ==
   ;<  ~  bind:m  (put-chat chat-id new-chat)
