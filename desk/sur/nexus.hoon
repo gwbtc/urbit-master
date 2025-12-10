@@ -2,17 +2,23 @@
 :: exploring the possibility of a directory-specific orchestrator agent
 ::
 |%
++$  bowl     bowl:gall             :: to be replaced with local version
 +$  card     card:agent:gall       :: to be replaced with local version
 +$  proc     @tas                  :: like a mark but for a process
 :: ++  process  process:fiber:sailbox :: to be replaced with local version
 ++  nexus
   $_  ^|
   |%
+  :: top-down reconsideration of directory structure in +on-load
+  ::
+  ++  on-load
+    |~  [bowl ball:tarball]
+    *ball:tarball
   :: all pokes result in file/directory creation/deletion
   ::
   ++  on-poke
-    |~  [bowl:gall cage]
-    *[path (unit ball:tarball)]
+    |~  [bowl cage]
+    *[(list card) path (unit ball:tarball)]
   :: all files have an associated running process
   :: all running processes should be able to recover proper
   ::   operation based on state alone, even when restarted.
