@@ -24,6 +24,17 @@
     `%state-update
   ==
 ::
+++  notify-tool-approval
+  |=  chat-id=@ux
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Sending SSE event for tool approval to chat {<chat-id>}"
+  %:  send-sse-event:io
+    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    ~
+    `%tool-approval
+  ==
+::
 ++  notify-chat-title
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)

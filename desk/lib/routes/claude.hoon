@@ -1,6 +1,6 @@
 /-  *master, claude
 /+  io=sailboxio, sailbox, server, ui-claude, claude-lib=claude, chat-index,
-    sse=sse-helpers, *html-utils, tarball, json-utils
+    sse=sse-helpers, *html-utils, tarball, json-utils, tools
 |%
 ::  Helper: Get all chats from ball as a map
 ::
@@ -92,11 +92,18 @@
   |=  [chat-id=@ux message=@t api-key=@t ai-model=@t user-timezone=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  pid=@ta  bind:m  get-pid:io
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
+  ::  Block message sending if API request is in flight or tools are pending
+  ?.  &(=(~ api-request-pid.u.chat) =(~ pending-tools.u.chat))
+    %+  give-simple-payload:io
+      :-  409
+      ~[['content-type' 'text/plain']]
+    `(as-octs:mimes:html '409 Cannot send message while request is in progress or tools are pending')
+  ::  Validation passed - now get PID for this request
+  ;<  pid=@ta  bind:m  get-pid:io
   ::  Build and save user message
   =/  user-content=json
     :-  %a
@@ -131,16 +138,44 @@
   =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   ;<  [response=@t updated-chat=chat:claude]  bind:m
     (send-message:claude-lib api-key ai-model u.chat all-chats user-timezone)
+  ::  Check if there are pending tools awaiting approval
+  ?.  =(~ pending-tools.updated-chat)
+    ~&  >  "Tools pending approval, saving chat and notifying user"
+    ::  Clear API PID since we're pausing for approval
+    =.  updated-chat  updated-chat(api-request-pid ~)
+    ;<  ~  bind:m  (put-chat chat-id updated-chat)
+    ::  Get all new message timestamps to send via SSE
+    =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
+    =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before) head)
+    =/  new-timestamps=(list @ud)
+      %+  skip  all-timestamps
+      |=(t=@ud (~(has in (silt before-timestamps)) t))
+    ::  Send SSE events for all new messages (including assistant message with tool_use)
+    ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
+    ::  Send SSE to show tool approval UI
+    (notify-tool-approval:sse chat-id)
   ::  Get fresh state after Claude call (tools may have modified it)
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat-after=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat-after
     (give-simple-payload:io [[200 ~] ~])
-  ~&  >  "Chat name after tools: '{<name.u.chat-after>}'"
-  ::  Update chat with new messages (preserving name from updated-chat, which may have been changed by tools)
-  ::  Also clear the API request PID now that the call is complete
-  =.  updated-chat  updated-chat(name name.u.chat-after, api-request-pid ~)
+  ~&  >  "MERGE: Chat from disk has name: '{<name.u.chat-after>}'"
+  ~&  >  "MERGE: Chat from send-message has name: '{<name.updated-chat>}'"
+  ::  Use the chat from disk (which has tool modifications) but update with new messages and clear PID
+  ::  The updated-chat from send-message has the new assistant+tool_result messages
+  ::  We need to merge them into the disk version
+  =.  updated-chat
+    %=  u.chat-after
+      messages-by-time    messages-by-time.updated-chat
+      messages-by-index   messages-by-index.updated-chat
+      messages-by-chars   messages-by-chars.updated-chat
+      next-index          next-index.updated-chat
+      total-chars         total-chars.updated-chat
+      api-request-pid     ~
+    ==
+  ~&  >  "MERGE: Final merged chat has name: '{<name.updated-chat>}'"
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
+  ~&  >  "MERGE: Chat written to disk"
   ::  Get all message timestamps from updated chat (already in order)
   =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
   =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before) head)
@@ -247,7 +282,7 @@
     candidate
   ::  Build new child chat (empty, will reference parent for history)
   =/  child-chat=chat:claude
-    :*  %0
+    :*  %2
         child-chat-id
         (crip "Branch from {(trip name.u.parent-chat)}")
         `[parent-chat-id branch-point]  :: parent link
@@ -258,6 +293,8 @@
         0                               :: next-index
         0                               :: total-chars
         ~                               :: api-request-pid (none)
+        ~                               :: pending-tools (none)
+        ~                               :: allowed-tools (empty set)
         now.bowl
     ==
   ::  Update parent chat to add this child to its children map
@@ -297,7 +334,7 @@
       $(eny.bowl +(eny.bowl))
     candidate
   =/  new-chat=chat:claude
-    :*  %0
+    :*  %2
         chat-id
         'New Chat'
         ~                                      :: parent
@@ -308,6 +345,8 @@
         0                                      :: next-index
         0                                      :: total-chars
         ~                                      :: api-request-pid (none)
+        ~                                      :: pending-tools (none)
+        ~                                      :: allowed-tools (empty set)
         now.bowl
     ==
   ;<  ~  bind:m  (put-chat chat-id new-chat)
@@ -400,4 +439,327 @@
   ::  Put with validation
   ;<  ~  bind:m  (put-cage:io /config/creds 'claude.json' [%json !>(jon)])
   (pure:m ~)
+::
+::  POST /master/claude/{id}/approve-tool/{tool-id} - Approve a pending tool
+::
+++  handle-approve-tool
+  |=  [chat-id=@ux tool-id=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
+  ?~  chat
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
+  ::  Check if there's a pending tools state
+  ?~  pending-tools.u.chat
+    (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 No pending tools')])
+  ::  Find the tool in pending list
+  =/  tool-idx=(unit @ud)
+    =/  idx=@ud  0
+    |-  ^-  (unit @ud)
+    ?~  pending.u.pending-tools.u.chat  ~
+    ?:  =(tool-id id.i.pending.u.pending-tools.u.chat)  `idx
+    $(pending.u.pending-tools.u.chat t.pending.u.pending-tools.u.chat, idx +(idx))
+  ?~  tool-idx
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Tool Not Found')])
+  ::  Get the tool and remove it from pending list
+  =/  approved-tool=tool-request:claude  (snag u.tool-idx pending.u.pending-tools.u.chat)
+  =/  remaining-pending=(list tool-request:claude)
+    (oust [u.tool-idx 1] pending.u.pending-tools.u.chat)
+  ::  Update UI immediately
+  =/  temp-state=pending-tools-state:claude
+    [assistant-timestamp.u.pending-tools.u.chat remaining-pending approved.u.pending-tools.u.chat]
+  =/  temp-chat=chat:claude
+    u.chat(pending-tools `temp-state)
+  ;<  ~  bind:m  (put-chat chat-id temp-chat)
+  ::  Send SSE immediately so UI updates while tool executes
+  ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+  ::  Execute the approved tool (this can take time, but UI already updated)
+  =/  arguments=(map @t json)
+    ?.  ?=([%o *] input.approved-tool)  ~
+    p.input.approved-tool
+  ;<  exec-result=tool-result:tools  bind:m
+    (execute-tool:tools name.approved-tool arguments)
+  ::  Extract text from result
+  =/  result-text=@t
+    ?-  -.exec-result
+      %text   text.exec-result
+      %error  message.exec-result
+    ==
+  ::  Build tool-result structure
+  =/  new-result=tool-result:claude
+    [approved-tool [%success result-text]]
+  ::  Add to approved list
+  =/  updated-approved=(list tool-result:claude)
+    (snoc approved.u.pending-tools.u.chat new-result)
+  ::  Check if all tools are decided (pending list is empty)
+  ?.  =(~ remaining-pending)
+    ::  More tools to approve - update state with results
+    =/  updated-state=pending-tools-state:claude
+      [assistant-timestamp.u.pending-tools.u.chat remaining-pending updated-approved]
+    =/  updated-chat=chat:claude
+      u.chat(pending-tools `updated-state)
+    ;<  ~  bind:m  (put-chat chat-id updated-chat)
+    ::  Send SSE to update UI with new approved count
+    ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+    (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+  ::  All tools decided - send all results to Claude
+  ::  Build tool_result JSON array
+  =/  tool-results-json=(list json)
+    %+  turn  updated-approved
+    |=  tr=tool-result:claude
+    =/  content-text=@t
+      ?-  -.result.tr
+        %success  text.result.tr
+        %error    message.result.tr
+      ==
+    =/  is-error=?
+      ?-  -.result.tr
+        %success  %.n
+        %error    %.y
+      ==
+    %-  pairs:enjs:format
+    :~  ['type' s+'tool_result']
+        ['tool_use_id' s+id.request.tr]
+        ['content' s+content-text]
+        ['is_error' b+is-error]
+    ==
+  ::  Add user message with all tool results
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  result-timestamp=@ud
+    (add assistant-timestamp.u.pending-tools.u.chat 1)
+  =/  result-msg=message:claude
+    ['user' [%a tool-results-json] %normal chat-id 0 0 0 0]
+  ::  Reload chat from disk before adding messages (tools may have modified it)
+  ~&  >  "BEFORE TOOL RESULTS: Reloading chat from disk"
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat-reloaded=(unit chat:claude)  (get-chat ball chat-id)
+  =/  chat-base=chat:claude  ?~(chat-reloaded u.chat u.chat-reloaded)
+  ~&  >  "BEFORE TOOL RESULTS: Chat name from disk: '{<name.chat-base>}'"
+  =/  chat-with-results=chat:claude
+    %=  chat-base
+      pending-tools  ~
+    ==
+  =/  chat-final=chat:claude
+    (add-message:chat-index chat-with-results result-timestamp result-msg)
+  ~&  >  "BEFORE TOOL RESULTS: Writing chat with name: '{<name.chat-final>}'"
+  ;<  ~  bind:m  (put-chat chat-id chat-final)
+  ::  Send SSE for the results message
+  ;<  ~  bind:m  (notify-chat-message:sse chat-id result-timestamp)
+  ::  Continue conversation with Claude
+  =/  creds-jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+  =/  api-key=@t  (~(dog jo:json-utils creds-jon) /api-key so:dejs:format)
+  =/  ai-model=@t  (~(dog jo:json-utils creds-jon) /ai-model so:dejs:format)
+  =/  user-timezone=@t
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
+  ::  Save message timestamps before send-message
+  =/  messages-before-continuation=((mop @ud message:claude) lth)  messages-by-time.chat-final
+  ;<  [response=@t updated-chat=chat:claude]  bind:m
+    (send-message:claude-lib api-key ai-model chat-final all-chats user-timezone)
+  ::  Save new timestamps before merging
+  =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
+  =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before-continuation) head)
+  =/  new-timestamps=(list @ud)
+    %+  skip  all-timestamps
+    |=(t=@ud (~(has in (silt before-timestamps)) t))
+  ::  Reload chat from disk to get any tool modifications
+  ~&  >  "APPROVE CONTINUATION: About to reload chat from disk"
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat-from-disk=(unit chat:claude)  (get-chat ball chat-id)
+  ~&  >  "APPROVE CONTINUATION: Chat from disk: {<chat-from-disk>}"
+  ~&  >  "APPROVE CONTINUATION: Chat from send-message name: '{<name.updated-chat>}'"
+  ::  Merge: take name and other fields from disk, messages from send-message
+  =.  updated-chat
+    ?~  chat-from-disk
+      ~&  >  "APPROVE CONTINUATION: No chat from disk, using send-message result"
+      updated-chat
+    ~&  >  "APPROVE CONTINUATION: Chat from disk name: '{<name.u.chat-from-disk>}'"
+    %=  u.chat-from-disk
+      messages-by-time   messages-by-time.updated-chat
+      messages-by-index  messages-by-index.updated-chat
+      messages-by-chars  messages-by-chars.updated-chat
+      next-index         next-index.updated-chat
+      total-chars        total-chars.updated-chat
+      pending-tools      pending-tools.updated-chat
+      api-request-pid    api-request-pid.updated-chat
+    ==
+  ~&  >  "APPROVE CONTINUATION: Merged chat name: '{<name.updated-chat>}'"
+  ;<  ~  bind:m  (put-chat chat-id updated-chat)
+  ~&  >  "APPROVE CONTINUATION: Chat written to disk"
+  ::  NOW send SSE for all new messages (after writing to disk)
+  ~&  >  "APPROVE CONTINUATION: Sending SSE for {<(lent new-timestamps)>} new messages"
+  ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
+  ::  Check if new pending tools were added
+  ?.  =(~ pending-tools.updated-chat)
+    ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+    (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+  ::  No pending tools - conversation continued, restore input form
+  ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+  ;<  ~  bind:m  (notify-chat-state:sse chat-id)
+  (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+::
+::  POST /master/claude/{id}/deny-tool/{tool-id} - Deny a pending tool
+::
+++  handle-deny-tool
+  |=  [chat-id=@ux tool-id=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
+  ?~  chat
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
+  ::  Check if there's a pending tools state
+  ?~  pending-tools.u.chat
+    (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 No pending tools')])
+  ::  Find the tool in pending list
+  =/  tool-idx=(unit @ud)
+    =/  idx=@ud  0
+    |-  ^-  (unit @ud)
+    ?~  pending.u.pending-tools.u.chat  ~
+    ?:  =(tool-id id.i.pending.u.pending-tools.u.chat)  `idx
+    $(pending.u.pending-tools.u.chat t.pending.u.pending-tools.u.chat, idx +(idx))
+  ?~  tool-idx
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Tool Not Found')])
+  ::  Get the tool and remove it from pending list
+  =/  denied-tool=tool-request:claude  (snag u.tool-idx pending.u.pending-tools.u.chat)
+  =/  remaining-pending=(list tool-request:claude)
+    (oust [u.tool-idx 1] pending.u.pending-tools.u.chat)
+  ::  Update UI immediately
+  =/  temp-state=pending-tools-state:claude
+    [assistant-timestamp.u.pending-tools.u.chat remaining-pending approved.u.pending-tools.u.chat]
+  =/  temp-chat=chat:claude
+    u.chat(pending-tools `temp-state)
+  ;<  ~  bind:m  (put-chat chat-id temp-chat)
+  ::  Send SSE immediately so UI updates
+  ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+  ::  Build error tool-result
+  =/  error-result=tool-result:claude
+    [denied-tool [%error 'Tool use denied by user']]
+  ::  Add to approved list (with error)
+  =/  updated-approved=(list tool-result:claude)
+    (snoc approved.u.pending-tools.u.chat error-result)
+  ::  Check if all tools are decided
+  ?.  =(~ remaining-pending)
+    ::  More tools to decide - update state and notify
+    =/  updated-state=pending-tools-state:claude
+      [assistant-timestamp.u.pending-tools.u.chat remaining-pending updated-approved]
+    =/  updated-chat=chat:claude
+      u.chat(pending-tools `updated-state)
+    ;<  ~  bind:m  (put-chat chat-id updated-chat)
+    ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+    (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+  ::  All tools decided - send all results to Claude (same as approve-tool)
+  =/  tool-results-json=(list json)
+    %+  turn  updated-approved
+    |=  tr=tool-result:claude
+    =/  content-text=@t
+      ?-  -.result.tr
+        %success  text.result.tr
+        %error    message.result.tr
+      ==
+    =/  is-error=?
+      ?-  -.result.tr
+        %success  %.n
+        %error    %.y
+      ==
+    %-  pairs:enjs:format
+    :~  ['type' s+'tool_result']
+        ['tool_use_id' s+id.request.tr]
+        ['content' s+content-text]
+        ['is_error' b+is-error]
+    ==
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  result-timestamp=@ud
+    (add assistant-timestamp.u.pending-tools.u.chat 1)
+  =/  result-msg=message:claude
+    ['user' [%a tool-results-json] %normal chat-id 0 0 0 0]
+  =/  chat-with-results=chat:claude
+    u.chat(pending-tools ~)
+  =/  chat-final=chat:claude
+    (add-message:chat-index chat-with-results result-timestamp result-msg)
+  ;<  ~  bind:m  (put-chat chat-id chat-final)
+  ;<  ~  bind:m  (notify-chat-message:sse chat-id result-timestamp)
+  ::  Continue conversation with Claude
+  =/  creds-jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+  =/  api-key=@t  (~(dog jo:json-utils creds-jon) /api-key so:dejs:format)
+  =/  ai-model=@t  (~(dog jo:json-utils creds-jon) /ai-model so:dejs:format)
+  =/  user-timezone=@t
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
+  ::  Save message timestamps before send-message
+  =/  messages-before-continuation=((mop @ud message:claude) lth)  messages-by-time.chat-final
+  ;<  [response=@t updated-chat=chat:claude]  bind:m
+    (send-message:claude-lib api-key ai-model chat-final all-chats user-timezone)
+  ::  Save new timestamps before merging
+  =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
+  =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before-continuation) head)
+  =/  new-timestamps=(list @ud)
+    %+  skip  all-timestamps
+    |=(t=@ud (~(has in (silt before-timestamps)) t))
+  ::  Reload chat from disk to get any tool modifications
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat-from-disk=(unit chat:claude)  (get-chat ball chat-id)
+  ::  Merge: take name and other fields from disk, messages from send-message
+  =.  updated-chat
+    ?~  chat-from-disk  updated-chat
+    %=  u.chat-from-disk
+      messages-by-time   messages-by-time.updated-chat
+      messages-by-index  messages-by-index.updated-chat
+      messages-by-chars  messages-by-chars.updated-chat
+      next-index         next-index.updated-chat
+      total-chars        total-chars.updated-chat
+      pending-tools      pending-tools.updated-chat
+      api-request-pid    api-request-pid.updated-chat
+    ==
+  ;<  ~  bind:m  (put-chat chat-id updated-chat)
+  ::  NOW send SSE for all new messages (after writing to disk)
+  ~&  >  "DENY CONTINUATION: Sending SSE for {<(lent new-timestamps)>} new messages"
+  ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
+  ?.  =(~ pending-tools.updated-chat)
+    ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+    (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+  ::  No pending tools - restore input form
+  ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+  ;<  ~  bind:m  (notify-chat-state:sse chat-id)
+  (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
+::
+::  POST /master/claude/{id}/always-allow/{tool-name} - Add tool to allowed set
+::
+++  handle-always-allow
+  |=  [chat-id=@ux tool-name=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
+  ?~  chat
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
+  ::  Add tool name to allowed-tools set for future auto-approval
+  =.  allowed-tools.u.chat  (~(put in allowed-tools.u.chat) tool-name)
+  ;<  ~  bind:m  (put-chat chat-id u.chat)
+  ::  Now find and approve the current pending tool with this name
+  ?~  pending-tools.u.chat
+    (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 No pending tools')])
+  =/  matching-tool=(unit tool-request:claude)
+    |-  ^-  (unit tool-request:claude)
+    ?~  pending.u.pending-tools.u.chat  ~
+    ?:  =(tool-name name.i.pending.u.pending-tools.u.chat)
+      `i.pending.u.pending-tools.u.chat
+    $(pending.u.pending-tools.u.chat t.pending.u.pending-tools.u.chat)
+  ?~  matching-tool
+    (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Tool Not Found')])
+  ::  Found the tool - now approve it using the same flow as handle-approve-tool
+  (handle-approve-tool chat-id id.u.matching-tool)
 --

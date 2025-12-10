@@ -272,6 +272,21 @@
     =/  branch-point=@ud  (rash (need (get-key:kv 'branch-point' args)) dem)
     (handle-branch:claude-routes parent-chat-id branch-point)
   ::
+      [%master %claude @ %approve-tool @ ~]
+    =/  chat-id=@ux  (rash i.t.t.site hex)
+    =/  tool-id=@t  (crip (trip i.t.t.t.t.site))
+    (handle-approve-tool:claude-routes chat-id tool-id)
+  ::
+      [%master %claude @ %deny-tool @ ~]
+    =/  chat-id=@ux  (rash i.t.t.site hex)
+    =/  tool-id=@t  (crip (trip i.t.t.t.t.site))
+    (handle-deny-tool:claude-routes chat-id tool-id)
+  ::
+      [%master %claude @ %always-allow @ ~]
+    =/  chat-id=@ux  (rash i.t.t.site hex)
+    =/  tool-name=@t  (crip (trip i.t.t.t.t.site))
+    (handle-always-allow:claude-routes chat-id tool-name)
+  ::
       [%master %ball *]
     =/  ball-path=path  t.t.site
     (handle-form-actions:ball-routes ball-path args)

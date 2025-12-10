@@ -602,12 +602,16 @@
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
+  ~&  >  "RENAME TOOL: Renaming chat {<u.chat-id>} from '{<name.u.chat>}' to '{<title>}'"
   =/  updated-chat=chat:claude  u.chat(name title)
+  ~&  >  "RENAME TOOL: Writing updated chat with name '{<name.updated-chat>}'"
   ;<  ~  bind:m
     (put-cage:io /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
+  ~&  >  "RENAME TOOL: Chat file written successfully"
   ::  Send SSE event
   ;<  ~  bind:m
     (send-sse-event:io /master/claude/stream/(crip (hexn:sailbox u.chat-id)) ~ `%title-update)
+  ~&  >  "RENAME TOOL: SSE event sent"
   (pure:m [%text 'Chat renamed'])
 ::
 ++  tool-web-search

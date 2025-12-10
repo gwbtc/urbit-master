@@ -396,7 +396,7 @@
     ?:  ?=(%| -.content-array)
       =/  json-dump=@t  (en:json:html u.jon)
       (pure:m [(crip "Error: Could not parse content array. Full JSON: {(trip json-dump)}") chat])
-    ::  Add assistant's tool_use message using helper
+    ::  Calculate timestamp for assistant message
     ;<  =bowl:gall  bind:m  get-bowl:io
     ::  Find the highest timestamp in existing messages and add 1
     =/  last-timestamp=@ud
@@ -404,9 +404,6 @@
       ?~  all-timestamps  (unm:chrono:userlib now.bowl)
       (add (snag 0 (flop all-timestamps)) 1)
     =/  assistant-timestamp=@ud  last-timestamp
-    =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
-    =/  chat-with-tool=chat:claude
-      (add-message:chat-index chat assistant-timestamp assistant-msg)
     ::  Parse content array to separate text and tool_use blocks
     =/  content-blocks
       %-  mule
@@ -441,13 +438,40 @@
         ==
       ?:  ?=(%| -.parsed)  ~
       `p.parsed
-    ?~  tool-calls
+    ?:  =(~ tool-calls)
       =/  json-dump=@t  (en:json:html u.jon)
       (pure:m [(crip "Error: No tool calls found in tool_use response. Full JSON: {(trip json-dump)}") chat])
-    ::  Execute ALL tool calls sequentially and collect results
+    ::  Filter tools into allowed and pending based on allowed-tools set
+    =/  allowed-calls=(list [@t @t json])
+      %+  skim  tool-calls
+      |=  [tool-id=@t tool-name=@t tool-input=json]
+      (~(has in allowed-tools.chat) tool-name)
+    =/  pending-calls=(list [@t @t json])
+      %+  skip  tool-calls
+      |=  [tool-id=@t tool-name=@t tool-input=json]
+      (~(has in allowed-tools.chat) tool-name)
+    ::  Add assistant message to history IMMEDIATELY
+    =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
+    =/  chat-with-assistant=chat:claude
+      (add-message:chat-index chat assistant-timestamp assistant-msg)
+    ::  Build pending tool requests
+    =/  pending-requests=(list tool-request:claude)
+      %+  turn  pending-calls
+      |=  [tool-id=@t tool-name=@t tool-input=json]
+      [tool-id tool-name tool-input]
+    ::  If there are pending tools, create pending-tools-state and return
+    ?.  =(~ pending-requests)
+      ~&  >  "Added {<(lent pending-requests)>} tools to approval queue"
+      =/  pending-state=pending-tools-state:claude
+        [assistant-timestamp pending-requests ~]
+      =/  chat-with-pending=chat:claude
+        chat-with-assistant(pending-tools `pending-state)
+      (pure:m ['' chat-with-pending])
+    ::  No pending tools - execute allowed tools and continue
+    ::  Execute ALL allowed tool calls sequentially and collect results
     =|  tool-results=(list json)
-    =/  remaining-tools=(list [@t @t json])  tool-calls
-    =/  current-chat=chat:claude  chat-with-tool
+    =/  remaining-tools=(list [@t @t json])  allowed-calls
+    =/  current-chat=chat:claude  chat-with-assistant
     |-  ^-  form:m
     ?~  remaining-tools
       ::  All tools executed, build tool_result message

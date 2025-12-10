@@ -201,6 +201,49 @@
     ;div(hx-swap-oob "innerHTML:#chat-title")
       ; {(trip name.u.chat)}
     ==
+      [~ %tool-approval]
+    ~&  >  "Rendering tool-approval SSE event"
+    ::  Render the entire input-area div - shows tool approval or normal form
+    =/  input-area=manx
+      ;div(id "input-area", hx-swap-oob "outerHTML:#input-area", style "margin-left: 3rem;")
+        ;+  ?^  pending-tools.u.chat
+              (render-tool-approval-bar u.pending-tools.u.chat id.u.chat)
+            ::  Normal chat form
+            ;form
+              =id            "chat-form"
+              =hx-post       "/master/claude/{(hexn:sailbox id.u.chat)}"
+              =hx-target     "#messages"
+              =hx-swap       "none"
+              =style         "display: flex; gap: 0.5rem;"
+              =onsubmit      "return canSubmitMessage();"
+              ;textarea
+                =name         "message"
+                =id           "message-input"
+                =placeholder  "Type your message... (Shift+Enter for new line)"
+                =required     ""
+                =rows         "1"
+                =style        "flex: 1; padding: 0.875rem; border: 1px solid var(--b2); border-radius: 6px; background: var(--b0); color: var(--f0); font-size: 1rem; min-height: 44px; max-height: 200px; resize: vertical; box-sizing: border-box; font-family: inherit;";
+              ::  Stop button - shown when API request in flight
+              ;button
+                =id     "interrupt-btn"
+                =type   "button"
+                =title  "Stop (Ctrl+C)"
+                =style  ?^(api-request-pid.u.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+                =onclick  "interruptRequest()"
+                ;+  (make:fi 'stop-circle')
+              ==
+              ::  Send button - shown when no API request
+              ;button
+                =id     "send-btn"
+                =type   "submit"
+                =title  "Send (Enter)"
+                =style  ?~(api-request-pid.u.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+                ;+  (make:fi 'send')
+              ==
+            ==
+      ==
+    ~&  >  "SSE tool-approval response has {<(lent (manx-to-wain:sailbox input-area))>} lines"
+    (manx-to-wain:sailbox input-area)
   ==
 ::
 ++  claude-card
@@ -351,6 +394,65 @@
   %+  turn  blocks
   |=  [block-type=@t text=@t]
   (render-message-block is-user is-error block-type text timestamp index.msg tz-name)
+::
+++  render-tool-approval-bar
+  |=  [tools-state=pending-tools-state:claude chat-id=@ux]
+  ^-  manx
+  =/  pending-count=@ud  (lent pending.tools-state)
+  =/  approved-count=@ud  (lent approved.tools-state)
+  =/  total-count=@ud  (add pending-count approved-count)
+  ;div(style "display: flex; gap: 0.5rem; align-items: center; background: var(--b1); border: 2px solid #3498db; border-radius: 8px; padding: 0.75rem;")
+    ::  Info section
+    ;div(style "flex: 1; display: flex; flex-direction: column; gap: 0.25rem;")
+      ;+  ?:  =(0 pending-count)
+            ::  All tools approved - show processing message
+            ;div(style "font-weight: 600; color: var(--f0);")
+              ; Processing tools and waiting for response...
+            ==
+          ::  Still have pending tools - show counts
+          ;div
+            ;div(style "font-weight: 600; color: var(--f0);")
+              ; Claude wants to use {(a-co:co total-count)} tool{?:(=(total-count 1) "" "s")}
+            ==
+            ;div(style "font-size: 0.875rem; opacity: 0.8;")
+              ; {(a-co:co pending-count)} pending · {(a-co:co approved-count)} approved
+            ==
+          ==
+    ==
+    ::  Action buttons
+    ;div(style "display: flex; gap: 0.5rem; align-items: center;")
+      ::  Show first pending tool if any, or loading spinner if all approved
+      ;+  ?~  pending.tools-state
+            ::  No pending tools - show loading spinner
+            ;div(style "display: flex; gap: 0.75rem; align-items: center; padding: 0.5rem 1rem; background: var(--b2); border-radius: 6px;")
+              ;div(style "width: 20px; height: 20px; border: 3px solid var(--b3); border-top-color: #3498db; border-radius: 50%; animation: spin 1s linear infinite;");
+              ;div(style "color: var(--f0); opacity: 0.8;")
+                ; Waiting for Claude's response...
+              ==
+            ==
+          =/  first-tool=tool-request:claude  i.pending.tools-state
+          ;div(style "display: flex; gap: 0.5rem; align-items: center;")
+            ;div(style "padding: 0.5rem 0.75rem; background: var(--b2); border-radius: 6px; font-family: monospace; font-size: 0.875rem;")
+              ; {(trip name.first-tool)}
+            ==
+            ;button
+              =onclick  "approveTool('{(trip id.first-tool)}')"
+              =style    "padding: 0.5rem 1rem; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;"
+              ; Approve
+            ==
+            ;button
+              =onclick  "denyTool('{(trip id.first-tool)}')"
+              =style    "padding: 0.5rem 1rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;"
+              ; Deny
+            ==
+            ;button
+              =onclick  "alwaysAllowTool('{(trip name.first-tool)}')"
+              =style    "padding: 0.5rem 1rem; background: var(--b2); color: var(--f0); border: 1px solid var(--b3); border-radius: 6px; cursor: pointer; font-size: 0.875rem;"
+              ; Always Allow
+            ==
+          ==
+    ==
+  ==
 ::
 ++  chat-page
   |=  [chat=chat:claude chats=(map @ux chat:claude) user-tz=@t api-key=@t ai-model=@t]
@@ -583,6 +685,40 @@
         }
       });
     }
+    function approveTool(toolId) \{
+      const chatId = location.pathname.split('/')[3];
+      fetch('/master/claude/' + chatId + '/approve-tool/' + encodeURIComponent(toolId), \{
+        method: 'POST'
+      }).then(r => \{
+        if (!r.ok) alert('Failed to approve tool');
+      });
+    }
+    function denyTool(toolId) \{
+      const chatId = location.pathname.split('/')[3];
+      fetch('/master/claude/' + chatId + '/deny-tool/' + encodeURIComponent(toolId), \{
+        method: 'POST'
+      }).then(r => \{
+        if (!r.ok) alert('Failed to deny tool');
+      });
+    }
+    function alwaysAllowTool(toolName) \{
+      const chatId = location.pathname.split('/')[3];
+      fetch('/master/claude/' + chatId + '/always-allow/' + encodeURIComponent(toolName), \{
+        method: 'POST'
+      }).then(r => \{
+        if (r.ok) \{
+          // After adding to allow list, approve the current pending tool
+          // The tool card will be updated via SSE
+          console.log('Tool ' + toolName + ' added to allowed list');
+        } else \{
+          alert('Failed to add tool to allowed list');
+        }
+      });
+    }
+    function showAllTools() \{
+      // TODO: Open modal showing all pending/approved tools
+      alert('View all tools modal - coming soon!');
+    }
     // Button-based loading: simple and predictable
     document.addEventListener('DOMContentLoaded', () => \{
       // Set the selected model in the dropdown
@@ -744,7 +880,7 @@
           ;p(style "font-size: clamp(0.9rem, 3vw, 1rem); opacity: 0.8;"): Ask me anything
         ==
         ::  Hidden SSE connection
-        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:sailbox id.chat)}", sse-swap "message-update,title-update,state-update", style "display:none;");
+        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:sailbox id.chat)}", sse-swap "message-update,title-update,state-update,tool-approval", style "display:none;");
         ;div(style "display: flex; gap: 0.5rem; align-items: stretch; flex: 1; min-height: 0;")
           ::  Vertical navigation bar
           ;div
@@ -793,36 +929,44 @@
                 ;div(id "thinking-indicator", style "display: none;");
           ==
         ==
-        ;form
-          =id            "chat-form"
-          =hx-post       "/master/claude/{(hexn:sailbox id.chat)}"
-          =hx-target     "#messages"
-          =hx-swap       "none"
-          =style         "display: flex; gap: 0.5rem; margin-left: 3rem;"
-          ;textarea
-            =name         "message"
-            =id           "message-input"
-            =placeholder  "Type your message... (Shift+Enter for new line)"
-            =required     ""
-            =rows         "1"
-            =style        "flex: 1; padding: 0.875rem; border: 1px solid var(--b2); border-radius: 6px; background: var(--b0); color: var(--f0); font-size: 1rem; min-height: 44px; max-height: 200px; resize: vertical; box-sizing: border-box; font-family: inherit;";
-          ::  Stop button - shown when API request in flight
-          ;button
-            =id     "interrupt-btn"
-            =type   "button"
-            =title  "Stop (Ctrl+C)"
-            =style  ?^(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
-            =onclick  "interruptRequest()"
-            ;+  (make:fi 'stop-circle')
-          ==
-          ::  Send button - shown when no API request
-          ;button
-            =id     "send-btn"
-            =type   "submit"
-            =title  "Send (Enter)"
-            =style  ?~(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
-            ;+  (make:fi 'send')
-          ==
+        ::  Input bar area - shows tool approval UI when tools pending, otherwise chat form
+        ;div(id "input-area", style "margin-left: 3rem;")
+          ;+  ?^  pending-tools.chat
+                ::  Tool approval UI
+                (render-tool-approval-bar u.pending-tools.chat id.chat)
+              ::  Normal chat form
+              ;form
+                =id            "chat-form"
+                =hx-post       "/master/claude/{(hexn:sailbox id.chat)}"
+                =hx-target     "#messages"
+                =hx-swap       "none"
+                =style         "display: flex; gap: 0.5rem;"
+                =onsubmit      "return canSubmitMessage();"
+                ;textarea
+                  =name         "message"
+                  =id           "message-input"
+                  =placeholder  "Type your message... (Shift+Enter for new line)"
+                  =required     ""
+                  =rows         "1"
+                  =style        "flex: 1; padding: 0.875rem; border: 1px solid var(--b2); border-radius: 6px; background: var(--b0); color: var(--f0); font-size: 1rem; min-height: 44px; max-height: 200px; resize: vertical; box-sizing: border-box; font-family: inherit;";
+                ::  Stop button - shown when API request in flight
+                ;button
+                  =id     "interrupt-btn"
+                  =type   "button"
+                  =title  "Stop (Ctrl+C)"
+                  =style  ?^(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+                  =onclick  "interruptRequest()"
+                  ;+  (make:fi 'stop-circle')
+                ==
+                ::  Send button - shown when no API request
+                ;button
+                  =id     "send-btn"
+                  =type   "submit"
+                  =title  "Send (Enter)"
+                  =style  ?~(api-request-pid.chat "display: flex; align-items: center; justify-content: center; padding: 0.875rem; background: var(--f-3); color: var(--b0); border: none; border-radius: 6px; cursor: pointer; min-height: 44px; min-width: 44px; box-sizing: border-box;" "display: none;")
+                  ;+  (make:fi 'send')
+                ==
+              ==
         ==
         ;script
           ; var autoScrollLocked = true;
@@ -880,6 +1024,20 @@
           ;     interruptBtn.disabled = false;
           ;     interruptBtn.style.opacity = '1';
           ;   });
+          ; }
+          ; function canSubmitMessage() {
+          ;   var interruptBtn = document.getElementById('interrupt-btn');
+          ;   var inputArea = document.getElementById('input-area');
+          ;   /* Check if interrupt button is visible (API request in flight) */
+          ;   if (interruptBtn && interruptBtn.style.display !== 'none') {
+          ;     return false;
+          ;   }
+          ;   /* Check if tool approval UI is shown (no chat-form means tool approval is active) */
+          ;   var chatForm = document.getElementById('chat-form');
+          ;   if (!chatForm) {
+          ;     return false;
+          ;   }
+          ;   return true;
           ; }
           ;
           ; function updateLockButton() {
@@ -967,9 +1125,12 @@
           ;     var i = document.getElementById('message-input');
           ;     if (f && !f.dataset.hasListener) {
           ;       f.dataset.hasListener = 'true';
-          ;       f.addEventListener('submit', function() {
-          ;         setTimeout(function() { if (i) i.value = ''; }, 100);
-          ;         msgCount = 0;
+          ;       f.addEventListener('submit', function(e) {
+          ;         /* Only clear if submission is allowed */
+          ;         if (canSubmitMessage()) {
+          ;           setTimeout(function() { if (i) i.value = ''; }, 100);
+          ;           msgCount = 0;
+          ;         }
           ;       });
           ;     }
           ;     if (i && !i.dataset.hasListener) {
@@ -978,7 +1139,7 @@
           ;         if (e.key === 'Enter' && !e.shiftKey) {
           ;           e.preventDefault();
           ;           var form = document.getElementById('chat-form');
-          ;           if (form) form.requestSubmit();
+          ;           if (form && canSubmitMessage()) form.requestSubmit();
           ;         }
           ;       });
           ;     }
@@ -1002,6 +1163,11 @@
           ; @keyframes pulse {
           ;   0%, 100% { opacity: 0.4; }
           ;   50% { opacity: 1; }
+          ; }
+          ;
+          ; @keyframes spin {
+          ;   from { transform: rotate(0deg); }
+          ;   to { transform: rotate(360deg); }
           ; }
           ;
           ; .copy-btn svg,

@@ -37,6 +37,23 @@
 ::   - Query sibling branches, alternative approaches
 ::   - Access full conversation history across tree
 ::
++$  tool-request
+  $:  id=@t        ::  Claude's tool_id (e.g., "toolu_abc123")
+      name=@t      ::  Tool name (e.g., "web_search")
+      input=json   ::  Tool arguments
+  ==
+::
++$  tool-result
+  $:  request=tool-request
+      result=$%([%success text=@t] [%error message=@t])
+  ==
+::
++$  pending-tools-state
+  $:  assistant-timestamp=@ud           ::  Timestamp of assistant message with tool_use blocks
+      pending=(list tool-request)       ::  Tools awaiting user approval/denial
+      approved=(list tool-result)       ::  Tools approved and executed, results ready
+  ==
+::
 +$  chat-0
   $:  %0
       id=@ux
@@ -49,8 +66,45 @@
       next-index=@ud                                       :: next message index to assign
       total-chars=@ud                                      :: total character count so far
       api-request-pid=(unit @ta)                            :: fiber PID of in-flight API request
+      pending-tools=(list tool-request)                     :: queue of tools awaiting approval
+      allowed-tools=(set @t)                                :: tool names that are auto-approved
       created=@da
   ==
 ::
-+$  chat  chat-0
++$  chat-1
+  $:  %1
+      id=@ux
+      name=@t
+      parent=(unit [chat-id=@ux branch-point=@ud])
+      children=(map @ud @ux)
+      messages-by-time=((mop @ud message) lth)
+      messages-by-index=((mop @ud message) lth)
+      messages-by-chars=((mop @ud message) lth)
+      next-index=@ud
+      total-chars=@ud
+      api-request-pid=(unit @ta)
+      pending-tools=(list tool-request)
+      allowed-tools=(set @t)
+      pending-assistant-response=(unit [timestamp=@ud content=json])  :: assistant response awaiting tool approval
+      created=@da
+  ==
+::
++$  chat-2
+  $:  %2
+      id=@ux
+      name=@t
+      parent=(unit [chat-id=@ux branch-point=@ud])
+      children=(map @ud @ux)
+      messages-by-time=((mop @ud message) lth)
+      messages-by-index=((mop @ud message) lth)
+      messages-by-chars=((mop @ud message) lth)
+      next-index=@ud
+      total-chars=@ud
+      api-request-pid=(unit @ta)
+      pending-tools=(unit pending-tools-state)  :: All tools from one assistant message
+      allowed-tools=(set @t)
+      created=@da
+  ==
+::
++$  chat  chat-2
 --
