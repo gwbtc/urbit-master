@@ -117,6 +117,8 @@
   =/  user-timestamp=@ud  (unm:chrono:userlib now.bowl)
   ::  Add user message using triple-index helper
   =.  u.chat  (add-message:chat-index u.chat user-timestamp user-msg)
+  ::  Reset iteration count for new user message
+  =.  iteration-count.u.chat  0
   ;<  ~  bind:m  (put-chat chat-id u.chat)
   ;<  ~  bind:m  (set-active-chat `chat-id)
   ::  Send SSE event for user message
@@ -282,20 +284,35 @@
     candidate
   ::  Build new child chat (empty, will reference parent for history)
   =/  child-chat=chat:claude
-    :*  %2
+    :*  %3
         child-chat-id
         (crip "Branch from {(trip name.u.parent-chat)}")
-        `[parent-chat-id branch-point]  :: parent link
-        ~                               :: children (empty)
-        ~                               :: messages-by-time (empty)
-        ~                               :: messages-by-index (empty)
-        ~                               :: messages-by-chars (empty)
-        0                               :: next-index
-        0                               :: total-chars
-        ~                               :: api-request-pid (none)
-        ~                               :: pending-tools (none)
-        ~                               :: allowed-tools (empty set)
         now.bowl
+        ::  API parameters (use defaults)
+        'claude-sonnet-4-5-20250929'  :: model
+        1.024 :: max-tokens
+        .~1.0 :: temperature
+        .~1.0 :: top-p
+        0     :: top-k
+        ''    :: system-instructions
+        ~     :: stop-sequences
+        ~     :: tool-choice
+        ::  Messages (empty)
+        ~     :: messages-by-time
+        ~     :: messages-by-index
+        ~     :: messages-by-chars
+        0     :: next-index
+        0     :: total-chars
+        ::  Branching
+        `[parent-chat-id branch-point]  :: parent link
+        ~     :: children (empty)
+        ::  Runtime state
+        ~     :: api-request-pid
+        ~     :: pending-tools
+        ~     :: allowed-tools (empty set)
+        ::  Agent safety
+        ~     :: max-iterations
+        0     :: iteration-count
     ==
   ::  Update parent chat to add this child to its children map
   =.  children.u.parent-chat  (~(put by children.u.parent-chat) branch-point child-chat-id)
@@ -334,20 +351,35 @@
       $(eny.bowl +(eny.bowl))
     candidate
   =/  new-chat=chat:claude
-    :*  %2
+    :*  %3
         chat-id
         'New Chat'
-        ~                                      :: parent
-        ~                                      :: children
-        ~                                      :: messages-by-time
-        ~                                      :: messages-by-index
-        ~                                      :: messages-by-chars
-        0                                      :: next-index
-        0                                      :: total-chars
-        ~                                      :: api-request-pid (none)
-        ~                                      :: pending-tools (none)
-        ~                                      :: allowed-tools (empty set)
         now.bowl
+        ::  API parameters (use defaults)
+        'claude-sonnet-4-5-20250929'  :: model
+        1.024 :: max-tokens
+        .~1.0 :: temperature
+        .~1.0 :: top-p
+        0     :: top-k
+        ''    :: system-instructions
+        ~     :: stop-sequences
+        ~     :: tool-choice
+        ::  Messages (empty)
+        ~     :: messages-by-time
+        ~     :: messages-by-index
+        ~     :: messages-by-chars
+        0     :: next-index
+        0     :: total-chars
+        ::  Branching
+        ~     :: parent
+        ~     :: children
+        ::  Runtime state
+        ~     :: api-request-pid
+        ~     :: pending-tools
+        ~     :: allowed-tools (empty set)
+        ::  Agent safety
+        ~     :: max-iterations
+        0     :: iteration-count
     ==
   ;<  ~  bind:m  (put-chat chat-id new-chat)
   ;<  ~  bind:m  (set-active-chat `chat-id)

@@ -1,4 +1,4 @@
-/-  nexus
+/-  nexus, claude
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, ui-ball, telegram,
     sse=sse-helpers, tarball, alarms, tools, open-loops
@@ -88,8 +88,62 @@
         ~[[~ /master]]  ::  fallback to default
       u.maybe-bindings
     ;<  ~  bind:m  (set-bindings:io bindings)
-    ::  Sailbox will auto-restart alarm fibers with fresh=%.n
-    (pure:m ~)
+    ::  Explicitly migrate old chat versions to chat-3
+    =/  chat-files=(list @ta)
+      (~(lis ba:tarball ball) /claude/chats)
+    |-
+    ?~  chat-files
+      (pure:m ~)
+    ::  Skip non-.claude-chat files
+    =/  filename=tape  (trip i.chat-files)
+    =/  ext-length=@ud  12
+    ?.  ?&  (gte (lent filename) ext-length)
+            =(".claude-chat" (slag (sub (lent filename) ext-length) filename))
+        ==
+      $(chat-files t.chat-files)
+    ::  Read as noun and check version
+    =/  maybe-noun=(unit *)
+      (~(get-cage-as ba:tarball ball) /claude/chats i.chat-files *)
+    ?~  maybe-noun
+      $(chat-files t.chat-files)
+    ::  Check version tag and migrate if needed
+    =/  tagged  ;;([version=?(%0 %1 %2 %3) *] u.maybe-noun)
+    ?:  =(version.tagged %3)
+      $(chat-files t.chat-files)  ::  Already migrated
+    ::  Migrate to chat-3
+    =/  migrated=chat:claude
+      ?-  version.tagged
+          %3  !!  ::  Never happens, already filtered above
+          %2
+        =/  old  ;;(chat-2:claude u.maybe-noun)
+        (chat-2-to-3:claude old)
+          %1
+        =/  old  ;;(chat-1:claude u.maybe-noun)
+        =/  v2=chat-2:claude
+          :*  %2
+              id.old  name.old  parent.old  children.old
+              messages-by-time.old  messages-by-index.old  messages-by-chars.old
+              next-index.old  total-chars.old  api-request-pid.old
+              ~  ::  pending-tools empty
+              allowed-tools.old  created.old
+          ==
+        (chat-2-to-3:claude v2)
+          %0
+        =/  old  ;;(chat-0:claude u.maybe-noun)
+        =/  v2=chat-2:claude
+          :*  %2
+              id.old  name.old  parent.old  children.old
+              messages-by-time.old  messages-by-index.old  messages-by-chars.old
+              next-index.old  total-chars.old  api-request-pid.old
+              ~  ::  pending-tools empty
+              allowed-tools.old  created.old
+          ==
+        (chat-2-to-3:claude v2)
+      ==
+    ::  Write back as chat-3
+    ;<  ~  bind:m
+      (put-cage:io /claude/chats i.chat-files [%claude-chat !>(migrated)])
+    $(chat-files t.chat-files)
     ::
       %set-binding
     =+  !<(new-binding=binding:eyre vase)

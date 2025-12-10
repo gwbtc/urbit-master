@@ -106,5 +106,95 @@
       created=@da
   ==
 ::
-+$  chat  chat-2
++$  tool-choice
+  $%  [%auto ~]           ::  Claude decides whether to use tools
+      [%any ~]            ::  Claude MUST use a tool (but can pick which)
+      [%tool name=@t]     ::  Claude MUST use THIS specific tool
+  ==
+::
++$  chat-3
+  $:  %3
+      ::  Identity
+      id=@ux
+      name=@t
+      created=@da
+
+      ::  === CLAUDE API PARAMETERS ===
+      ::  These map directly to the API request body
+
+      model=$~('claude-sonnet-4-5-20250929' @t)
+      max-tokens=$~(1.024 @ud)
+      temperature=$~(.~1.0 @rd)
+      top-p=$~(.~1.0 @rd)
+      top-k=$~(0 @ud)
+      system-instructions=@t              ::  Custom instructions (appended to live info)
+      stop-sequences=(list @t)            ::  Stop generation triggers
+      tool-choice=(unit tool-choice)      ::  How to select tools (~ = auto)
+
+      ::  === MESSAGES ===
+      ::  The conversation history
+
+      messages-by-time=((mop @ud message) lth)
+      messages-by-index=((mop @ud message) lth)
+      messages-by-chars=((mop @ud message) lth)
+      next-index=@ud
+      total-chars=@ud
+
+      ::  === BRANCHING ===
+      ::  Conversation tree structure
+
+      parent=(unit [chat-id=@ux branch-point=@ud])
+      children=(map @ud @ux)
+
+      ::  === RUNTIME STATE ===
+      ::  Current execution state
+
+      api-request-pid=(unit @ta)
+      pending-tools=(unit pending-tools-state)
+      allowed-tools=(set @t)              ::  Which tools auto-approve (empty = chat mode)
+
+      ::  === AGENT SAFETY ===
+      ::  Loop control
+
+      max-iterations=(unit @ud)           ::  ~ = unlimited, `N = stop after N loops
+      iteration-count=@ud                 ::  Current loop count
+  ==
+::
++$  chat  chat-3
+::
+::  Migration helpers
+::
+++  chat-2-to-3
+  |=  old=chat-2
+  ^-  chat-3
+  :*  %3
+      id.old
+      name.old
+      created.old
+      ::  API parameters (use defaults)
+      'claude-sonnet-4-5-20250929'  ::  model
+      1.024 ::  max-tokens
+      .~1.0 ::  temperature
+      .~1.0 ::  top-p
+      0 ::  top-k
+      '' ::  system-instructions (empty)
+      ~ ::  stop-sequences (empty list)
+      ~ ::  tool-choice (auto)
+      ::  Messages (preserve)
+      messages-by-time.old
+      messages-by-index.old
+      messages-by-chars.old
+      next-index.old
+      total-chars.old
+      ::  Branching (preserve)
+      parent.old
+      children.old
+      ::  Runtime state (preserve)
+      api-request-pid.old
+      pending-tools.old
+      allowed-tools.old
+      ::  Agent safety (new fields)
+      ~ ::  max-iterations (unlimited)
+      0 ::  iteration-count (start at 0)
+  ==
 --

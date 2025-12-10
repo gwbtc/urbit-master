@@ -1,8 +1,9 @@
 /+  server, multipart, sailbox, html-utils, tarball
 =|  hold=_| :: switch to interleave vs sequentialize processes
 |%
-++  fiber  fiber:fiber:sailbox
-++  input  input:fiber:sailbox
+++  fiber   fiber:fiber:sailbox
++$  input   input:fiber:sailbox
++$  intake  intake:fiber:sailbox
 ::
 ++  send-raw-cards
   |=  cards=(list card:sailbox)
@@ -125,6 +126,12 @@
   ^-  form:m
   |=  input
   [~ state %done fresh.poke]
+::
+++  get-intake
+  =/  m  (fiber ,(unit intake))
+  ^-  form:m
+  |=  input
+  [~ state %done in]
 ::
 ++  soften
   |*  a=mold

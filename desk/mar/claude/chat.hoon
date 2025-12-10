@@ -1,8 +1,6 @@
-::  chat: versioned chat conversation
-::
 /-  claude
-|_  =chat:claude
-++  grad  %noun
+=,  format
+|_  chat=chat:claude
 ++  grow
   |%
   ++  noun  chat
@@ -11,4 +9,5 @@
   |%
   ++  noun  chat:claude
   --
+++  grad  %noun
 --

@@ -1,5 +1,5 @@
 /-  *master, claude
-/+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601
+/+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601, sse=sse-helpers
 |%
 ::  Maximum characters for context window (as proxy for tokens)
 ::
@@ -296,16 +296,35 @@
         'INSTRUCTIONS: '
         'Use the rename_chat tool ONCE after the first message to give this conversation a descriptive 3-5 word title, and then only use it again at the user\'s explicit request thereafter.'
         open-loops-guide
+        ::  Append custom system instructions if present
+        ?:(=('' system-instructions.chat) '' (cat 3 ' ' system-instructions.chat))
     ==
+  ::  Build request params using chat configuration
+  =/  request-params=(list [cord json])
+    %-  zing
+    :~  :~  ['model' s+model.chat]
+            ['max_tokens' n+(scot %ud max-tokens.chat)]
+            ['system' s+system-prompt]
+            ['messages' a+messages-json]
+            ['tools' a+claude-tools]
+        ==
+        ::  Add stop_sequences if present
+        ?:  =(stop-sequences.chat ~)  ~
+        ~[['stop_sequences' a+(turn stop-sequences.chat |=(s=@t s+s))]]
+        ::  Add tool_choice if present
+        ?~  tool-choice.chat  ~
+        =/  tc-json=json
+          ?-  -.u.tool-choice.chat
+            %auto  (pairs:enjs:format ~[['type' s+'auto']])
+            %any   (pairs:enjs:format ~[['type' s+'any']])
+            %tool  (pairs:enjs:format ~[['type' s+'tool'] ['name' s+name.u.tool-choice.chat]])
+          ==
+        ~[['tool_choice' tc-json]]
+    ==
+  ::  Encode final request body
   =/  body=@t
     %-  en:json:html
-    %-  pairs:enjs:format
-    :~  ['model' s+ai-model]
-        ['max_tokens' n+~.1024]
-        ['system' s+system-prompt]
-        ['messages' a+messages-json]
-        ['tools' a+claude-tools]
-    ==
+    (pairs:enjs:format request-params)
   =/  body-octs=octs  (as-octs:mimes:html body)
   ::  Build request with auth header
   =/  =request:http
@@ -454,6 +473,10 @@
     =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
     =/  chat-with-assistant=chat:claude
       (add-message:chat-index chat assistant-timestamp assistant-msg)
+    ::  Save state and send SSE for assistant message (for real-time agentic updates)
+    ;<  ~  bind:m
+      (put-cage:io /claude/chats (crip "{(hexn:sailbox id.chat)}.claude-chat") [%claude-chat !>(chat-with-assistant)])
+    ;<  ~  bind:m  (notify-chat-message:sse id.chat assistant-timestamp)
     ::  Build pending tool requests
     =/  pending-requests=(list tool-request:claude)
       %+  turn  pending-calls
@@ -485,6 +508,31 @@
       =/  user-msg=message:claude  ['user' tool-result-content %normal id.current-chat 0 0 0 0]
       =/  chat-with-result=chat:claude
         (add-message:chat-index current-chat tool-result-timestamp user-msg)
+      ::  Increment iteration count
+      =.  iteration-count.chat-with-result  +(iteration-count.chat-with-result)
+      ::  Check if we've hit max-iterations limit
+      ?.  ?~  max-iterations.chat-with-result  %.y
+          (lth iteration-count.chat-with-result u.max-iterations.chat-with-result)
+        ::  Hit iteration limit - add error message and stop
+        ~&  >  "Hit max-iterations limit ({<iteration-count.chat-with-result>}), stopping agentic loop"
+        =/  limit-timestamp=@ud  (add tool-result-timestamp 1)
+        =/  limit-msg=message:claude
+          :-  'assistant'
+          :-  s+'[Stopped: Hit max-iterations limit of {(scow %ud u.max-iterations.chat-with-result)}]'
+          [%error id.chat-with-result 0 0 0 0]
+        =/  final-chat=chat:claude
+          (add-message:chat-index chat-with-result limit-timestamp limit-msg)
+        ::  Save final state
+        ;<  ~  bind:m
+          (put-cage:io /claude/chats (crip "{(hexn:sailbox id.chat-with-result)}.claude-chat") [%claude-chat !>(final-chat)])
+        ;<  ~  bind:m  (notify-chat-message:sse id.chat-with-result limit-timestamp)
+        (pure:m ['Max iterations reached' final-chat])
+      ::  Save state and send SSE for tool result message (for real-time agentic updates)
+      ;<  ~  bind:m
+        (put-cage:io /claude/chats (crip "{(hexn:sailbox id.current-chat)}.claude-chat") [%claude-chat !>(chat-with-result)])
+      ;<  ~  bind:m  (notify-chat-message:sse id.current-chat tool-result-timestamp)
+      ::  Small delay before continuing to avoid rate limits in agentic loops
+      ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
       ::  Recursively call Claude again with all tool results
       (send-message api-key ai-model chat-with-result chats user-timezone)
     =/  [tool-id=@t tool-name=@t tool-input=json]  i.remaining-tools
