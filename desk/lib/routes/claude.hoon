@@ -138,7 +138,10 @@
   ::  Now continue with Claude API call in background
   =/  messages-before=((mop @ud message:claude) lth)  messages-by-time.u.chat
   =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
+  ::  Wrap send-message in retry with exponential backoff for rate limits
   ;<  [response=@t updated-chat=chat:claude]  bind:m
+    %+  (retry:io ,[response=@t updated-chat=chat:claude])
+      [~ 5]  ::  max 5 retries (~1s, ~2s, ~4s, ~8s, ~16s backoff)
     (send-message:claude-lib api-key ai-model u.chat all-chats user-timezone)
   ::  Check if there are pending tools awaiting approval
   ?.  =(~ pending-tools.updated-chat)

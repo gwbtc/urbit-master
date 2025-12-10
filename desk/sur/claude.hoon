@@ -126,7 +126,7 @@
       max-tokens=$~(1.024 @ud)
       temperature=$~(.~1.0 @rd)
       top-p=$~(.~1.0 @rd)
-      top-k=$~(0 @ud)
+      top-k=@ud
       system-instructions=@t              ::  Custom instructions (appended to live info)
       stop-sequences=(list @t)            ::  Stop generation triggers
       tool-choice=(unit tool-choice)      ::  How to select tools (~ = auto)

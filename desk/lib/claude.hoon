@@ -303,7 +303,7 @@
   =/  request-params=(list [cord json])
     %-  zing
     :~  :~  ['model' s+model.chat]
-            ['max_tokens' n+(scot %ud max-tokens.chat)]
+            ['max_tokens' n+(crip (a-co:co max-tokens.chat))]
             ['system' s+system-prompt]
             ['messages' a+messages-json]
             ['tools' a+claude-tools]
@@ -367,28 +367,34 @@
               ['type' so:dejs:format]
           ==
       ==
-    =/  err-text=@t
+    =/  [err-text=@t is-rate-limit=?]
       ?:  ?=(%| -.error-msg)
-        'Claude API error (could not parse details)'
+        ['Claude API error (could not parse details)' %.n]
       =/  [msg=@t typ=@t]  p.error-msg
-      (crip "Claude API {(trip typ)}: {(trip msg)}")
-    ::  Add error message as an assistant message so user sees it
-    ;<  =bowl:gall  bind:m  get-bowl:io
-    =/  error-timestamp=@ud
-      =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
-      ?~  all-timestamps  (unm:chrono:userlib now.bowl)
-      (add (snag 0 (flop all-timestamps)) 1)
-    =/  error-content=json
-      :-  %a
-      :~  %-  pairs:enjs:format
-          :~  ['type' s+'text']
-              ['text' s+err-text]
-          ==
-      ==
-    =/  error-msg=message:claude  ['assistant' error-content %error id.chat 0 0 0 0]
-    =/  chat-with-error=chat:claude
-      (add-message:chat-index chat error-timestamp error-msg)
-    (pure:m [err-text chat-with-error])
+      :-  (crip "Claude API {(trip typ)}: {(trip msg)}")
+      =(typ 'rate_limit_error')
+    ::  Check if this is a rate limit error that should be retried
+    ?.  is-rate-limit
+      ::  Not a rate limit error - add error message and return
+      ;<  =bowl:gall  bind:m  get-bowl:io
+      =/  error-timestamp=@ud
+        =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
+        ?~  all-timestamps  (unm:chrono:userlib now.bowl)
+        (add (snag 0 (flop all-timestamps)) 1)
+      =/  error-content=json
+        :-  %a
+        :~  %-  pairs:enjs:format
+            :~  ['type' s+'text']
+                ['text' s+err-text]
+            ==
+        ==
+      =/  error-msg=message:claude  ['assistant' error-content %error id.chat 0 0 0 0]
+      =/  chat-with-error=chat:claude
+        (add-message:chat-index chat error-timestamp error-msg)
+      (pure:m [err-text chat-with-error])
+    ::  Rate limit error - will be retried by caller with exponential backoff
+    ::  Return error so retry wrapper can handle it
+    (fiber-fail:io %rate-limit-error err-text ~)
   ::  Check stop_reason to see if Claude wants to use a tool
   =/  stop-reason
     %-  mule
