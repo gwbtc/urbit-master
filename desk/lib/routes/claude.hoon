@@ -115,14 +115,12 @@
   =/  user-msg=message:claude  ['user' user-content %normal chat-id 0 0 0 0]
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  user-timestamp=@ud  (unm:chrono:userlib now.bowl)
-  ::  Add user message using triple-index helper
-  =.  u.chat  (add-message:chat-index u.chat user-timestamp user-msg)
   ::  Reset iteration count for new user message
   =.  iteration-count.u.chat  0
-  ;<  ~  bind:m  (put-chat chat-id u.chat)
+  ::  Add user message to chat (THE SINGLE SOURCE OF TRUTH)
+  ;<  updated-chat=chat:claude  bind:m  (add-message-to-chat:sse chat-id user-timestamp u.chat user-msg)
+  =.  u.chat  updated-chat
   ;<  ~  bind:m  (set-active-chat `chat-id)
-  ::  Send SSE event for user message
-  ;<  ~  bind:m  (notify-chat-message:sse chat-id user-timestamp)
   ::  Call Claude and get response
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)  (get-chat ball chat-id)
@@ -149,26 +147,19 @@
     ::  Clear API PID since we're pausing for approval
     =.  updated-chat  updated-chat(api-request-pid ~)
     ;<  ~  bind:m  (put-chat chat-id updated-chat)
-    ::  Get all new message timestamps to send via SSE
-    =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
-    =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before) head)
-    =/  new-timestamps=(list @ud)
-      %+  skip  all-timestamps
-      |=(t=@ud (~(has in (silt before-timestamps)) t))
-    ::  Send SSE events for all new messages (including assistant message with tool_use)
-    ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
-    ::  Send SSE to show tool approval UI
-    (notify-tool-approval:sse chat-id)
+    ::  Send SSE to show tool approval UI and hide thinking indicator
+    ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
+    (notify-chat-state:sse chat-id)
   ::  Get fresh state after Claude call (tools may have modified it)
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat-after=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat-after
     (give-simple-payload:io [[200 ~] ~])
-  ~&  >  "MERGE: Chat from disk has name: '{<name.u.chat-after>}'"
+  ~&  >  "MERGE: Chat from state has name: '{<name.u.chat-after>}'"
   ~&  >  "MERGE: Chat from send-message has name: '{<name.updated-chat>}'"
-  ::  Use the chat from disk (which has tool modifications) but update with new messages and clear PID
+  ::  Use the chat from state (which has tool modifications) but update with new messages and clear PID
   ::  The updated-chat from send-message has the new assistant+tool_result messages
-  ::  We need to merge them into the disk version
+  ::  We need to merge them into the state version
   =.  updated-chat
     %=  u.chat-after
       messages-by-time    messages-by-time.updated-chat
@@ -180,16 +171,10 @@
     ==
   ~&  >  "MERGE: Final merged chat has name: '{<name.updated-chat>}'"
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
-  ~&  >  "MERGE: Chat written to disk"
-  ::  Get all message timestamps from updated chat (already in order)
-  =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
-  =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before) head)
-  ::  Find new timestamps by filtering out ones that existed before
-  =/  new-timestamps=(list @ud)
-    %+  skip  all-timestamps
-    |=(t=@ud (~(has in (silt before-timestamps)) t))
-  ::  Send SSE events for all new messages
-  (notify-multiple-messages:sse chat-id new-timestamps)
+  ~&  >  "MERGE: Chat written to state"
+  ::  Send state update SSE to hide thinking indicator and stop button
+  ;<  ~  bind:m  (notify-chat-state:sse chat-id)
+  (pure:m ~)
 ::
 ::  POST /master/claude/{id}/interrupt - Interrupt an in-flight API request
 ::
@@ -217,13 +202,12 @@
         ==
     ==
   =/  interrupt-msg=message:claude  ['assistant' interrupt-content %error chat-id 0 0 0 0]
-  =/  chat-with-msg=chat:claude
-    (add-message:chat-index u.chat interrupt-timestamp interrupt-msg)
-  ::  Clear the PID from the chat and save
-  =/  updated-chat=chat:claude  chat-with-msg(api-request-pid ~)
-  ;<  ~  bind:m  (put-chat chat-id updated-chat)
-  ::  Send SSE events: message for interrupt text, state for button swap
-  ;<  ~  bind:m  (notify-chat-message:sse chat-id interrupt-timestamp)
+  ::  Clear the PID from the chat BEFORE adding message
+  =/  chat-without-pid=chat:claude  u.chat(api-request-pid ~)
+  ::  Add interrupt message to chat (THE SINGLE SOURCE OF TRUTH)
+  ;<  updated-chat=chat:claude  bind:m
+    (add-message-to-chat:sse chat-id interrupt-timestamp chat-without-pid interrupt-msg)
+  ::  Send state update SSE
   ;<  ~  bind:m  (notify-chat-state:sse chat-id)
   ::  Return success
   (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])
@@ -565,22 +549,20 @@
     (add assistant-timestamp.u.pending-tools.u.chat 1)
   =/  result-msg=message:claude
     ['user' [%a tool-results-json] %normal chat-id 0 0 0 0]
-  ::  Reload chat from disk before adding messages (tools may have modified it)
-  ~&  >  "BEFORE TOOL RESULTS: Reloading chat from disk"
+  ::  Reload chat from state before adding messages (tools may have modified it)
+  ~&  >  "BEFORE TOOL RESULTS: Reloading chat from state"
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat-reloaded=(unit chat:claude)  (get-chat ball chat-id)
   =/  chat-base=chat:claude  ?~(chat-reloaded u.chat u.chat-reloaded)
-  ~&  >  "BEFORE TOOL RESULTS: Chat name from disk: '{<name.chat-base>}'"
+  ~&  >  "BEFORE TOOL RESULTS: Chat name from state: '{<name.chat-base>}'"
   =/  chat-with-results=chat:claude
     %=  chat-base
       pending-tools  ~
     ==
-  =/  chat-final=chat:claude
-    (add-message:chat-index chat-with-results result-timestamp result-msg)
-  ~&  >  "BEFORE TOOL RESULTS: Writing chat with name: '{<name.chat-final>}'"
-  ;<  ~  bind:m  (put-chat chat-id chat-final)
-  ::  Send SSE for the results message
-  ;<  ~  bind:m  (notify-chat-message:sse chat-id result-timestamp)
+  ::  Add tool result message to chat (THE SINGLE SOURCE OF TRUTH)
+  ~&  >  "BEFORE TOOL RESULTS: Writing chat with name: '{<name.chat-with-results>}'"
+  ;<  chat-final=chat:claude  bind:m
+    (add-message-to-chat:sse chat-id result-timestamp chat-with-results result-msg)
   ::  Continue conversation with Claude
   =/  creds-jon=json
     (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
@@ -604,19 +586,19 @@
   =/  new-timestamps=(list @ud)
     %+  skip  all-timestamps
     |=(t=@ud (~(has in (silt before-timestamps)) t))
-  ::  Reload chat from disk to get any tool modifications
-  ~&  >  "APPROVE CONTINUATION: About to reload chat from disk"
+  ::  Reload chat from state to get any tool modifications
+  ~&  >  "APPROVE CONTINUATION: About to reload chat from state"
   ;<  ball=ball:tarball  bind:m  get-state:io
-  =/  chat-from-disk=(unit chat:claude)  (get-chat ball chat-id)
-  ~&  >  "APPROVE CONTINUATION: Chat from disk: {<chat-from-disk>}"
+  =/  chat-from-state=(unit chat:claude)  (get-chat ball chat-id)
+  ~&  >  "APPROVE CONTINUATION: Chat from state: {<chat-from-state>}"
   ~&  >  "APPROVE CONTINUATION: Chat from send-message name: '{<name.updated-chat>}'"
-  ::  Merge: take name and other fields from disk, messages from send-message
+  ::  Merge: take name and other fields from state, messages from send-message
   =.  updated-chat
-    ?~  chat-from-disk
-      ~&  >  "APPROVE CONTINUATION: No chat from disk, using send-message result"
+    ?~  chat-from-state
+      ~&  >  "APPROVE CONTINUATION: No chat from state, using send-message result"
       updated-chat
-    ~&  >  "APPROVE CONTINUATION: Chat from disk name: '{<name.u.chat-from-disk>}'"
-    %=  u.chat-from-disk
+    ~&  >  "APPROVE CONTINUATION: Chat from state name: '{<name.u.chat-from-state>}'"
+    %=  u.chat-from-state
       messages-by-time   messages-by-time.updated-chat
       messages-by-index  messages-by-index.updated-chat
       messages-by-chars  messages-by-chars.updated-chat
@@ -627,10 +609,8 @@
     ==
   ~&  >  "APPROVE CONTINUATION: Merged chat name: '{<name.updated-chat>}'"
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
-  ~&  >  "APPROVE CONTINUATION: Chat written to disk"
-  ::  NOW send SSE for all new messages (after writing to disk)
-  ~&  >  "APPROVE CONTINUATION: Sending SSE for {<(lent new-timestamps)>} new messages"
-  ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
+  ~&  >  "APPROVE CONTINUATION: Chat written to state"
+  ::  Messages already sent their own SSEs via add-message-to-chat
   ::  Check if new pending tools were added
   ?.  =(~ pending-tools.updated-chat)
     ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
@@ -717,10 +697,9 @@
     ['user' [%a tool-results-json] %normal chat-id 0 0 0 0]
   =/  chat-with-results=chat:claude
     u.chat(pending-tools ~)
-  =/  chat-final=chat:claude
-    (add-message:chat-index chat-with-results result-timestamp result-msg)
-  ;<  ~  bind:m  (put-chat chat-id chat-final)
-  ;<  ~  bind:m  (notify-chat-message:sse chat-id result-timestamp)
+  ::  Add tool result message to chat (THE SINGLE SOURCE OF TRUTH)
+  ;<  chat-final=chat:claude  bind:m
+    (add-message-to-chat:sse chat-id result-timestamp chat-with-results result-msg)
   ::  Continue conversation with Claude
   =/  creds-jon=json
     (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
@@ -744,13 +723,13 @@
   =/  new-timestamps=(list @ud)
     %+  skip  all-timestamps
     |=(t=@ud (~(has in (silt before-timestamps)) t))
-  ::  Reload chat from disk to get any tool modifications
+  ::  Reload chat from state to get any tool modifications
   ;<  ball=ball:tarball  bind:m  get-state:io
-  =/  chat-from-disk=(unit chat:claude)  (get-chat ball chat-id)
-  ::  Merge: take name and other fields from disk, messages from send-message
+  =/  chat-from-state=(unit chat:claude)  (get-chat ball chat-id)
+  ::  Merge: take name and other fields from state, messages from send-message
   =.  updated-chat
-    ?~  chat-from-disk  updated-chat
-    %=  u.chat-from-disk
+    ?~  chat-from-state  updated-chat
+    %=  u.chat-from-state
       messages-by-time   messages-by-time.updated-chat
       messages-by-index  messages-by-index.updated-chat
       messages-by-chars  messages-by-chars.updated-chat
@@ -760,9 +739,7 @@
       api-request-pid    api-request-pid.updated-chat
     ==
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
-  ::  NOW send SSE for all new messages (after writing to disk)
-  ~&  >  "DENY CONTINUATION: Sending SSE for {<(lent new-timestamps)>} new messages"
-  ;<  ~  bind:m  (notify-multiple-messages:sse chat-id new-timestamps)
+  ::  Messages already sent their own SSEs via add-message-to-chat
   ?.  =(~ pending-tools.updated-chat)
     ;<  ~  bind:m  (notify-tool-approval:sse chat-id)
     (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html 'OK')])

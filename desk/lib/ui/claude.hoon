@@ -222,6 +222,7 @@
                 =placeholder  "Type your message... (Shift+Enter for new line)"
                 =required     ""
                 =rows         "1"
+                =autofocus    ""
                 =style        "flex: 1; padding: 0.875rem; border: 1px solid var(--b2); border-radius: 6px; background: var(--b0); color: var(--f0); font-size: 1rem; min-height: 44px; max-height: 200px; resize: vertical; box-sizing: border-box; font-family: inherit;";
               ::  Stop button - shown when API request in flight
               ;button
@@ -729,6 +730,45 @@
           modelSelect.value = currentModel;
         }
       }
+
+      // Keyboard shortcuts for tool approval
+      document.addEventListener('keydown', (e) => \{
+        // Check if tool approval UI is visible
+        const inputArea = document.getElementById('input-area');
+        if (!inputArea) return;
+
+        // Find Approve and Deny buttons (they only exist when tools are pending)
+        const approveBtn = Array.from(inputArea.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Approve');
+        const denyBtn = Array.from(inputArea.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Deny');
+
+        // Only proceed if we have tool approval buttons visible
+        if (!approveBtn || !denyBtn) return;
+
+        // Don't interfere if user is typing in an input/textarea (except for tool approval shortcuts)
+        const activeEl = document.activeElement;
+        const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+        // Enter key - approve tool
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) \{
+          e.preventDefault();
+          approveBtn.click();
+          return;
+        }
+
+        // Escape key - deny tool
+        if (e.key === 'Escape') \{
+          e.preventDefault();
+          denyBtn.click();
+          return;
+        }
+
+        // Ctrl+C - deny tool (only if not typing, to allow normal copy)
+        if (e.key === 'c' && e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey && !isTyping) \{
+          e.preventDefault();
+          denyBtn.click();
+          return;
+        }
+      });
 
       let isLoading = false;
       let earliestTimestamp = {?~(earliest-timestamp "null" (numb:sailbox u.earliest-timestamp))};

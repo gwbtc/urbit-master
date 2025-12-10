@@ -389,8 +389,9 @@
             ==
         ==
       =/  error-msg=message:claude  ['assistant' error-content %error id.chat 0 0 0 0]
-      =/  chat-with-error=chat:claude
-        (add-message:chat-index chat error-timestamp error-msg)
+      ::  Add error message to chat (THE SINGLE SOURCE OF TRUTH)
+      ;<  chat-with-error=chat:claude  bind:m
+        (add-message-to-chat:sse id.chat error-timestamp chat error-msg)
       (pure:m [err-text chat-with-error])
     ::  Rate limit error - will be retried by caller with exponential backoff
     ::  Return error so retry wrapper can handle it
@@ -475,14 +476,10 @@
       %+  skip  tool-calls
       |=  [tool-id=@t tool-name=@t tool-input=json]
       (~(has in allowed-tools.chat) tool-name)
-    ::  Add assistant message to history IMMEDIATELY
+    ::  Add assistant message to history (THE SINGLE SOURCE OF TRUTH)
     =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
-    =/  chat-with-assistant=chat:claude
-      (add-message:chat-index chat assistant-timestamp assistant-msg)
-    ::  Save state and send SSE for assistant message (for real-time agentic updates)
-    ;<  ~  bind:m
-      (put-cage:io /claude/chats (crip "{(hexn:sailbox id.chat)}.claude-chat") [%claude-chat !>(chat-with-assistant)])
-    ;<  ~  bind:m  (notify-chat-message:sse id.chat assistant-timestamp)
+    ;<  chat-with-assistant=chat:claude  bind:m
+      (add-message-to-chat:sse id.chat assistant-timestamp chat assistant-msg)
     ::  Build pending tool requests
     =/  pending-requests=(list tool-request:claude)
       %+  turn  pending-calls
@@ -512,10 +509,12 @@
       =/  tool-result-timestamp=@ud  (add last-timestamp 1)
       =/  tool-result-content=json  [%a (flop tool-results)]
       =/  user-msg=message:claude  ['user' tool-result-content %normal id.current-chat 0 0 0 0]
-      =/  chat-with-result=chat:claude
-        (add-message:chat-index current-chat tool-result-timestamp user-msg)
-      ::  Increment iteration count
-      =.  iteration-count.chat-with-result  +(iteration-count.chat-with-result)
+      ::  Add tool result message to chat
+      ::  Increment iteration count BEFORE adding message
+      =.  iteration-count.current-chat  +(iteration-count.current-chat)
+      ::  Add tool result message to chat (THE SINGLE SOURCE OF TRUTH)
+      ;<  chat-with-result=chat:claude  bind:m
+        (add-message-to-chat:sse id.current-chat tool-result-timestamp current-chat user-msg)
       ::  Check if we've hit max-iterations limit
       ?.  ?~  max-iterations.chat-with-result  %.y
           (lth iteration-count.chat-with-result u.max-iterations.chat-with-result)
@@ -526,17 +525,10 @@
           :-  'assistant'
           :-  s+'[Stopped: Hit max-iterations limit of {(scow %ud u.max-iterations.chat-with-result)}]'
           [%error id.chat-with-result 0 0 0 0]
-        =/  final-chat=chat:claude
-          (add-message:chat-index chat-with-result limit-timestamp limit-msg)
-        ::  Save final state
-        ;<  ~  bind:m
-          (put-cage:io /claude/chats (crip "{(hexn:sailbox id.chat-with-result)}.claude-chat") [%claude-chat !>(final-chat)])
-        ;<  ~  bind:m  (notify-chat-message:sse id.chat-with-result limit-timestamp)
+        ::  Add limit message to chat (THE SINGLE SOURCE OF TRUTH)
+        ;<  final-chat=chat:claude  bind:m
+          (add-message-to-chat:sse id.chat-with-result limit-timestamp chat-with-result limit-msg)
         (pure:m ['Max iterations reached' final-chat])
-      ::  Save state and send SSE for tool result message (for real-time agentic updates)
-      ;<  ~  bind:m
-        (put-cage:io /claude/chats (crip "{(hexn:sailbox id.current-chat)}.claude-chat") [%claude-chat !>(chat-with-result)])
-      ;<  ~  bind:m  (notify-chat-message:sse id.current-chat tool-result-timestamp)
       ::  Small delay before continuing to avoid rate limits in agentic loops
       ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
       ::  Recursively call Claude again with all tool results
@@ -592,15 +584,16 @@
   ?~  texts
     =/  json-dump=@t  (en:json:html u.jon)
     (pure:m [(crip "Error: Empty content array. Full JSON: {(trip json-dump)}") chat])
-  ::  Add assistant's text response using helper
+  ::  Add assistant's text response (THE SINGLE SOURCE OF TRUTH)
   ::  Get highest timestamp from existing messages and add 1
+  ;<  =bowl:gall  bind:m  get-bowl:io
   =/  last-timestamp=@ud
     =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
-    ?~  all-timestamps  *@ud
-    (snag 0 (flop all-timestamps))
-  =/  assistant-timestamp=@ud  (add last-timestamp 1)
+    ?~  all-timestamps  (unm:chrono:userlib now.bowl)
+    (add (snag 0 (flop all-timestamps)) 1)
+  =/  assistant-timestamp=@ud  last-timestamp
   =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
-  =/  updated-chat=chat:claude
-    (add-message:chat-index chat assistant-timestamp assistant-msg)
+  ;<  updated-chat=chat:claude  bind:m
+    (add-message-to-chat:sse id.chat assistant-timestamp chat assistant-msg)
   (pure:m [i.texts updated-chat])
 --
