@@ -3,7 +3,8 @@
 ::
 |%
 +$  card     card:agent:gall       :: to be replaced with local version
-++  process  process:fiber:sailbox :: to be replaced with local version
++$  proc     @tas                  :: like a mark but for a process
+:: ++  process  process:fiber:sailbox :: to be replaced with local version
 ++  nexus
   $_  ^|
   |%
@@ -19,7 +20,8 @@
   ::
   ++  on-file
     |~  [path mark]
-    *process
+    :: define process separately in /pro? so /mar, /pro and /nex?
+    proc :: *process :: define process corresponding to file
   :: can send effects when the state of a file/process changes
   ::
   ++  on-diff
