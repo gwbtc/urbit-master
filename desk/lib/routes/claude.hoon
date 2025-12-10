@@ -71,9 +71,7 @@
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  ball=ball:tarball  bind:m  get-state:io
-  =.  ball  (~(del ba:tarball ball) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat"))
-  (pure:m ~)
+  (del:io /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat"))
 ::
 ::  Helper: Set active chat in ball
 ::

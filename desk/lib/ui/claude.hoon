@@ -666,9 +666,15 @@
         fetch('/master/claude/' + id + '/delete', \{ method: 'POST' })
         .then(r => \{
           if (r.ok) \{
-            location.href = location.pathname.includes(id) ? '/master/claude/new' : location.pathname;
-            location.reload();
-          } else alert('Failed');
+            // If viewing the deleted chat, go to /new; otherwise reload to update sidebar
+            if (location.pathname.includes(id)) \{
+              location.href = '/master/claude/new';
+            } else \{
+              location.reload();
+            }
+          } else \{
+            alert('Failed to delete chat');
+          }
         });
       }
     }
