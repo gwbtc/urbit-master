@@ -1,7 +1,7 @@
-/-  nexus, claude
+/-  claude
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, ui-ball, telegram,
-    sse=sse-helpers, tarball, alarms, tools, open-loops
+    sse=sse-helpers, tarball, alarms, tools, open-loops, nexus
 /=  master-routes  /lib/routes/master
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
