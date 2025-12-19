@@ -3,6 +3,7 @@
 ::
 |%
 +$  bowl  bowl:gall             :: to be replaced with local version
++$  ball  ball:tarball
 +$  proc  @tas                  :: like a mark but for a process
 +$  bend  (pair @ud path)                 :: relative path
 +$  road  (each path bend)                :: absolute or relative path
@@ -18,10 +19,10 @@
   ==
 +$  sand  (axal weir)
 +$  dart
-  $%  [%sysc =card:agent:gall] :: regular card
-      [%poke =wire =road =cage]
-      [%bump =wire =road =cage]
-      [%sand =wire =road weir=(unit weir)]
+  $%  [%sysc =card:agent:gall]  :: regular card
+      [%poke =wire =road =cage] :: results in file creation
+      [%bump =wire =road =cage] :: a message to a running process
+      [%sand =wire =road weir=(unit weir)] :: manage sandboxing
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
   ==
@@ -214,13 +215,13 @@
   :: top-down reconsideration of directory structure in +on-load
   ::
   ++  on-load
-    |~  [bowl ball:tarball]
-    *[(list dart) ball:tarball]
+    |~  [bowl ball]
+    *[(list dart) ball]
   :: all pokes result in file/directory creation/deletion
   ::
   ++  on-poke
     |~  [bowl cage]
-    *[(list dart) path (unit ball:tarball)]
+    *[(list dart) path (unit ball)]
   :: all files have an associated running process
   :: all running processes should be able to recover proper
   ::   operation based on state alone, even when restarted.
@@ -229,16 +230,20 @@
   ++  on-file
     |~  [path mark]
     :: define process separately in /pro? so /mar, /pro and /nex?
-    proc :: *process :: define process corresponding to file
+    *proc :: *process :: define process corresponding to file
   :: can send effects when the state of a file/process changes
   ::
   ++  on-diff
     |~  [path cage]
-    (list dart)
+    *(list dart)
   :: can send effects when a process has completed
   ::
   ++  on-done
     |~  [path cage ack=(unit tang)]
-    (list dart)
+    *(list dart)
+  ::
+  ++  on-take
+    |~  take=intake:fiber
+    *(list dart)
   --
 --

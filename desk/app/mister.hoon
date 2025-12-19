@@ -1,4 +1,4 @@
-/+  default-agent, dbug, tarball
+/+  default-agent, dbug, tarball, nexus
 |%
 +$  versioned-state
   $%  state-0
@@ -27,6 +27,16 @@
   =/  result=vase  .^(vase %ca scry-path)
   :-  file-path
   result
+::
+++  store-compiled
+  |=  [b=ball:tarball compiled=(list [name=path core=vase]) base=path]
+  ^-  ball:tarball
+  %+  roll  compiled
+  |=  [[file-path=path core=vase] acc=ball:tarball]
+  ::  Extract just the filename from the full path
+  =/  filename=@ta  (rear file-path)
+  ::  Store as %temp cage with empty metadata
+  (~(put ba:tarball acc) base filename [~ [%temp core]])
 --
 %-  agent:dbug
 =|  state-0
@@ -44,7 +54,12 @@
   =/  compiled-nexs=(list [name=path core=vase])
     (validate-directory bowl /nex)
   ~&  >  "on-init: validated {<(lent compiled-pros)>} pro files and {<(lent compiled-nexs)>} nex files"
-  `this(ball *ball:tarball)
+  ::  Store compiled vases as %temp cages
+  =/  new-ball=ball:tarball
+    =/  b1  (store-compiled *ball:tarball compiled-pros /temp/pro)
+    (store-compiled b1 compiled-nexs /temp/nex)
+  ~&  >  "on-init: stored compiled files as %temp cages"
+  `this(ball new-ball)
 ::
 ++  on-save
   ^-  vase
@@ -56,13 +71,22 @@
   ~&  >  "on-load: starting"
   =/  old  !<(versioned-state old-state)
   ~&  >  "on-load: unpacked old state"
+  ::  Clear all %temp cages from previous session
+  =/  clean-ball=ball:tarball  clear-temp:~(. ba:tarball ball.old)
+  ~&  >  "on-load: cleared old %temp cages"
+  ::  Validate and compile fresh
   =/  compiled-pros=(list [name=path core=vase])
     (validate-directory bowl /pro)
   =/  compiled-nexs=(list [name=path core=vase])
     (validate-directory bowl /nex)
   ~&  >  "on-load: validated {<(lent compiled-pros)>} pro files and {<(lent compiled-nexs)>} nex files"
+  ::  Store compiled vases as %temp cages
+  =/  new-ball=ball:tarball
+    =/  b1  (store-compiled clean-ball compiled-pros /temp/pro)
+    (store-compiled b1 compiled-nexs /temp/nex)
+  ~&  >  "on-load: stored compiled files as %temp cages"
   ?-  -.old
-    %0  `this(state old)
+    %0  `this(ball new-ball)
   ==
 ::
 ++  on-poke

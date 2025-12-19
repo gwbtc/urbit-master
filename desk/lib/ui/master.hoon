@@ -1,4 +1,4 @@
-/+  *ui-layout, sailbox, fi=feather-icons, ui-claude
+/+  *ui-layout, sailbox, fi=feather-icons, ui-claude, tarball
 |%
 ++  telegram-card
   ^-  manx

@@ -1,4 +1,3 @@
-/-  *master
 /+  feather
 |%
 :: Generic tabs component for clean tabbed interfaces

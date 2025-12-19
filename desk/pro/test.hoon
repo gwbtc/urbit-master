@@ -1,1 +1,3 @@
-(add 2 2)
+/+  nexus
+=/  m  (fiber:fiber:nexus ,~)
+(pure:m ~)

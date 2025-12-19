@@ -354,6 +354,9 @@
   ++  validate-cage
     |=  [pax=path name=@ta new-cage=cage]
     ^-  cage
+    ::  Skip validation for %temp mark - it's ephemeral
+    ?:  =(%temp p.new-cage)
+      new-cage
     ::  Check if there's an existing cage at this location
     =/  old-content=(unit content)  (get pax name)
     ::  Same-mark update with nesting types: canonicalize without dais
@@ -506,6 +509,17 @@
     %+  lien  tap
     |=  [pax=path name=@ta c=content]
     (fn c)
+  ::  Clear all %temp cages from ball
+  ::
+  ++  clear-temp
+    ^-  ball
+    %+  roll  ~(tap of b)
+    |=  [[pax=path lmp=lump] acc=ball]
+    =/  cleaned-contents=(map @ta content)
+      %-  ~(gas by *(map @ta content))
+      %+  skip  ~(tap by contents.lmp)
+      |=([name=@ta c=content] =(%temp p.cage.c))
+    (~(put of acc) pax lmp(contents cleaned-contents))
   ::  Delete entire subtree at path
   ::
   ++  lop
@@ -695,6 +709,9 @@
   ++  cage-to-mime
     |=  =cage
     ^-  mime
+    ::  Never export temp cages (backup check)
+    ?:  =(%temp p.cage)
+      ~|("attempted to export %temp cage" !!)
     =/  key=mars:clay  [a=p.cage b=%mime]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
@@ -792,11 +809,15 @@
       ?~  fil.ball
         ~
       =/  contents-list=(list [@ta content])  ~(tap by contents.u.fil.ball)
+      ::  Filter out %temp cages - they never get exported
+      =/  exportable=(list [@ta content])
+        %+  skip  contents-list
+        |=([name=@ta c=content] =(%temp p.cage.c))
       %+  weld
         ?~  path
           ~
         [(make-directory-entry path metadata.u.fil.ball) ~]
-      %+  turn  contents-list
+      %+  turn  exportable
       |=  [name=@ta =content]
       (make-content-entry (snoc path name) content)
     =/  directories  ~(tap by dir.ball)
