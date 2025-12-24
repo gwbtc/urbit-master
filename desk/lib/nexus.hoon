@@ -1,10 +1,9 @@
-/+  sailbox, tarball
+/+  tarball
 :: exploring the possibility of a directory-specific orchestrator agent
 ::
 |%
-+$  bowl  bowl:gall             :: to be replaced with local version
 +$  ball  ball:tarball
-+$  proc  @tas                  :: like a mark but for a process
++$  neck  neck:tarball
 +$  bend  (pair @ud path)                 :: relative path
 +$  road  (each path bend)                :: absolute or relative path
 +$  prov  [src=@p sap=path]               :: external provenance
@@ -14,33 +13,59 @@
 :: a filter or net
 ::
 +$  weir
-  $:  poke=(set road) :: %poke or %bump
+  $:  sand=(set road)
+      poke=(set road)
       peek=(set road)
   ==
 +$  sand  (axal weir)
+::
++$  bowl
+  $:  now=@da
+      our=@p
+      eny=@uvJ
+      wex=boat:gall
+      sup=bitt:gall
+      here=path
+  ==
+::
++$  make  (each (unit neck) cage)
+:: dart payload
+::
++$  load
+  $%  [%poke =cage]
+      [%make =make]
+      [%cull ~]
+      [%sand weir=(unit weir)]
+      [%kill ~]
+      [%peek ~]
+  ==
+::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card
-      [%poke =wire =road =cage] :: results in file creation
-      [%bump =wire =road =cage] :: a message to a running process
-      [%sand =wire =road weir=(unit weir)] :: manage sandboxing
+      [%cull ~]
+      [%node =wire =road =load]
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
   ==
 ::
++$  take  [here=path in=(unit intake:fiber)]
+::
 ++  fiber
   |%
   +$  proc
-    $:  =process
+    $:  process=(each process tang)
         next=(qeu (unit intake)) :: queue of held inputs
         skip=(qeu (unit intake)) :: queue of skipped inputs
     ==
   ::
   +$  intake
-    $%  [%bump =from =cage] :: command for a running process
-        [%peek =wire =path =ball:tarball =sand] :: local read
-        [%sand =wire err=(unit tang)] :: response to sand
+    $%  [%poke =from =cage] :: command for a running process
+        [%peek =wire =path =ball =sand] :: local read
+        [%made =wire err=(unit tang)] :: response to make
+        [%gone =wire err=(unit tang)] :: response to cull
         [%pack =wire err=(unit tang)] :: response from poke
-        [%back =wire err=(unit tang)] :: response from bump
+        [%sand =wire err=(unit tang)] :: response to sand
+        [%dead =wire err=(unit tang)] :: response to kill
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
@@ -90,6 +115,13 @@
       |=  input
       ^-  output
       [~ state %done value]
+    :: do nothing - forever
+    ::
+    ++  stay
+      ^-  form
+      |=  input
+      ^-  output
+      [~ state %wait ~]
     ::
     ++  bind
       |*  b=mold
@@ -124,15 +156,16 @@
       =|  cards=(list card) :: effects
       |=  [=bowl:gall state=vase =proc]
       ^-  [(list card) vase _proc result]
+      ?>  ?=(%& -.process.proc)
       =^  take=(unit intake)  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced
       =/  res=(each output tang)
-        (mule |.((process.proc state take)))
+        (mule |.((p.process.proc state take)))
       ?:  ?=(%| -.res)
         =/  =tang  [leaf+"crash" p.res]
         :-  cards :: no output cards on failure
         :-  state :: no output state on failure
-        :-  proc
+        :-  proc(process [%| tang])
         [%fail tang]
       =/  =output  p.res
       ?-    -.next.output
@@ -154,7 +187,7 @@
           state         state.output
           next.proc     (~(gas to next.proc) ~(tap to skip.proc))
           skip.proc     ~
-          process.proc  self.next.output
+          process.proc  [%& self.next.output]
           take          ~
         ==
         ::
@@ -199,29 +232,25 @@
       ==
     --
   --
-:: ++  process  process:fiber:sailbox :: to be replaced with local version
+::
++$  pipe  [nex=(each nexus tang) poc=(map @ta (each proc:fiber tang))]
++$  pool  (axal pipe)
 :: NOTES:
-::  - there shouldn't really be a difference between
-::    the runner's +on-init and +on-load 
-::  - in the +on-load, we recursively run nexus +on-loads in a top-down manner,
-::    accumulating effects
+::  - in the +on-load, we recursively run nexus +on-loads in a top-down manner
 ::  - +on-load assumes all processes are being restarted
 ::  - we generate the process for every leaf node (file) and run it with ~,
 ::    accumulating effects
+::  - each nexus should create a main process to handle its API
 ::
 ++  nexus
   $_  ^|
   |%
-  :: top-down reconsideration of directory structure in +on-load
+  :: top-down reconsideration of directory structure in +on-load and whenever
+  :: this nexus is initially created
   ::
   ++  on-load
-    |~  [bowl ball]
-    *[(list dart) ball]
-  :: all pokes result in file/directory creation/deletion
-  ::
-  ++  on-poke
-    |~  [bowl cage]
-    *[(list dart) path (unit ball)]
+    |~  state=ball
+    *ball
   :: all files have an associated running process
   :: all running processes should be able to recover proper
   ::   operation based on state alone, even when restarted.
@@ -230,20 +259,6 @@
   ++  on-file
     |~  [path mark]
     :: define process separately in /pro? so /mar, /pro and /nex?
-    *proc :: *process :: define process corresponding to file
-  :: can send effects when the state of a file/process changes
-  ::
-  ++  on-diff
-    |~  [path cage]
-    *(list dart)
-  :: can send effects when a process has completed
-  ::
-  ++  on-done
-    |~  [path cage ack=(unit tang)]
-    *(list dart)
-  ::
-  ++  on-take
-    |~  take=intake:fiber
-    *(list dart)
+    *process:fiber :: define process corresponding to file
   --
 --

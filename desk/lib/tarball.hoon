@@ -265,8 +265,21 @@
     |-
     ?~  file-parent
       base
-    =/  next-dir=@ta  i.file-parent
-    =/  dir-path=path  (snoc current-path next-dir)
+    =/  next-dir-raw=@ta  i.file-parent
+    ::  Parse directory name for neck extension (e.g., "tasks.worker" -> name="tasks", neck="worker")
+    =/  dir-ext=(unit @ta)  (parse-extension next-dir-raw)
+    =/  [dir-name=@ta dir-neck=(unit neck)]
+      ?~  dir-ext
+        ::  No extension, no neck
+        [next-dir-raw ~]
+      ::  Has extension - strip it and use as neck
+      =/  ext-text=tape  (trip u.dir-ext)
+      =/  full-text=tape  (trip next-dir-raw)
+      =/  ext-len=@ud  (add 1 (lent ext-text))  :: +1 for the dot
+      =/  name-len=@ud  (sub (lent full-text) ext-len)
+      =/  clean-name=@ta  (crip (scag name-len full-text))
+      [clean-name `u.dir-ext]
+    =/  dir-path=path  (snoc current-path dir-name)
     ::  Only create if doesn't exist
     =/  dir-exists=(unit lump)  (~(get of base) dir-path)
     =/  updated-base=ball
@@ -277,7 +290,7 @@
         :~  ['mtime' (da-oct now)]
         ==
       =/  ba  (~(das ba base) dais-map)
-      (mkd:ba dir-path dir-metadata)
+      (mkd:ba dir-path dir-metadata dir-neck)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -303,14 +316,28 @@
   ::  Try to convert to cage, otherwise store as %mime cage
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
   =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
-  =/  file-content=content
+  ::  If conversion succeeded, strip extension from filename
+  ::  Otherwise keep full filename for %mime cages
+  =/  [store-name=@ta file-content=content]
     ?~  maybe-cage
-      [file-metadata [%mime !>(file-mime)]]
-    [file-metadata u.maybe-cage]
+      ::  No conversion - keep full filename with extension
+      [file-name [file-metadata [%mime !>(file-mime)]]]
+    ::  Successful conversion - strip extension
+    =/  ext=(unit @ta)  (parse-extension file-name)
+    =/  name-without-ext=@ta
+      ?~  ext
+        file-name  :: no extension found, use as-is
+      ::  Strip the extension: "main.hoon" -> "main"
+      =/  full-text=tape  (trip file-name)
+      =/  ext-text=tape  (trip u.ext)
+      =/  ext-len=@ud  (add 1 (lent ext-text))  :: +1 for the dot
+      =/  name-len=@ud  (sub (lent full-text) ext-len)
+      (crip (scag name-len full-text))
+    [name-without-ext [file-metadata u.maybe-cage]]
   ::  Add file to base with explicit directories
   =/  ba  (~(das ba base-with-dirs) dais-map)
   =/  new-base=ball
-    (put:ba full-parent file-name file-content)
+    (put:ba full-parent store-name file-content)
   $(parts t.parts, base new-base)
 ::
 ++  ba
@@ -520,6 +547,19 @@
       %+  skip  ~(tap by contents.lmp)
       |=([name=@ta c=content] =(%temp p.cage.c))
     (~(put of acc) pax lmp(contents cleaned-contents))
+  ::  Validate all cages in ball using mark system
+  ::
+  ++  validate-ball
+    ^-  ball
+    %+  roll  ~(tap of b)
+    |=  [[pax=path lmp=lump] acc=ball]
+    =/  validated-contents=(map @ta content)
+      %-  ~(gas by *(map @ta content))
+      %+  turn  ~(tap by contents.lmp)
+      |=  [name=@ta c=content]
+      =/  validated-cage=cage  (validate-cage pax name cage.c)
+      [name c(cage validated-cage)]
+    (~(put of acc) pax lmp(contents validated-contents))
   ::  Delete entire subtree at path
   ::
   ++  lop
@@ -529,9 +569,9 @@
   ::  Make directory at path
   ::
   ++  mkd
-    |=  [pax=path met=metadata]
+    |=  [pax=path met=metadata nec=(unit neck)]
     ^-  ball
-    (~(put of b) pax [met ~ ~])
+    (~(put of b) pax [met nec ~])
   ::  Descend to subdirectory as new ball
   ::
   ++  dip
@@ -765,14 +805,19 @@
     `u.data(p (add p.u.data (sub 512 (mod p.u.data 512))))
   ::
   ++  make-directory-entry
-    |=  [=path =metadata]
+    |=  [=path =metadata nec=(unit neck)]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
+    ::  Add .neck extension to directory name if neck exists
+    =/  dirname-with-ext=tape
+      ?~  nec
+        (trip (rsh [3 1] (spat name)))
+      (weld (trip (rsh [3 1] (spat name))) (weld "." (trip u.nec)))
     =.  metadata
       %-  ~(gas by metadata)
       :~  ['typeflag' '5']
           ['prefix' (rsh [3 1] (spat prefix))]
-          ['name' (cat 3 (rsh [3 1] (spat name)) '/')]
+          ['name' (cat 3 (crip dirname-with-ext) '/')]
       ==
     (generate-entry metadata ~)
   ::
@@ -792,13 +837,21 @@
             ['linkname' (encode-road u.maybe-road)]
         ==
       (generate-entry sym-metadata ~)
-    ::  It's a regular file
+    ::  It's a regular file - add extension based on mark
     =/  =mime  (cage-to-mime cage.content)
+    =/  mark=@tas  p.cage.content
+    ::  Add extension to filename (unless it's %mime which keeps original name)
+    =/  filename-with-ext=tape
+      ?:  =(%mime mark)
+        ::  For %mime cages, the name already has the extension
+        (trip (rsh [3 1] (spat name)))
+      ::  For other marks, append .mark as extension
+      (weld (trip (rsh [3 1] (spat name))) (weld "." (trip mark)))
     =/  cage-metadata=metadata
       %-  ~(gas by metadata.content)
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
-          ['name' (rsh [3 1] (spat name))]
+          ['name' (crip filename-with-ext)]
       ==
     (generate-entry cage-metadata `q.mime)
   ::
@@ -816,7 +869,7 @@
       %+  weld
         ?~  path
           ~
-        [(make-directory-entry path metadata.u.fil.ball) ~]
+        [(make-directory-entry path metadata.u.fil.ball neck.u.fil.ball) ~]
       %+  turn  exportable
       |=  [name=@ta =content]
       (make-content-entry (snoc path name) content)

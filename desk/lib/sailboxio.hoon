@@ -930,7 +930,7 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  (replace (~(mkd ba:tarball b) pax meta))
+  (replace (~(mkd ba:tarball b) pax meta ~))
 ::  +put-file: put a file into ball with timestamp
 ::
 ++  put-file

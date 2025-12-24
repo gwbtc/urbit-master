@@ -1,13 +1,14 @@
 /+  nexus
+^-  nexus:nexus
 |%
 ++  on-load
-  |=  [=bowl:gall =ball:nexus]
+  |=  =ball:nexus
   ^-  [(list dart:nexus) ball:nexus]
   [~ ball]
 ++  on-poke
-  |=  [=bowl:gall =cage]
-  ^-  [(list dart:nexus) path (unit ball:nexus)]
-  [~ / ~]
+  |=  [=ball:nexus =from:nexus =cage]
+  ^-  [(list dart:nexus) ball:nexus]
+  [~ ball]
 ++  on-file
   |=  [pax=path =mark]
   ^-  proc:nexus

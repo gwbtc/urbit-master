@@ -1,5 +1,6 @@
-/-  *master, claude
-/+  *ui-layout, sailbox, fi=feather-icons, claude-lib=claude, pytz, pprint=time-pprint
+/-  claude
+/+  *ui-layout, sailbox, fi=feather-icons, claude-lib=claude, pytz,
+    pprint=time-pprint, tarball
 |%
 ::  Helper: check if chat is waiting for Claude's response
 ::
