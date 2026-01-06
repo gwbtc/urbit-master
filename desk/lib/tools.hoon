@@ -137,19 +137,6 @@
           ~['title' 'chat_id']
           tool-rename-chat
       ==
-      :*  'web_search'
-          'Search the web using Brave Search API and return relevant results with titles, URLs, and descriptions'
-          %-  ~(gas by *(map @t parameter-def))
-          :~  :-  'query'
-              ^-  parameter-def
-              [%string 'The search query']
-              :-  'count'
-              ^-  parameter-def
-              [%number 'Number of results to return (default 5, max 20)']
-          ==
-          ~['query']
-          tool-web-search
-      ==
       :*  'commit'
           'Commit a mounted desk and return version info with logs'
           %-  ~(gas by *(map @t parameter-def))
@@ -613,89 +600,6 @@
     (send-sse-event:io /master/claude/stream/(crip (hexn:sailbox u.chat-id)) ~ `%title-update)
   ~&  >  "RENAME TOOL: SSE event sent"
   (pure:m [%text 'Chat renamed'])
-::
-++  tool-web-search
-  ^-  tool-handler
-  |=  arguments=(map @t json)
-  =/  m  (fiber:io ,tool-result)
-  ^-  form:m
-  ::  Parse query
-  =/  query=@t
-    %.  [%o arguments]
-    %-  ot:dejs:format
-    :~  ['query' so:dejs:format]
-    ==
-  ::  Parse optional count (default 5, max 20)
-  =/  count=@ud
-    =/  count-json=(unit json)  (~(get by arguments) 'count')
-    ?~  count-json  5
-    ?.  ?=([%n *] u.count-json)  5
-    =/  parsed=(unit @ud)  (slaw %ud p.u.count-json)
-    ?~  parsed  5
-    ?:  (gth u.parsed 20)  20
-    u.parsed
-  ::  Get Brave Search API key from state
-  ;<  ball=ball:tarball  bind:m  get-state:io
-  =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball) /config/creds 'brave-search.json' json)
-  ?~  jon
-    (pure:m [%error 'Brave Search credentials not configured'])
-  =/  api-key=@t  (~(dog jo:json-utils u.jon) /api-key so:dejs:format)
-  ::  Build request URL
-  =/  url=tape
-    %+  weld  "https://api.search.brave.com/res/v1/web/search?q="
-    %+  weld  (trip query)
-    "&count={(a-co:co count)}"
-  =/  =request:http
-    :*  %'GET'
-        (crip url)
-        :~  ['X-Subscription-Token' api-key]
-            ['Accept' 'application/json']
-        ==
-        ~
-    ==
-  ::  Send request
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  ;<  body=cord  bind:m  (extract-body:io client-response)
-  ::  Parse JSON response
-  =/  jon=(unit json)  (de:json:html body)
-  ?~  jon
-    (pure:m [%error 'Failed to parse search results'])
-  ::  Extract results
-  =/  results
-    %-  mule
-    |.
-    %.  u.jon
-    %-  ot:dejs:format
-    :~  :-  'web'
-        %-  ot:dejs:format
-        :~  :-  'results'
-            %-  ar:dejs:format
-            %-  ot:dejs:format
-            :~  ['title' so:dejs:format]
-                ['url' so:dejs:format]
-                ['description' so:dejs:format]
-            ==
-        ==
-    ==
-  ?:  ?=(%| -.results)
-    (pure:m [%error 'Failed to parse search results'])
-  ::  Format results as text
-  =/  results-list=(list [title=@t url=@t description=@t])  p.results
-  =/  formatted=tape
-    %-  zing
-    %+  turn  results-list
-    |=  [title=@t url=@t desc=@t]
-    ;:  weld
-      (trip title)
-      "\0a"
-      (trip url)
-      "\0a"
-      (trip desc)
-      "\0a\0a"
-    ==
-  (pure:m [%text (crip formatted)])
 ::
 ++  parse-commit-args
   |=  arguments=(map @t json)

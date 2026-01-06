@@ -6,7 +6,6 @@
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
 /=  claude-routes  /lib/routes/claude
-/=  brave-routes  /lib/routes/brave
 /=  t-  /tests/tarball
 /=  m-  /mar/eyre/bindings
 /=  m-  /mar/claude/chat

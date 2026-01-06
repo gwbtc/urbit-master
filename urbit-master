@@ -34,7 +34,6 @@ UPDATE COMMANDS:
     update telegram         Update Telegram bot credentials
     update s3               Update S3/DigitalOcean Spaces credentials
     update claude           Update Claude API credentials
-    update brave            Update Brave Search API credentials
     update all              Update all configured credentials
 
 TEST COMMANDS:
@@ -53,7 +52,6 @@ TEST COMMANDS:
                             Test Claude with MCP
     test mcp [method]       Test MCP endpoint
                             methods: initialize, tools/list, send_telegram
-    test web-search [query] Test web search endpoint
 
 EXAMPLES:
     urbit-master update telegram
@@ -128,7 +126,7 @@ main() {
                 log_error "Missing service name"
                 echo ""
                 log_info "Usage: urbit-master update <service>"
-                log_info "Services: telegram, s3, claude, brave, all"
+                log_info "Services: telegram, s3, claude, all"
                 exit 1
             fi
 
@@ -145,15 +143,12 @@ main() {
                 claude)
                     update_claude "$@"
                     ;;
-                brave)
-                    update_brave "$@"
-                    ;;
                 all)
                     update_all
                     ;;
                 *)
                     log_error "Unknown service: $service"
-                    log_info "Available services: telegram, s3, claude, brave, all"
+                    log_info "Available services: telegram, s3, claude, all"
                     exit 1
                     ;;
             esac
@@ -199,9 +194,6 @@ main() {
                     ;;
                 mcp)
                     test_mcp "$@"
-                    ;;
-                web-search)
-                    test_web_search "$@"
                     ;;
                 *)
                     log_error "Unknown test endpoint: $endpoint"

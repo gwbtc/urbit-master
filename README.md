@@ -7,7 +7,7 @@
 Exposes capabilities to AI assistants via MCP:
 - Send Telegram notifications
 - Manage S3/cloud storage
-- Query Claude AI and Brave Search
+- Query Claude AI
 - Access ship utilities (time, random, naming)
 
 Think of it as an API layer between LLMs and your Urbit ship + external services.
@@ -68,7 +68,6 @@ Required in `config.json`:
 - `telegram` - Bot token and chat ID
 - `s3` - Storage credentials
 - `claude` - API key
-- `brave` - Search API key
 
 See `config.example.json` for template.
 
@@ -81,7 +80,6 @@ Current capabilities:
 - ✅ Telegram notifications
 - ✅ S3 storage integration
 - ✅ Claude AI queries
-- ✅ Brave Search queries
 - 🚧 Additional tools TBD
 
 ## Security

@@ -93,28 +93,6 @@ update_claude() {
         --data-urlencode "api-key=$api_key"
 }
 
-# Update Brave Search API credentials
-# Usage: update_brave [api_key]
-#   No args: Read from config.json
-#   With args: Use provided value
-update_brave() {
-    local api_key
-
-    if [[ "$#" -eq 1 ]]; then
-        api_key="$1"
-    elif [[ "$#" -eq 0 ]]; then
-        api_key=$(get_config '.brave.api_key')
-    else
-        log_error "Usage: update brave [api_key]"
-        return 1
-    fi
-
-    urbit_auth || return 1
-
-    update_creds "Brave Search API" "/master/update-brave-creds" \
-        --data-urlencode "api-key=$api_key"
-}
-
 # Update all credentials from config.json
 update_all() {
     log_info "Updating all credentials from config.json..."
@@ -155,18 +133,6 @@ update_all() {
         fi
     else
         log_warn "Skipping Claude (not configured)"
-        echo ""
-    fi
-
-    # Update Brave if configured
-    if get_config '.brave.api_key' false > /dev/null 2>&1; then
-        if update_brave; then
-            echo ""
-        else
-            ((failed++))
-        fi
-    else
-        log_warn "Skipping Brave Search (not configured)"
         echo ""
     fi
 

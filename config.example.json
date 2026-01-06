@@ -1,30 +1,19 @@
 {
   "ship_url": "http://localhost:8080",
   "access_code": "your-access-code",
+  "dest": "/path/to/your/ship/master/",
   "telegram": {
     "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
     "chat_id": "987654321"
   },
   "s3": {
-    "access_key": "DO00XXXXXXXXXX",
-    "secret_key": "your-secret-key-here",
-    "region": "nyc3",
+    "access_key": "your-access-key",
+    "secret_key": "your-secret-key",
+    "region": "us-east-1",
     "bucket": "your-bucket-name",
-    "endpoint": "nyc3.digitaloceanspaces.com"
+    "endpoint": "s3.amazonaws.com"
   },
-  "dest": "/path/to/your/ship/spv-wallet/",
-  "resources": {
-    "clurd": "/path/to/local/clurd/",
-    "docs": "/path/to/local/docs.urbit.org/",
-    "urbit": "/path/to/local/urbit/",
-    "vere": "/path/to/local/vere/",
-    "groundwire/urbit": "/path/to/local/groundwire/urbit/",
-    "groundwire/vere": "/path/to/local/groundwire/vere/",
-    "groundwire/volt": "/path/to/local/groundwire/volt/",
-    "bitcoin-wallet": "/path/to/local/bitcoin-wallet/",
-    "resident-urbit-expert": "your user and interlocutor; ask!"
-  },
-  "references": {
-    "placeholder": "add links to useful reference documents"
+  "claude": {
+    "api_key": "your-claude-api-key"
   }
 }

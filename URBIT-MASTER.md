@@ -6,8 +6,8 @@ A secure, unified CLI tool for managing your Urbit master desk. Handles credenti
 
 - **Unified CLI**: Single entry point for all master desk operations
 - **Security-First**: Never logs or echoes secrets, uses secure temp files, automatic cleanup
-- **Credential Management**: Update Telegram, S3, Claude, and Brave Search credentials
-- **Testing Suite**: Test all endpoints (S3, MCP, Claude, web search)
+- **Credential Management**: Update Telegram, S3, and Claude credentials
+- **Testing Suite**: Test all endpoints (S3, MCP, Claude)
 - **Status Monitoring**: Check ship connectivity and authentication
 - **Clean Architecture**: Modular library structure for easy maintenance
 
@@ -26,7 +26,7 @@ nano config.json
 Fill in your values:
 - `ship_url`: Your Urbit ship URL (e.g., `http://localhost:8080`)
 - `access_code`: Your ship's access code
-- Service credentials: Telegram, S3, Claude API, Brave Search
+- Service credentials: Telegram, S3, Claude API
 
 ### 2. Install Dependencies
 
@@ -72,7 +72,6 @@ Update service credentials from config.json:
 ./urbit-master update telegram    # Update Telegram bot credentials
 ./urbit-master update s3           # Update S3/Spaces credentials
 ./urbit-master update claude       # Update Claude API key
-./urbit-master update brave        # Update Brave Search API key
 ./urbit-master update all          # Update all configured services
 ```
 
@@ -92,7 +91,6 @@ Test various endpoints:
 # API Tests
 ./urbit-master test claude [prompt]
 ./urbit-master test claude-mcp [prompt]
-./urbit-master test web-search [query]
 
 # MCP Tests
 ./urbit-master test mcp initialize
@@ -152,13 +150,7 @@ Main configuration file (gitignored):
   "claude": {
     "api_key": "sk-ant-..."
   },
-  "brave": {
-    "api_key": "BSA..."
-  },
-  "dest": "/path/to/your/ship/master/",
-  "resources": {
-    "docs": "/path/to/docs.urbit.org/"
-  }
+  "dest": "/path/to/your/ship/master/"
 }
 ```
 

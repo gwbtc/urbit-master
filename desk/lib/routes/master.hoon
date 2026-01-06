@@ -4,7 +4,6 @@
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
 /=  telegram-routes  /lib/routes/telegram
-/=  brave-routes  /lib/routes/brave
 /=  mcp-routes  /lib/routes/mcp
 =,  html-utils
 |%
@@ -235,8 +234,6 @@
       [%master %update-claude-creds ~]
     (handle-update-creds:claude-routes args)
   ::
-      [%master %update-brave-creds ~]
-    (handle-update-creds:brave-routes args)
   ::
       [%master %claude @ %rename ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
