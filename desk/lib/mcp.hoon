@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, server, json-utils, tools
 |%
 ::  MCP (Model Context Protocol) - JSON-RPC 2.0 Protocol Adapter

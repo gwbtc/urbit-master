@@ -1,4 +1,3 @@
-/-  *master
 /+  sigil
 |%
 :: Basic card component for content containers

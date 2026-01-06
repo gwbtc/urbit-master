@@ -1,4 +1,4 @@
-/-  *master, claude
+/-  claude
 /+  *ui-layout, sailbox, fi=feather-icons, claude-lib=claude, pytz, pprint=time-pprint
 |%
 ::  Helper: check if chat is waiting for Claude's response

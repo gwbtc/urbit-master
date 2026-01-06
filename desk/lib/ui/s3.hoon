@@ -1,4 +1,3 @@
-/-  *master
 /+  server, tarball
 |%
 ::  Render S3 management UI
