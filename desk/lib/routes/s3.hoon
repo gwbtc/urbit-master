@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, sailbox, s3, tarball, json-utils
 |%
 ::  Helper to extract S3 creds from json

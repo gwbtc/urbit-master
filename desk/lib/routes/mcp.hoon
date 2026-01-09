@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, sailbox, mcp
 |%
 ::  POST /master/mcp - Handle MCP JSON-RPC requests

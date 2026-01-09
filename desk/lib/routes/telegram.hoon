@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, telegram, tarball, json-utils
 |%
 ::  POST /master/telegram - Send telegram message

@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, pytz, json-utils, tarball
 |%
 ::  Parse ISO-8601 duration format (e.g. PT5M, PT2H30M, P1DT2H)

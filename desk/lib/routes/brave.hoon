@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, *html-utils, tarball, json-utils
 |%
 ::  POST /master/update-brave-creds - Update Brave Search credentials

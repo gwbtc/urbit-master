@@ -1,4 +1,4 @@
-/-  *master, claude
+/-  claude
 /+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601, sse=sse-helpers
 |%
 ::  Maximum characters for context window (as proxy for tokens)

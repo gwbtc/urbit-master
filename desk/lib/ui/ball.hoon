@@ -1,4 +1,3 @@
-/-  *master
 /+  server, tarball
 |%
 ::  Handle GET requests for ball (tarball file browser)

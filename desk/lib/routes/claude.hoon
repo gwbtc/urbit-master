@@ -1,4 +1,4 @@
-/-  *master, claude
+/-  claude
 /+  io=sailboxio, sailbox, server, ui-claude, claude-lib=claude, chat-index,
     sse=sse-helpers, *html-utils, tarball, json-utils, tools
 |%

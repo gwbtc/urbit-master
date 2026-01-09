@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, json-utils, tarball
 |%
 ::  Simple recurrence rule for repeating alarms
