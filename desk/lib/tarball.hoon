@@ -572,6 +572,14 @@
     |=  [pax=path met=metadata nec=(unit neck)]
     ^-  ball
     (~(put of b) pax [met nec ~])
+  ::  Put a ball (subtree) at path, replacing any existing subtree
+  ::
+  ++  pub
+    |=  [pax=path sub=ball]
+    ^-  ball
+    ?~  pax  sub
+    =/  kid  (~(gut by dir.b) i.pax *ball)
+    b(dir (~(put by dir.b) i.pax $(b kid, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
   ++  dip

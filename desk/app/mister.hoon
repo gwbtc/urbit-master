@@ -126,6 +126,58 @@
   =.  this  (process-dart here i.darts)
   $(darts t.darts)
 ::
+++  build-nexus
+  |=  neck=@tas
+  ^-  (unit nexus:nexus)
+  =/  all-files=(set path)
+    (~(gas in *(set path)) .^((list path) %ct (weld /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl) /nex)))
+  =/  paths=(list path)  (segments:clay neck)
+  =/  matching-path=(unit path)
+    |-
+    ?~  paths  ~
+    =/  pax=path  (weld /nex (snoc i.paths %hoon))
+    ?:  (~(has in all-files) pax)
+      `pax
+    $(paths t.paths)
+  ?~  matching-path
+    ~
+  =/  scry-path=path
+    (weld /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl) u.matching-path)
+  (mole |.(!<(nexus:nexus .^(vase %ca scry-path))))
+::
+++  find-nearest-nexus
+  |=  here=path
+  ^-  (unit (pair path neck:tarball))
+  ?~  lump=(~(get of ball) here)
+    ?~  here  ~
+    $(here (snip `path`here))
+  ?^  neck.u.lump
+    `[here u.neck.u.lump]
+  ?~  here  ~
+  $(here (snip `path`here))
+::
+++  build-process
+  |=  here=path
+  ^-  (unit process:fiber:nexus)
+  ::  Must have at least one element in path (the filename)
+  ?~  here  ~
+  ::  Get the file from the ball - must exist
+  =/  file-data=(unit content:tarball)
+    (~(get ba:tarball ball) (snip `path`here) (rear here))
+  ?~  file-data  ~
+  ::  Extract mark from the cage
+  =/  =mark  p.cage.u.file-data
+  ::  Find the nearest parent nexus
+  =/  nex-info=(unit (pair path neck:tarball))  (find-nearest-nexus here)
+  ?~  nex-info  ~
+  ::  Build the nexus from the neck
+  =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
+  ?~  nex  ~
+  ::  Calculate the subpath relative to the nexus
+  =/  subpath=path  (slag (lent p.u.nex-info) `path`here)
+  ::  Call on-file to build the process
+  `(on-file:u.nex subpath mark)
+::
 ++  process-dart
   |=  [here=path =dart:nexus]
   ^+  this
@@ -146,10 +198,21 @@
   ^+  this
   ?-  -.make
       %&
-    this(ball (~(mkd ba:tarball ball) here ~ p.make))
+    ?^  (~(get of ball) here)
+      ~|("directory already exists at path" !!)
+    ?~  p.make
+      this(ball (~(mkd ba:tarball ball) here ~ p.make))
+    ?~  nex=(build-nexus u.p.make)
+      this
+    this(ball (~(pub ba:tarball ball) here (on-load:u.nex *ball:tarball)))
+    ::
       %|
-    ?~  here
-      ~|("cannot create file at root" !!)
+    ::  Assert file doesn't already exist
+    =/  existing-file=(unit content:tarball)
+      ?~  here  ~
+      (~(get ba:tarball ball) (snip `path`here) (rear here))
+    ?^  existing-file
+      ~|("file already exists at path" !!)
     ::  TODO: Build dais for mark validation via scry
     ::  For now, use empty dais map (validation will crash if needed)
     =/  ba  (~(das ba:tarball ball) ~)
