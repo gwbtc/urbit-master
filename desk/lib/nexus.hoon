@@ -2,14 +2,16 @@
 :: exploring the possibility of a directory-specific orchestrator agent
 ::
 |%
++$  card  card:agent:gall
 +$  ball  ball:tarball
 +$  neck  neck:tarball
-+$  bend  (pair @ud path)                 :: relative path
-+$  road  (each path bend)                :: absolute or relative path
-+$  prov  [src=@p sap=path]               :: external provenance
-+$  from  (each path prov)                :: absolute source
-+$  give  [=from =wire]                   :: return address
++$  bend  (pair @ud path)        :: relative path
++$  road  (each path bend)       :: absolute or relative path
++$  prov  [src=@p sap=path]      :: external provenance
++$  from  (each path prov)       :: absolute source
++$  give  [=from =wire]          :: return address
 +$  scry  [=mold =path]
++$  take  [here=path take:fiber] :: localized input + return address
 :: a filter or net
 ::
 +$  weir
@@ -48,14 +50,12 @@
       [%bowl =wire]
   ==
 ::
-+$  take  [here=path in=(unit intake:fiber)]
-::
 ++  fiber
   |%
   +$  proc
-    $:  process=(each process tang)
-        next=(qeu (unit intake)) :: queue of held inputs
-        skip=(qeu (unit intake)) :: queue of skipped inputs
+    $:  =process                 :: running fiber
+        next=(qeu take)          :: queue of held inputs
+        skip=(qeu take)          :: queue of skipped inputs
     ==
   ::
   +$  intake
@@ -82,10 +82,19 @@
         in=(unit intake) :: command/response/data to ingest (null means start)
     ==
   ::
+  +$  take  [=give in=(unit intake)]
+  :: Three situations for process initialization
+  ::
+  +$  prod
+    $%  [%make ~]     :: making new file
+        [%load ~]     :: gall on-init or on-load
+        [%rise =tang] :: failed while running
+    ==
+  ::
   ++  output-raw
     |*  value=mold
     $~  [~ *vase %done *value]
-    $:  cards=(list card) :: allows for %sse card
+    $:  darts=(list dart)
         state=vase
         $=  next
         $%  [%wait ~] :: process intake and await next
@@ -101,6 +110,7 @@
     $-(input (output-raw value))
   ::
   +$  process  _*form:(fiber ,~)
+  +$  spool    $-(prod process)    :: initializer - takes prod, returns process
   ::
   ++  fiber
     |*  value=mold
@@ -130,7 +140,7 @@
       |=  =input
       =/  b-res=(output-raw b)  (m-b input)
       ^-  output
-      :-  cards.b-res
+      :-  darts.b-res
       :-  state.b-res
       ?-    -.next.b-res
         %wait  [%wait ~]
@@ -152,47 +162,54 @@
           [%done ~]
       ==
     ::
+    +$  took  [=^take err=(unit tang)]
+    ::
     ++  take
-      =|  cards=(list card) :: effects
-      |=  [=bowl:gall state=vase =proc]
-      ^-  [(list card) vase _proc result]
-      ?>  ?=(%& -.process.proc)
-      =^  take=(unit intake)  next.proc  ~(get to next.proc)
+      =|  darts=(list dart) :: effects
+      =|  done=(list took)  :: consumed takes for acking
+      |=  [=bowl state=vase =proc]
+      ^-  [(list dart) (list took) vase _proc result]
+      =^  =^take  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced
       =/  res=(each output tang)
-        (mule |.((p.process.proc state take)))
+        (mule |.((process.proc state in.take)))
       ?:  ?=(%| -.res)
         =/  =tang  [leaf+"crash" p.res]
-        :-  cards :: no output cards on failure
+        :-  darts :: no output darts on failure
+        :-  :_(done [take `tang])
         :-  state :: no output state on failure
-        :-  proc(process [%| tang])
+        :-  proc
         [%fail tang]
       =/  =output  p.res
       ?-    -.next.output
           %fail
-        :-  cards :: no output cards on failure
+        :-  darts :: no output darts on failure
+        :-  :_(done [take `err.next.output])
         :-  state :: no output state on failure
         :-  proc
         [%fail err.next.output]
         ::
           %done
-        :-  (weld cards cards.output)
+        :-  (weld darts darts.output)
+        :-  :_(done [take ~])
         :-  state.output
         :-  proc
         [%done ~]
         ::
           %cont
         %=  $
-          cards         (weld cards cards.output)
+          darts         (weld darts darts.output)
+          done          :_(done [take ~])
           state         state.output
           next.proc     (~(gas to next.proc) ~(tap to skip.proc))
           skip.proc     ~
-          process.proc  [%& self.next.output]
-          take          ~
+          process.proc  self.next.output
+          take          [give.take ~]
         ==
         ::
           %wait
-        =.  cards  (weld cards cards.output)
+        =.  darts  (weld darts darts.output)
+        =.  done   :_(done [take ~])
         ?.  =(~ next.proc)
           :: recurse on queued input
           ::
@@ -203,21 +220,23 @@
           ==
         :: await input
         ::
-        :-  cards
+        :-  darts
+        :-  done
         :-  state.output
         :-  proc
         [%next ~]
         ::
           %skip
-        ?:  =(~ take)
+        ?:  =(~ in.take)
           :: can't %skip a ~ input
           ::
           =/  =tang  [leaf+"cannot skip null input" ~]
-          :-  cards :: no output cards on failure
+          :-  darts :: no output darts on failure
+          :-  :_(done [take `tang])
           :-  state :: no output state on failure
           :-  proc
           [%fail tang]
-        :: skip input
+        :: skip input - NOT added to done
         ::
         =.  skip.proc  (~(put to skip.proc) take)
         ?.  =(~ next.proc)
@@ -225,7 +244,8 @@
           ::
           =^  top  next.proc  ~(get to next.proc)
           $(take top)
-        :-  cards :: %skips can't send effects
+        :-  darts :: %skips can't send effects
+        :-  done
         :-  state :: %skips can't change state
         :-  proc
         [%next ~]
@@ -233,8 +253,9 @@
     --
   --
 ::
-+$  pipe  [nex=(each nexus tang) poc=(map @ta (each proc:fiber tang))]
++$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
++$  nexi  (map neck nexus)
 :: NOTES:
 ::  - in the +on-load, we recursively run nexus +on-loads in a top-down manner
 ::  - +on-load assumes all processes are being restarted
@@ -258,6 +279,6 @@
   ::
   ++  on-file
     |~  [path mark]
-    *process:fiber :: define process corresponding to file
+    *spool:fiber :: define spool (initializer) for file
   --
 --

@@ -1,11 +1,15 @@
-/+  default-agent, dbug, tarball, nexus
+/+  default-agent, dbug, tarball, nexus, nex-main
 |%
 +$  versioned-state
   $%  state-0
   ==
 ++  veb  &
 +$  card  card:agent:gall
-+$  state-0  [%0 =ball:tarball =pool:nexus]
++$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus]
+++  default-nexi
+  %-  ~(gas by *nexi:nexus)
+  :~  [%example example:nex-main]
+  ==
 --
 ::
 =|  state-0
@@ -22,6 +26,7 @@
 ++  on-init
   ^-  (quip card _this)
   ~&  >  '%mister initialized'
+  =.  nexi  default-nexi
   `this
 ::
 ++  on-save
@@ -32,6 +37,7 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
+  =.  nexi  default-nexi
   ?-  -.old
     %0  `this(ball ball.old, pool pool.old)
   ==
@@ -54,8 +60,9 @@
     ::
       %poke
     =+  !<([here=path =cage] vase)
+    =/  =give:nexus  [|+[src sap]:bowl /poke]
     =^  cards  state
-      abet:(poke:hc |+[src sap]:bowl here cage)
+      abet:(poke:hc give here cage)
     [cards this]
   ==
 ::
@@ -104,8 +111,8 @@
   ?:  =(~ takes)
     ~?  >  veb  "done-abet!"
     [(flop cards) state]
-  =^  =take:nexus  takes  ~(get to takes)
-  $(this (process-take take))
+  =^  [here=path =take:fiber:nexus]  takes  ~(get to takes)
+  $(this (process-take here take))
 ::
 ++  emit-card
   |=  =card
@@ -116,8 +123,72 @@
   this(cards (welp (flop cadz) cards))
 ::
 ++  enqu-take
-  |=  [here=path in=(unit intake:fiber:nexus)]
-  this(takes (~(put to takes) [here in]))
+  |=  [here=path =give:nexus in=(unit intake:fiber:nexus)]
+  this(takes (~(put to takes) [here give in]))
+::
+::  Generate a system give (for internal system operations)
+::
+++  sys-give
+  |=  =wire
+  ^-  give:nexus
+  [|+[our.bowl /gall/mister] wire]
+::
+++  store-proc
+  |=  [here=path =proc:fiber:nexus]
+  ^+  this
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  =/  =pipe:nexus  (~(put by (fall (~(get of pool) dir) ~)) name proc)
+  this(pool (~(put of pool) dir pipe))
+::
+++  delete
+  |=  here=path
+  ^+  this
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  =.  ball  (~(lop ba:tarball ball) here)
+  =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
+  this(pool (~(put of pool) dir pipe))
+::
+::  Send ack/nack back to poke source
+::  - Internal (%&): enqueue %pack intake to source path
+::  - External (%|): emit gall card (TODO)
+::
+++  give-poke-ack
+  |=  [=from:nexus =wire err=(unit tang)]
+  ^+  this
+  ?-    -.from
+      %&
+    ::  Internal - send %pack intake to source process
+    (enqu-take p.from (sys-give /pack) ~ %pack wire err)
+    ::
+      %|
+    ::  External - TODO: emit gall card back to caller
+    ::  For now just log if error
+    ?~  err  this
+    ((slog leaf+"external poke failed" u.err) this)
+  ==
+::
+++  give-poke-sign
+  |=  =took:eval:fiber:nexus
+  ^+  this
+  ?.  ?=([~ %poke *] in.take.took)  this
+  (give-poke-ack from.u.in.take.took wire.give.take.took err.took)
+::
+++  give-poke-signs
+  |=  done=(list took:eval:fiber:nexus)
+  ^+  this
+  ?~  done  this
+  =.  this  (give-poke-sign i.done)
+  $(done t.done)
+::
+++  nack-poke-takes
+  |=  [takes=(qeu take:fiber:nexus) err=tang]
+  ^+  this
+  ?:  =(~ takes)  this
+  =^  =take:fiber:nexus  takes  ~(get to takes)
+  =.  this  (give-poke-sign [take `err])
+  $(takes takes)
 ::
 ++  process-darts
   |=  [here=path darts=(list dart:nexus)]
@@ -129,21 +200,7 @@
 ++  build-nexus
   |=  neck=@tas
   ^-  (unit nexus:nexus)
-  =/  all-files=(set path)
-    (~(gas in *(set path)) .^((list path) %ct (weld /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl) /nex)))
-  =/  paths=(list path)  (segments:clay neck)
-  =/  matching-path=(unit path)
-    |-
-    ?~  paths  ~
-    =/  pax=path  (weld /nex (snoc i.paths %hoon))
-    ?:  (~(has in all-files) pax)
-      `pax
-    $(paths t.paths)
-  ?~  matching-path
-    ~
-  =/  scry-path=path
-    (weld /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl) u.matching-path)
-  (mole |.(!<(nexus:nexus .^(vase %ca scry-path))))
+  (~(get by nexi) neck)
 ::
 ++  find-nearest-nexus
   |=  here=path
@@ -156,9 +213,9 @@
   ?~  here  ~
   $(here (snip `path`here))
 ::
-++  build-process
+++  build-spool
   |=  here=path
-  ^-  (unit process:fiber:nexus)
+  ^-  (unit spool:fiber:nexus)
   ::  Must have at least one element in path (the filename)
   ?~  here  ~
   ::  Get the file from the ball - must exist
@@ -175,23 +232,145 @@
   ?~  nex  ~
   ::  Calculate the subpath relative to the nexus
   =/  subpath=path  (slag (lent p.u.nex-info) `path`here)
-  ::  Call on-file to build the process
+  ::  Call on-file to get the spool (initializer)
   `(on-file:u.nex subpath mark)
 ::
 ++  process-dart
   |=  [here=path =dart:nexus]
   ^+  this
-  !!
+  ?-    -.dart
+      %sysc
+    ::  Emit gall card directly (with wrapped wire)
+    =/  =card  card.dart
+    =?  card  ?=([%pass *] card)
+      card(p (wrap-wire here p.card))
+    (emit-card card)
+    ::
+      %cull
+    ::  Delete self - enqueue a cull for this file
+    ::  The actual deletion happens via the %done result
+    ::  For now just note it - process should return %done
+    this
+    ::
+      %node
+    ::  Send load to another path
+    =/  dest=path
+      ?-  -.road.dart
+        %&  p.road.dart  :: absolute path
+        %|  (weld (scag p.p.road.dart here) q.p.road.dart)  :: relative path
+      ==
+    ?-    -.load.dart
+        %poke
+      ::  Poke with return address
+      (enqu-take dest [&+here wire.dart] ~ %poke &+here cage.load.dart)
+      ::
+        %make
+      ::  Create file/dir at dest
+      (make dest make.load.dart)
+      ::
+        %cull
+      ::  Delete file at dest
+      (cull dest)
+      ::
+        %sand
+      ::  Sandbox - not implemented yet
+      this
+      ::
+        %kill
+      ::  Kill process at dest - not implemented yet
+      this
+      ::
+        %peek
+      ::  Peek at dest - enqueue as intake
+      ::  TODO: implement peek handling
+      this
+    ==
+    ::
+      %scry
+    ::  Request scry - for now just do it synchronously
+    ?~  scry.dart
+      ::  Null scry means "get my path" - return here
+      (enqu-take here (sys-give /scry) ~ %scry wire.dart here !>(here))
+    ::  Do the scry and enqueue result
+    ::  Path format: /vane/desk/rest... -> /vane/~ship/desk/~date/rest...
+    =/  pat=path  path.u.scry.dart
+    ?>  ?=([@ @ *] pat)
+    =/  res=vase
+      !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+    (enqu-take here (sys-give /scry) ~ %scry wire.dart path.u.scry.dart res)
+    ::
+      %bowl
+    ::  Request bowl - build and enqueue
+    (enqu-take here (sys-give /bowl) ~ %bowl wire.dart (make-bowl here))
+  ==
 ::
 ++  process-take
-  |=  [here=path in=(unit intake:fiber:nexus)]
+  |=  [here=path =take:fiber:nexus]
   ^+  this
-  !!
+  ?~  here  this  :: can't process empty path
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  ::  Get pipe at directory, or empty map
+  =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
+  ::  Get proc for this file, or create one
+  =/  =proc:fiber:nexus
+    ?^  prc=(~(get by pipe) name)
+      u.prc
+    =/  =spool:fiber:nexus  (need (build-spool here))
+    =/  =process:fiber:nexus  (spool [%make ~])
+    [process ~ ~]
+  ::  Add take to queue, store, and run
+  =.  proc  proc(next (~(put to next.proc) take))
+  =.  this  (store-proc here proc)
+  (process-do-next here)
+::
+++  process-do-next
+  |=  here=path
+  ^+  this
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  ::  Get proc from pool
+  =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
+  =/  =proc:fiber:nexus  (~(got by pipe) name)
+  ::  Get file state from ball
+  =/  file-data=(unit content:tarball)
+    (~(get ba:tarball ball) dir name)
+  ?~  file-data  this  :: file doesn't exist
+  =/  fil-state=vase  q.cage.u.file-data
+  ::  Build bowl for this process (with filtered wex/sup)
+  =/  =bowl:nexus  (make-bowl here)
+  ::  Run the evaluator
+  =/  [dartz=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=_proc res=result:eval:fiber:nexus]
+    (take:eval:fiber:nexus bowl fil-state proc)
+  ::  Process darts (emit cards or enqueue takes)
+  =.  this  (process-darts here dartz)
+  ::  Ack consumed pokes
+  =.  this  (give-poke-signs done)
+  ::  Handle result
+  ?-    -.res
+      %next
+    ::  Update state in ball and proc in pool
+    =.  ball  (~(put ba:tarball ball) dir name [metadata.u.file-data p.cage.u.file-data new-state])
+    (store-proc here new-proc)
+    ::
+      %done
+    ::  Delete file and proc
+    (delete here)
+    ::
+      %fail
+    ::  Nack queued pokes and restart process with %rise
+    =.  this  (nack-poke-takes next.new-proc err.res)
+    =.  this  (nack-poke-takes skip.new-proc err.res)
+    =/  =spool:fiber:nexus  (need (build-spool here))
+    =/  =process:fiber:nexus  (spool [%rise err.res])
+    =.  this  (store-proc here [process ~ ~])
+    (enqu-take here (sys-give /rise) ~)
+  ==
 ::
 ++  poke
-  |=  [=from:nexus here=path =cage]
+  |=  [=give:nexus here=path =cage]
   ^+  this
-  (enqu-take here ~ %poke from cage)
+  (enqu-take here give ~ %poke from.give cage)
 ::
 ++  make
   |=  [here=path =make:nexus]
@@ -216,7 +395,9 @@
     ::  TODO: Build dais for mark validation via scry
     ::  For now, use empty dais map (validation will crash if needed)
     =/  ba  (~(das ba:tarball ball) ~)
-    this(ball (put:ba (snip `path`here) (rear here) [~ p.make]))
+    =.  ball  (put:ba (snip `path`here) (rear here) [~ p.make])
+    ::  Start the process with ~ input
+    (enqu-take here (sys-give /make) ~)
   ==
 ::
 ++  cull
@@ -225,6 +406,31 @@
   ::  TODO: Check weir permissions
   ::  Delete from ball
   this(ball (~(lop ba:tarball ball) here))
+::
+++  make-bowl
+  |=  here=path
+  ^-  bowl:nexus
+  ::  Filter wex to only include outgoing subscriptions for this process
+  =/  filtered-wex=boat:gall
+    %-  ~(gas by *boat:gall)
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] acked=? pat=path]
+    =/  res=(unit [path ^wire])
+      (mole |.((unwrap-wire wire)))
+    ?~  res  ~
+    ?.  =(-.u.res here)  ~
+    [~ [+.u.res ship term] acked pat]
+  ::  Filter sup to only include incoming subscriptions for this process
+  =/  filtered-sup=bitt:gall
+    %-  ~(gas by *bitt:gall)
+    %+  murn  ~(tap by sup.bowl)
+    |=  [=duct =ship pat=path]
+    =/  res=(unit [path wire])
+      (mole |.((unwrap-wire pat)))
+    ?~  res  ~
+    ?.  =(-.u.res here)  ~
+    [~ duct ship +.u.res]
+  [now our eny filtered-wex filtered-sup here]:[bowl .]
 ::
 ++  wrap-wire
   |=  [here=path =wire]
@@ -246,23 +452,23 @@
   |=  [wir=wire sign=sign-arvo]
   ^+  this
   =/  [here=path =wire]  (unwrap-wire wir)
-  (enqu-take here ~ %arvo wire sign)
+  (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
   =/  [here=path =wire]  (unwrap-wire wir)
-  (enqu-take here ~ %agent wire sign)
+  (enqu-take here (sys-give /agent) ~ %agent wire sign)
 ::
 ++  take-watch
   |=  pat=path
   ^+  this
   =/  [here=path =wire]  (unwrap-wire pat)
-  (enqu-take here ~ %watch pat)
+  (enqu-take here (sys-give /watch) ~ %watch wire)
 ::
 ++  take-leave
   |=  pat=path
   ^+  this
   =/  [here=path =wire]  (unwrap-wire pat)
-  (enqu-take here ~ %leave pat)
+  (enqu-take here (sys-give /leave) ~ %leave wire)
 --
