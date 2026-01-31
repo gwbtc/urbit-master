@@ -1,5 +1,10 @@
 /+  nexus, tarball
 |%
+++  default-nexi
+  %-  ~(gas by *nexi:nexus)
+  :~  [%example example]
+  ==
+::
 ++  example
   ^-  nexus:nexus
   |%

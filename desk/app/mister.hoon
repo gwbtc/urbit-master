@@ -5,11 +5,7 @@
   ==
 ++  veb  &
 +$  card  card:agent:gall
-+$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus]
-++  default-nexi
-  %-  ~(gas by *nexi:nexus)
-  :~  [%example example:nex-main]
-  ==
++$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus =sand:nexus]
 --
 ::
 =|  state-0
@@ -26,7 +22,7 @@
 ++  on-init
   ^-  (quip card _this)
   ~&  >  '%mister initialized'
-  =.  nexi  default-nexi
+  =.  nexi  default-nexi:nex-main
   `this
 ::
 ++  on-save
@@ -37,9 +33,9 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  =.  nexi  default-nexi
+  =.  nexi  default-nexi:nex-main
   ?-  -.old
-    %0  `this(ball ball.old, pool pool.old)
+    %0  `this(ball ball.old, pool pool.old, sand sand.old)
   ==
 ::
 ++  on-poke
@@ -190,6 +186,37 @@
   =.  this  (give-poke-sign [take `err])
   $(takes takes)
 ::
+:: TODO: handle outgoing keens
+::
+::  Clean up subscriptions when a process dies
+::
+++  clean
+  |=  here=path
+  ^+  this
+  ::  Leave outgoing subscriptions (wex)
+  ::
+  =.  this
+    %-  emit-cards
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] *]
+    ^-  (unit card)
+    =/  res=(unit [path ^wire])
+      (mole |.((unwrap-wire wire)))
+    ?~  res  ~
+    ?.  =(-.u.res here)  ~
+    [~ %pass wire %agent [ship term] %leave ~]
+  ::  Kick incoming subscribers (sup)
+  ::
+  %-  emit-cards
+  %+  murn  ~(tap by sup.bowl)
+  |=  [=duct =ship pat=path]
+  ^-  (unit card)
+  =/  res=(unit [path wire])
+    (mole |.((unwrap-wire pat)))
+  ?~  res  ~
+  ?.  =(-.u.res here)  ~
+  [~ %give %kick ~[pat] ~]
+::
 ++  process-darts
   |=  [here=path darts=(list dart:nexus)]
   ^+  this
@@ -238,6 +265,35 @@
 ++  process-dart
   |=  [here=path =dart:nexus]
   ^+  this
+  =/  [=jump:nexus dest=(unit path)]  (dart-to-jump-here here dart)
+  =/  =filt:nexus  (allowed here jump dest)
+  ?+    filt  (handle-dart here dart)
+      [~ %|]
+    ::  Vetoed - send %veto intake back to source
+    (enqu-take here (sys-give /veto) ~ %veto dart)
+    ::
+      [~ %&]
+    ::  Allowed but should clam vases - for now just handle
+    ::  TODO: implement clamming
+    (handle-dart here dart)
+  ==
+::
+++  dart-to-jump-here
+  |=  [here=path =dart:nexus]
+  ^-  [jump:nexus (unit path)]
+  ?+    -.dart  [%sysc ~]
+      %node
+    :_  (path-from-road:nexus here road.dart)
+    ?-  -.load.dart
+      %peek                       %peek
+      ?(%poke %kill)              %poke
+      ?(%make %cull %sand)        %make
+    ==
+  ==
+::
+++  handle-dart
+  |=  [here=path =dart:nexus]
+  ^+  this
   ?-    -.dart
       %sysc
     ::  Emit gall card directly (with wrapped wire)
@@ -273,8 +329,8 @@
       (cull dest)
       ::
         %sand
-      ::  Sandbox - not implemented yet
-      this
+      ::  Set weir at dest
+      (edit-weir here wire.dart dest weir.load.dart)
       ::
         %kill
       ::  Kill process at dest - not implemented yet
@@ -354,7 +410,8 @@
     (store-proc here new-proc)
     ::
       %done
-    ::  Delete file and proc
+    ::  Clean up subscriptions and delete file
+    =.  this  (clean here)
     (delete here)
     ::
       %fail
@@ -407,6 +464,17 @@
   ::  Delete from ball
   this(ball (~(lop ba:tarball ball) here))
 ::
+++  edit-weir
+  |=  [src=path =wire dest=path weir=(unit weir:nexus)]
+  ^+  this
+  ?>  ?=(^ dest)  :: root should always have system access
+  =.  sand
+    ?~  weir
+      (~(del of sand) dest)
+    (~(put of sand) dest u.weir)
+  ::  Send ack back to source
+  (enqu-take src (sys-give /sand) ~ %sand wire ~)
+::
 ++  make-bowl
   |=  here=path
   ^-  bowl:nexus
@@ -431,6 +499,30 @@
     ?.  =(-.u.res here)  ~
     [~ duct ship +.u.res]
   [now our eny filtered-wex filtered-sup here]:[bowl .]
+::
+::  Sandboxing / weir filtering
+::
+++  allowed
+  |=  [here=path =jump:nexus dest=(unit path)]
+  ^-  filt:nexus
+  ?~  dest  [~ |]
+  =/  =bend:nexus  (make-bend:nexus here u.dest)
+  =/  steps=@ud  p.bend
+  =|  =filt:nexus
+  |-
+  =/  weir=(unit weir:nexus)  (~(get of sand) here)
+  =/  nex=filt:nexus
+    ?~  weir  ~
+    (filter:nexus u.dest jump here u.weir)
+  =.  filt  (next-filt:nexus filt nex)
+  ?:  =(0 steps)
+    ?:(=(/ q.bend) filt nex)  :: check for self, not kids
+  ?:  ?=([~ %|] filt)  filt
+  %=  $
+    filt   filt
+    here   (snip here)
+    steps  (dec steps)
+  ==
 ::
 ++  wrap-wire
   |=  [here=path =wire]

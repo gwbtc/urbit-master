@@ -20,6 +20,12 @@
       peek=(set road)
   ==
 +$  sand  (axal weir)
+::  filter result: ~ = no filter, [~ &] = allow+clam, [~ |] = veto
+::
++$  filt  (unit ?)
+::  dart category for filtering
+::
++$  jump  ?(%sysc %make %poke %peek)
 ::
 +$  bowl
   $:  now=@da
@@ -256,6 +262,62 @@
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
 +$  nexi  (map neck nexus)
+::
+::  Sandboxing helpers
+::
+++  path-from-road
+  |=  [here=path =road]
+  ^-  (unit path)
+  ?-  -.road
+    %&  `p.road
+    %|  ?:  (gth p.p.road (lent here))  ~
+        `(weld (scag p.p.road here) q.p.road)
+  ==
+::
+++  make-bend
+  |=  [here=path dest=path]
+  ^-  bend
+  =/  pref=path
+    |-
+    ?~  here  ~
+    ?~  dest  ~
+    ?.  =(i.here i.dest)  ~
+    [i.here $(here t.here, dest t.dest)]
+  =/  here-tail=path  (slag (lent pref) here)
+  =/  dest-tail=path  (slag (lent pref) dest)
+  [(lent here-tail) dest-tail]
+::
+++  filter-roads
+  |=  [here=path dest=path roads=(list road)]
+  ^-  ?
+  ?~  roads  |
+  =/  road-path=(unit path)  (path-from-road here i.roads)
+  ?~  road-path  $(roads t.roads)
+  ::  Check if dest starts with road-path (road-path is prefix of dest)
+  ?:  =((scag (lent u.road-path) dest) u.road-path)
+    &
+  $(roads t.roads)
+::
+++  filter
+  |=  [dest=path =jump here=path =weir]
+  ^-  filt
+  ?:  ?=(%sysc jump)  [~ |]  :: any filter blocks syscalls
+  :-  ~
+  ?-  jump
+    %make  (filter-roads here dest ~(tap in sand.weir))
+    %poke  (filter-roads here dest ~(tap in poke.weir))
+    %peek  (filter-roads here dest ~(tap in peek.weir))
+  ==
+::
+++  next-filt
+  |=  [cur=filt nex=filt]
+  ^-  filt
+  ?~  cur  nex
+  ?~  nex  cur
+  ?:  ?=([~ %|] cur)  [~ |]
+  ?:  ?=([~ %|] nex)  [~ |]
+  [~ &]
+::
 :: NOTES:
 ::  - in the +on-load, we recursively run nexus +on-loads in a top-down manner
 ::  - +on-load assumes all processes are being restarted
