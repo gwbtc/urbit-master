@@ -259,7 +259,22 @@
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
 +$  nexi  (map neck nexus)
+::  Process instance IDs - NEVER deleted, even when files are deleted.
+::  Acts as high-water mark so recreated files get higher IDs,
+::  preventing stale responses from being delivered to new processes.
+::
 +$  born  (axal (map @ta @da))
+::  External action type for pokes
+::
++$  action
+  $:  [=wire here=path]
+      $%  [%make =make]
+          [%cull ~]
+          [%sand weir=(unit weir)]
+          [%poke =cage]
+      ==
+  ==
++$  ack  (unit tang)
 ::
 ::  Scry-free mule: like +mule but blocks .^ calls
 ::

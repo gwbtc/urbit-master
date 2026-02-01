@@ -2,6 +2,8 @@
 /=  m-  /mar/tree
 /=  m-  /mar/sand
 /=  m-  /mar/kids
+/=  m-  /mar/mister-action
+/=  m-  /mar/mister-ack
 |%
 +$  versioned-state
   $%  state-0
@@ -85,6 +87,34 @@
     =^  cards  state
       abet:(set-weir:hc path weir)
     [cards this]
+    ::
+      %mister-action
+    =+  !<(=action:nexus vase)
+    ?-    +<.action
+        %poke
+      =/  =give:nexus  [|+[src sap]:bowl wire.action]
+      =^  cards  state
+        abet:(poke:hc give here.action cage.action)
+      [cards this]
+      ::
+        %make
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(make:hc here.action make.action)
+      [cards this]
+      ::
+        %cull
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(cull:hc here.action)
+      [cards this]
+      ::
+        %sand
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(set-weir:hc here.action weir.action)
+      [cards this]
+    ==
   ==
 ::
 ++  on-watch
@@ -222,7 +252,7 @@
     ::  External - send fact on caller's subscription path, then kick
     =/  src=@ta  (scot %p src.p.from)
     =/  pat=path  (weld /poke/[src] wire)
-    =.  this  (emit-card %give %fact ~[pat] noun+!>(err))
+    =.  this  (emit-card %give %fact ~[pat] mister-ack+!>(err))
     (emit-card %give %kick ~[pat] ~)
   ==
 ::
