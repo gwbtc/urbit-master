@@ -12,7 +12,6 @@
 +$  give  [=from =wire]          :: return address
 +$  scry  [=mold =path]
 +$  take  [here=path take:fiber] :: localized input + return address
-::
 ::  SANDBOXING
 ::
 ::  Darts are conceptually emitted by processes and travel up the tree
@@ -287,7 +286,6 @@
       ==
   ==
 +$  ack  (unit tang)
-::
 ::  Scry-free mule: like +mule but blocks .^ calls
 ::
 ++  hoss
@@ -298,7 +296,6 @@
     %1  [%| ~[leaf+"blocked on scry"]]
     %2  [%| p.ton]
   ==
-::
 ::  Sandboxing helpers
 ::
 ::  Strip leading prefix from path. Returns remainder if prefix matches,
@@ -341,7 +338,6 @@
     %&  `p.road
     %|  (path-from-bend here p.road)
   ==
-::
 ::  Compute relative path from here to dest. Returns [steps-up tail-path].
 ::  E.g. from /a/b/c to /a/d/e -> [2 /d/e] (go up 2, then down /d/e)
 ::
@@ -391,7 +387,6 @@
   ?:  ?=([~ %|] cur)  [~ |]
   ?:  ?=([~ %|] nex)  [~ |]
   [~ &]
-::
 :: NOTES:
 ::  - in the +on-load, we recursively run nexus +on-loads in a top-down manner
 ::  - +on-load assumes all processes are being restarted

@@ -2,13 +2,13 @@
 ::
 /+  multipart
 |%
-+$  neck   @tas                :: a "mark" at the directory level
++$  neck      @tas                :: a "mark" at the directory level
 +$  metadata  (map @t @t)
-+$  bend  (pair @ud path)      :: relative path
-+$  road  (each path bend)     :: absolute or relative path
-+$  content  [=metadata =cage]
-+$  lump  [=metadata neck=(unit neck) contents=(map @ta content)]
-+$  ball  (axal lump)
++$  bend      (pair @ud path)      :: relative path
++$  road      (each path bend)     :: absolute or relative path
++$  content   [=metadata =cage]
++$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
++$  ball      (axal lump)
 :: simple descriptive file tree
 ::
 +$  node  [neck=(unit neck) files=(map @ta @tas)]
@@ -238,7 +238,6 @@
           parts=(list [@t part:multipart])
           now=@da
           conversions=(map mars:clay tube:clay)
-          dais-map=(map mark dais:clay)
       ==
   ^-  ball
   ?~  parts  base
@@ -293,8 +292,7 @@
         %-  ~(gas by *(map @t @t))
         :~  ['mtime' (da-oct now)]
         ==
-      =/  ba  (~(das ba base) dais-map)
-      (mkd:ba dir-path dir-metadata dir-neck)
+      (~(mkd ba base) dir-path dir-metadata dir-neck)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -339,9 +337,8 @@
       (crip (scag name-len full-text))
     [name-without-ext [file-metadata u.maybe-cage]]
   ::  Add file to base with explicit directories
-  =/  ba  (~(das ba base-with-dirs) dais-map)
   =/  new-base=ball
-    (put:ba full-parent store-name file-content)
+    (~(put ba base-with-dirs) full-parent store-name file-content)
   $(parts t.parts, base new-base)
 ::  Sync metadata from old ball to new ball
 ::  - Files: keep old mtime if unchanged, else now; update size
@@ -457,15 +454,7 @@
   ==
 ::
 ++  ba
-  =|  d=(map mark dais:clay)
   |_  b=ball
-  +*  dis  .
-  ::  Set the dais map for mark validation
-  ::
-  ++  das
-    |=  d=(map mark dais:clay)
-    ^+  dis
-    dis(d d)
   ::  Get a content item (file or symlink) by directory path and name
   ::
   ++  get
@@ -475,48 +464,15 @@
       ~
     (~(get by contents.u.nod) name)
   ::  Put a content item at directory path with name
-  ::  Validates cages using mark system, passes through files/symlinks
   ::
   ++  put
     |=  [pax=path name=@ta c=content]
     ^-  ball
-    ::  Reject empty mime files
-    ?:  ?&  =(%mime p.cage.c)
-            =(0 p.q:!<(mime q.cage.c))
-        ==
-      ~|("empty file {(spud (weld pax /[name]))}" !!)
-    ::  Validate cage
-    =/  validated-cage=cage  (validate-cage pax name cage.c)
     =/  lmp=lump
       ?~  nod=(~(get of b) pax)
         [~ ~ ~]
       u.nod
-    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c(cage validated-cage))))
-  ::  Validate a cage using mark system
-  ::
-  ++  validate-cage
-    |=  [pax=path name=@ta new-cage=cage]
-    ^-  cage
-    ::  Skip validation for %temp mark - it's ephemeral
-    ?:  =(%temp p.new-cage)
-      new-cage
-    ::  Check if there's an existing cage at this location
-    =/  old-content=(unit content)  (get pax name)
-    ::  Same-mark update with nesting types: canonicalize without dais
-    ?:  ?&  ?=(^ old-content)
-            =(p.cage.u.old-content p.new-cage)
-            (~(nest ut p.q.cage.u.old-content) | p.q.new-cage)
-        ==
-      =/  old-cage=cage  cage.u.old-content
-      [p.new-cage [p.q.old-cage q.q.new-cage]]
-    ::  All other cases: REQUIRE dais
-    =/  dais-result=(unit dais:clay)
-      (~(get by d) p.new-cage)
-    ?~  dais-result
-      ~|("dais required for cage validation: {<p.new-cage>}" !!)
-    =/  =dais:clay  u.dais-result
-    =/  validated-vase=vase  (vale:dais q.q.new-cage)
-    [p.new-cage validated-vase]
+    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c)))
   ::  Check if a content item exists
   ::
   ++  has
@@ -663,19 +619,6 @@
       %+  skip  ~(tap by contents.lmp)
       |=([name=@ta c=content] =(%temp p.cage.c))
     (~(put of acc) pax lmp(contents cleaned-contents))
-  ::  Validate all cages in ball using mark system
-  ::
-  ++  validate-ball
-    ^-  ball
-    %+  roll  ~(tap of b)
-    |=  [[pax=path lmp=lump] acc=ball]
-    =/  validated-contents=(map @ta content)
-      %-  ~(gas by *(map @ta content))
-      %+  turn  ~(tap by contents.lmp)
-      |=  [name=@ta c=content]
-      =/  validated-cage=cage  (validate-cage pax name cage.c)
-      [name c(cage validated-cage)]
-    (~(put of acc) pax lmp(contents validated-contents))
   ::  Delete entire subtree at path
   ::
   ++  lop

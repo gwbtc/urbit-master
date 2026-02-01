@@ -379,9 +379,9 @@
     ::  dap should return [~ ball] - path exists (but empty)
     %-  expect
     !>  ?=(^ dap-result)
-    ::  dip returns node with empty lump (empty metadata, empty contents)
+    ::  dip returns node with empty lump (empty metadata, no neck, empty contents)
     %+  expect-eq
-      !>  [fil=[~ [metadata=~ contents=~]] dir=~]
+      !>  [fil=[~ [metadata=~ neck=~ contents=~]] dir=~]
     !>  dip-result
   ==
 ::
@@ -1188,6 +1188,267 @@
     %+  expect-eq
       !>  !>('converted-json')
     !>  q.u.result
+  ==
+::
+::  clear-temp tests
+::
+++  test-clear-temp-empty-ball
+  ::  Empty ball should stay empty
+  =/  my-ball  *ball:tarball
+  =/  result  ~(clear-temp ba:tarball my-ball)
+  %+  expect-eq
+    !>  my-ball
+  !>  result
+::
+++  test-clear-temp-removes-temp-cages
+  ::  %temp cages should be removed
+  =/  my-ball  *ball:tarball
+  =/  temp-content=content:tarball  [~ [%temp !>('ephemeral')]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %temp-file temp-content)
+  =/  result  ~(clear-temp ba:tarball g1)
+  ;:  weld
+    ::  temp file should be gone
+    %+  expect-eq
+      !>  ~
+    !>  (~(get ba:tarball result) /foo %temp-file)
+    ::  count should be 0
+    %+  expect-eq
+      !>  0
+    !>  ~(wyt ba:tarball result)
+  ==
+::
+++  test-clear-temp-keeps-non-temp
+  ::  Non-%temp cages should be preserved
+  =/  my-ball  *ball:tarball
+  =/  mime-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  temp-content=content:tarball  [~ [%temp !>('ephemeral')]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %keep-file mime-content)
+  =/  g2  (~(put ba:tarball g1) /foo %temp-file temp-content)
+  =/  result  ~(clear-temp ba:tarball g2)
+  ;:  weld
+    ::  mime file should remain
+    %+  expect-eq
+      !>  `mime-content
+    !>  (~(get ba:tarball result) /foo %keep-file)
+    ::  temp file should be gone
+    %+  expect-eq
+      !>  ~
+    !>  (~(get ba:tarball result) /foo %temp-file)
+    ::  count should be 1
+    %+  expect-eq
+      !>  1
+    !>  ~(wyt ba:tarball result)
+  ==
+::
+++  test-clear-temp-multiple-dirs
+  ::  Should clear %temp from all directories
+  =/  my-ball  *ball:tarball
+  =/  temp1=content:tarball  [~ [%temp !>('t1')]]
+  =/  temp2=content:tarball  [~ [%temp !>('t2')]]
+  =/  keep=content:tarball   [~ [%mime !>([/text/plain [4 'keep']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %temp1 temp1)
+  =/  g2  (~(put ba:tarball g1) /bar %temp2 temp2)
+  =/  g3  (~(put ba:tarball g2) /baz %keep keep)
+  =/  result  ~(clear-temp ba:tarball g3)
+  ;:  weld
+    %+  expect-eq
+      !>  ~
+    !>  (~(get ba:tarball result) /foo %temp1)
+    %+  expect-eq
+      !>  ~
+    !>  (~(get ba:tarball result) /bar %temp2)
+    %+  expect-eq
+      !>  `keep
+    !>  (~(get ba:tarball result) /baz %keep)
+    %+  expect-eq
+      !>  1
+    !>  ~(wyt ba:tarball result)
+  ==
+::
+::  lss tests (list subdirectories)
+::
+++  test-lss-empty
+  ::  Empty ball has no subdirectories at root
+  =/  my-ball  *ball:tarball
+  %+  expect-eq
+    !>  ~
+  !>  (~(lss ba:tarball my-ball) /)
+::
+++  test-lss-with-subdirs
+  ::  Should list subdirectories
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
+  =/  g2  (~(put ba:tarball g1) /baz %test content)
+  =/  dirs  (~(lss ba:tarball g2) /)
+  =/  dir-set  (~(gas in *(set @ta)) dirs)
+  ;:  weld
+    %-  expect
+    !>  (~(has in dir-set) %foo)
+    %-  expect
+    !>  (~(has in dir-set) %baz)
+    %+  expect-eq
+      !>  2
+    !>  ~(wyt in dir-set)
+  ==
+::
+++  test-lss-nested
+  ::  Should list only immediate children
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo/bar/baz %test content)
+  =/  dirs-at-root  (~(lss ba:tarball g1) /)
+  =/  dirs-at-foo   (~(lss ba:tarball g1) /foo)
+  ;:  weld
+    ::  At root: only /foo
+    %+  expect-eq
+      !>  ~[%foo]
+    !>  dirs-at-root
+    ::  At /foo: only /bar
+    %+  expect-eq
+      !>  ~[%bar]
+    !>  dirs-at-foo
+  ==
+::
+++  test-lss-nonexistent-path
+  ::  Non-existent path returns empty
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  %+  expect-eq
+    !>  ~
+  !>  (~(lss ba:tarball g1) /nonexistent)
+::
+::  mkd tests (make directory with metadata and neck)
+::
+++  test-mkd-simple
+  ::  Create empty directory
+  =/  my-ball  *ball:tarball
+  =/  result  (~(mkd ba:tarball my-ball) /foo ~ ~)
+  =/  dap-result  (~(dap ba:tarball result) /foo)
+  %-  expect
+  !>  ?=(^ dap-result)
+::
+++  test-mkd-with-metadata
+  ::  Create directory with metadata
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' '12345']])
+  =/  result  (~(mkd ba:tarball my-ball) /foo meta ~)
+  =/  sub  (~(dip ba:tarball result) /foo)
+  ?~  fil.sub  !!
+  %+  expect-eq
+    !>  `'12345'
+  !>  (~(get by metadata.u.fil.sub) 'mtime')
+::
+++  test-mkd-with-neck
+  ::  Create directory with neck (mark)
+  =/  my-ball  *ball:tarball
+  =/  result  (~(mkd ba:tarball my-ball) /tasks ~ `%worker)
+  =/  sub  (~(dip ba:tarball result) /tasks)
+  ?~  fil.sub  !!
+  %+  expect-eq
+    !>  `%worker
+  !>  neck.u.fil.sub
+::
+++  test-mkd-with-metadata-and-neck
+  ::  Create directory with both metadata and neck
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' '12345'] ['owner' 'zod']])
+  =/  result  (~(mkd ba:tarball my-ball) /tasks meta `%executor)
+  =/  sub  (~(dip ba:tarball result) /tasks)
+  ?~  fil.sub  !!
+  ;:  weld
+    %+  expect-eq
+      !>  `%executor
+    !>  neck.u.fil.sub
+    %+  expect-eq
+      !>  `'12345'
+    !>  (~(get by metadata.u.fil.sub) 'mtime')
+    %+  expect-eq
+      !>  `'zod'
+    !>  (~(get by metadata.u.fil.sub) 'owner')
+  ==
+::
+++  test-mkd-nested
+  ::  Create nested directories
+  =/  my-ball  *ball:tarball
+  =/  g1  (~(mkd ba:tarball my-ball) /foo ~ ~)
+  =/  g2  (~(mkd ba:tarball g1) /foo/bar ~ `%special)
+  =/  sub  (~(dip ba:tarball g2) /foo/bar)
+  ?~  fil.sub  !!
+  %+  expect-eq
+    !>  `%special
+  !>  neck.u.fil.sub
+::
+::  pub tests (put subtree at path)
+::
+++  test-pub-at-root
+  ::  Pub at root replaces entire ball
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %test content)
+  =/  result  (~(pub ba:tarball my-ball) / sub-ball)
+  %+  expect-eq
+    !>  `content
+  !>  (~(get ba:tarball result) / %test)
+::
+++  test-pub-at-path
+  ::  Pub at path inserts subtree
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %test content)
+  =/  result  (~(pub ba:tarball my-ball) /foo/bar sub-ball)
+  %+  expect-eq
+    !>  `content
+  !>  (~(get ba:tarball result) /foo/bar %test)
+::
+++  test-pub-replaces-existing
+  ::  Pub replaces existing subtree
+  =/  my-ball  *ball:tarball
+  =/  old=content:tarball  [~ [%mime !>([/text/plain [3 'old']])]]
+  =/  new=content:tarball  [~ [%mime !>([/text/plain [3 'new']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo/bar %file old)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file new)
+  =/  result  (~(pub ba:tarball g1) /foo/bar sub-ball)
+  %+  expect-eq
+    !>  `new
+  !>  (~(get ba:tarball result) /foo/bar %file)
+::
+++  test-pub-preserves-siblings
+  ::  Pub at path should preserve sibling directories
+  =/  my-ball  *ball:tarball
+  =/  sibling=content:tarball  [~ [%mime !>([/text/plain [7 'sibling']])]]
+  =/  new=content:tarball  [~ [%mime !>([/text/plain [3 'new']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo/sibling %file sibling)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file new)
+  =/  result  (~(pub ba:tarball g1) /foo/target sub-ball)
+  ;:  weld
+    ::  New file should exist
+    %+  expect-eq
+      !>  `new
+    !>  (~(get ba:tarball result) /foo/target %file)
+    ::  Sibling should remain
+    %+  expect-eq
+      !>  `sibling
+    !>  (~(get ba:tarball result) /foo/sibling %file)
+  ==
+::
+++  test-pub-deep-subtree
+  ::  Pub a multi-level subtree
+  =/  my-ball  *ball:tarball
+  =/  content1=content:tarball  [~ [%mime !>([/text/plain [2 'c1']])]]
+  =/  content2=content:tarball  [~ [%mime !>([/text/plain [2 'c2']])]]
+  =/  sub-ball  *ball:tarball
+  =.  sub-ball  (~(put ba:tarball sub-ball) /deep/nested %file1 content1)
+  =.  sub-ball  (~(put ba:tarball sub-ball) /other %file2 content2)
+  =/  result  (~(pub ba:tarball my-ball) /root sub-ball)
+  ;:  weld
+    %+  expect-eq
+      !>  `content1
+    !>  (~(get ba:tarball result) /root/deep/nested %file1)
+    %+  expect-eq
+      !>  `content2
+    !>  (~(get ba:tarball result) /root/other %file2)
   ==
 ::
 ::  sync-metadata tests

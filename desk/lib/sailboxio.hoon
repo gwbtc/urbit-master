@@ -902,21 +902,14 @@
   ;<  b=ball:tarball  bind:m  get-state
   ::  Inline dais-map building
   ;<  our=@p  bind:m  get-our
-  ;<  =desk  bind:m  get-desk
   ;<  now=@da  bind:m  get-time
-  ;<  dais=(unit dais:clay)  bind:m
-    (build-mark-soft [our desk [%da now]] p.c)
-  =/  dais-map=(map mark dais:clay)
-    ?~  dais  ~
-    (~(gas by *(map mark dais:clay)) ~[[p.c u.dais]])
-  =/  ba  (~(das ba:tarball b) dais-map)
   ::  Build metadata with mtime
   =/  meta=metadata:tarball
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
   =/  content=content:tarball  [meta c]
-  (replace (put:ba pax name content))
+  (replace (~(put ba:tarball b) pax name content))
 ::  +mkd: make a directory in ball with timestamp
 ::
 ++  mkd
@@ -996,8 +989,7 @@
   ^-  form:m
   ;<  b=ball:tarball  bind:m  get-state
   ::  Get current file to determine its mark
-  =/  ba  (~(das ba:tarball b) ~)
-  =/  current=(unit content:tarball)  (get:ba pax name)
+  =/  current=(unit content:tarball)  (~(get ba:tarball b) pax name)
   ?~  current
     (fiber-fail leaf+"file not found: {<pax>}/{<name>}" ~)
   ::  Build dais for the mark (try our desk, then %base)
@@ -1005,5 +997,5 @@
   ?~  dais
     (fiber-fail leaf+"mark {<p.cage.u.current>} not found" ~)
   ::  Apply patch using tarball
-  (replace (patch-cage:ba pax name diff u.dais))
+  (replace (~(patch-cage ba:tarball b) pax name diff u.dais))
 --
