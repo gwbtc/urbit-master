@@ -14,7 +14,7 @@
       =ball:tarball
       =pool:nexus
       =sand:nexus
-      born=(axal @da)
+      =born:nexus
   ==
 --
 ::
@@ -34,7 +34,7 @@
   ~&  >  '%mister initialized'
   =.  nexi  default-nexi:nex-main
   =^  cards  state
-    abet:(reload:hc *pool:nexus *ball:tarball *sand:nexus *(axal @da))
+    abet:(reload:hc *pool:nexus *ball:tarball *sand:nexus *born:nexus)
   [cards this]
 ::
 ++  on-save
@@ -311,7 +311,7 @@
   |=  $:  old-pool=pool:nexus
           old-ball=ball:tarball
           old-sand=sand:nexus
-          old-born=(axal @da)
+          old-born=born:nexus
       ==
   ^+  this
   ::  Nack pokes in old proc queues
@@ -507,7 +507,7 @@
   ?~  here  this
   ::  Generate and store born
   =/  b=@da  (make-born here)
-  =.  born  (~(put of born) here b)
+  =.  this  (put-born here b)
   ::  Build and store proc - use default spool if no nexus
   =/  =spool:fiber:nexus
     (fall (build-spool here) default-spool)
@@ -702,17 +702,36 @@
     steps  (dec steps)
   ==
 ::
+++  get-born
+  |=  here=path
+  ^-  (unit @da)
+  ?~  here  ~
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  =/  m=(unit (map @ta @da))  (~(get of born) dir)
+  ?~  m  ~
+  (~(get by u.m) name)
+::
+++  put-born
+  |=  [here=path b=@da]
+  ^+  this
+  ?~  here  this
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
+  =/  m=(map @ta @da)  (fall (~(get of born) dir) ~)
+  this(born (~(put of born) dir (~(put by m) name b)))
+::
 ++  make-born
   |=  here=path
   ^-  @da
-  =/  last=(unit @da)  (~(get of born) here)
+  =/  last=(unit @da)  (get-born here)
   ?~  last  now.bowl
   ?:((lth u.last now.bowl) now.bowl +(u.last))
 ::
 ++  wrap-wire
   |=  [here=path =wire]
   ^+  wire
-  =/  b=@da  (need (~(get of born) here))
+  =/  b=@da  (need (get-born here))
   ;:  weld
     /(scot %ud (lent here))
     here
@@ -735,7 +754,7 @@
   |=  [wir=wire sign=sign-arvo]
   ^+  this
   =/  [here=path b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit @da)  (~(get of born) here)
+  =/  cur=(unit @da)  (get-born here)
   ?.  ?&(?=(^ cur) =(b u.cur))
     ~?  veb  "stale arvo response for {(spud here)}"
     this
@@ -745,7 +764,7 @@
   |=  [wir=wire =sign:agent:gall]
   ^+  this
   =/  [here=path b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit @da)  (~(get of born) here)
+  =/  cur=(unit @da)  (get-born here)
   ?.  ?&(?=(^ cur) =(b u.cur))
     ~?  veb  "stale agent response for {(spud here)}"
     this

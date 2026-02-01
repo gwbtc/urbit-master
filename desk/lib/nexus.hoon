@@ -259,6 +259,7 @@
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
 +$  nexi  (map neck nexus)
++$  born  (axal (map @ta @da))
 ::
 ::  Scry-free mule: like +mule but blocks .^ calls
 ::
