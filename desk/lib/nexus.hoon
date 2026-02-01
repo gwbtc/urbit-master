@@ -72,7 +72,7 @@
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
-        [%scry =wire =path =vase]
+        [%scry =wire =vase]
         [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]
         [%agent =wire =sign:agent:gall]

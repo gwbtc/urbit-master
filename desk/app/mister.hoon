@@ -154,10 +154,14 @@
     ``cage.u.content
     ::
       [%x %peek %kids *]
-    ::  Immediate children names at path
+    ::  File names at path
     =/  here=^path  t.t.t.path
-    =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
-    ``kids+!>(~(key by dir.sub))
+    ``kids+!>((~(lis ba:tarball ball) here))
+    ::
+      [%x %peek %subs *]
+    ::  Subdirectory names at path
+    =/  here=^path  t.t.t.path
+    ``kids+!>((~(lss ba:tarball ball) here))
     ::
       [%x %peek %tree *]
     ::  Tree structure with marks, no content
@@ -227,6 +231,8 @@
   =/  name=@ta  (rear here)
   =/  =pipe:nexus  (~(put by (fall (~(get of pool) dir) ~)) name proc)
   this(pool (~(put of pool) dir pipe))
+::
+::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
   |=  here=path
@@ -514,17 +520,16 @@
     ==
     ::
       %scry
-    ::  Request scry - for now just do it synchronously
     ?~  scry.dart
-      ::  Null scry means "get my path" - return here
-      (enqu-take here (sys-give /scry) ~ %scry wire.dart here !>(here))
+      ::  Null scry returns agent state
+      (enqu-take here (sys-give /scry) ~ %scry wire.dart !>(state))
     ::  Do the scry and enqueue result
     ::  Path format: /vane/desk/rest... -> /vane/~ship/desk/~date/rest...
     =/  pat=path  path.u.scry.dart
     ?>  ?=([@ @ *] pat)
     =/  res=vase
       !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
-    (enqu-take here (sys-give /scry) ~ %scry wire.dart path.u.scry.dart res)
+    (enqu-take here (sys-give /scry) ~ %scry wire.dart res)
     ::
       %bowl
     ::  Request bowl - build and enqueue
@@ -666,9 +671,8 @@
   =.  this  (nack-pool (~(dip of pool) here) ~[leaf+"culled"])
   ::  Clean subscriptions for subtree
   =.  this  (clean here %tree)
-  ::  Remove from pool, born, and ball
+  ::  Remove from pool and ball (NOT born - it's a high-water mark)
   =.  pool  (~(lop of pool) here)
-  =.  born  (~(lop of born) here)
   this(ball (~(lop ba:tarball ball) here))
 ::
 ++  set-weir
@@ -799,7 +803,7 @@
     ~?  veb  "stale agent response for {(spud here)}"
     this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
-::  Unwrap incoming watch/leave paths (no born - subscribers don't know it)
+::  Unwrap incoming watch/leave paths
 ::
 ++  unwrap-watch-path
   |=  pat=path

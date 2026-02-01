@@ -1,6 +1,6 @@
-::  kids: set of child names mark
+::  kids: list of child names mark
 ::
-|_  kids=(set @ta)
+|_  kids=(list @ta)
 ++  grad  %noun
 ++  grow
   |%
@@ -8,6 +8,6 @@
   --
 ++  grab
   |%
-  ++  noun  (set @ta)
+  ++  noun  (list @ta)
   --
 --
