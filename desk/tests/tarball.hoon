@@ -1190,4 +1190,81 @@
     !>  q.u.result
   ==
 ::
+::  sync-metadata tests
+::
+++  test-sync-metadata-empty
+  ::  Empty balls should remain empty
+  =/  old  *ball:tarball
+  =/  new  *ball:tarball
+  =/  now  ~2025.1.1
+  =/  result  (sync-metadata:tarball old new now)
+  %+  expect-eq
+    !>  new
+  !>  result
+::
+++  test-sync-metadata-new-file-gets-now
+  ::  New file (not in old) should get mtime=now
+  =/  old  *ball:tarball
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  content=content:tarball  [~ [%test !>('hello')]]
+  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  result  (sync-metadata:tarball old new now)
+  =/  got  (~(get ba:tarball result) / %file)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  mtime
+::
+++  test-sync-metadata-unchanged-keeps-old-mtime
+  ::  Unchanged file should keep old mtime
+  =/  old-time  ~2020.1.1
+  =/  old-time-text=@t  (da-oct:tarball old-time)
+  =/  now  ~2025.1.1
+  =/  content=content:tarball
+    [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('hello')]]
+  =/  old  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  result  (sync-metadata:tarball old new now)
+  =/  got  (~(get ba:tarball result) / %file)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  %+  expect-eq
+    !>  `old-time-text
+  !>  mtime
+::
+++  test-sync-metadata-changed-file-gets-now
+  ::  Changed file should get mtime=now
+  =/  old-time  ~2020.1.1
+  =/  old-time-text=@t  (da-oct:tarball old-time)
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  old-content=content:tarball
+    [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('hello')]]
+  =/  new-content=content:tarball
+    [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('goodbye')]]
+  =/  old  (~(put ba:tarball *ball:tarball) / %file old-content)
+  =/  new  (~(put ba:tarball *ball:tarball) / %file new-content)
+  =/  result  (sync-metadata:tarball old new now)
+  =/  got  (~(get ba:tarball result) / %file)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  mtime
+::
+++  test-sync-metadata-size-updated
+  ::  Size should be updated
+  =/  now  ~2025.1.1
+  =/  content=content:tarball  [~ [%test !>('hello-world')]]
+  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  result  (sync-metadata:tarball *ball:tarball new now)
+  =/  got  (~(get ba:tarball result) / %file)
+  ?~  got  !!
+  =/  size  (~(get by metadata.u.got) 'size')
+  ::  Size should be set (not empty)
+  %-  expect
+  !>  ?=(^ size)
+::
 --

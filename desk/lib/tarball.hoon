@@ -339,6 +339,107 @@
   =/  new-base=ball
     (put:ba full-parent store-name file-content)
   $(parts t.parts, base new-base)
+::  Sync metadata from old ball to new ball
+::  - Files: keep old mtime if unchanged, else now; update size
+::  - Directories: mtime=now if any child changed, else keep old
+::
+++  sync-metadata
+  |=  [old=ball new=ball now=@da]
+  ^-  ball
+  =|  here=path
+  =/  now-text=@t  (da-oct now)
+  |-
+  ^-  ball
+  ::  First, recurse into subdirectories and track if any changed
+  =/  kids=(list [@ta ball])  ~(tap by dir.new)
+  =|  any-kid-changed=?
+  =|  new-dir=(map @ta ball)
+  |-  ^-  ball
+  ?~  kids
+    ::  All subdirectories processed, now handle this node
+    ::  Process files in contents
+    =/  old-lump=(unit lump)  (~(get of old) here)
+    =/  new-lump=(unit lump)  fil.new
+    ?~  new-lump
+      ::  No lump at this node, just update dir
+      new(dir new-dir)
+    ::  Process each file in contents
+    =/  files=(list [@ta content])  ~(tap by contents.u.new-lump)
+    =|  any-file-changed=?
+    =|  new-contents=(map @ta content)
+    |-  ^-  ball
+    ?~  files
+      ::  All files processed, update lump metadata
+      =/  lump-changed=?  |(any-kid-changed any-file-changed)
+      =/  old-lump-meta=metadata
+        ?~  old-lump  ~
+        metadata.u.old-lump
+      =/  new-lump-mtime=@t
+        ?:  lump-changed  now-text
+        (~(gut by old-lump-meta) 'mtime' now-text)
+      =/  updated-lump=lump
+        %=  u.new-lump
+          contents  new-contents
+          metadata  (~(put by metadata.u.new-lump) 'mtime' new-lump-mtime)
+        ==
+      new(fil `updated-lump, dir new-dir)
+    ::  Process this file
+    =/  file-name=@ta  -.i.files
+    =/  file-content=content  +.i.files
+    =/  old-content=(unit content)
+      ?~  old-lump  ~
+      (~(get by contents.u.old-lump) file-name)
+    ::  Compare: same mark and same noun value?
+    =/  file-same=?
+      ?~  old-content  |
+      ?&  =(p.cage.u.old-content p.cage.file-content)
+          =(q.q.cage.u.old-content q.q.cage.file-content)
+      ==
+    ::  Compute new metadata
+    =/  file-size=@ud  (met 3 (jam q.q.cage.file-content))
+    =/  file-mtime=@t
+      ?:  file-same
+        (~(gut by metadata.file-content) 'mtime' now-text)
+      now-text
+    =/  old-mtime=(unit @t)
+      ?~  old-content  ~
+      (~(get by metadata.u.old-content) 'mtime')
+    =/  final-mtime=@t
+      ?:  file-same
+        (fall old-mtime now-text)
+      now-text
+    =/  updated-meta=metadata
+      %-  ~(gas by metadata.file-content)
+      :~  ['mtime' final-mtime]
+          ['size' (scot %ud file-size)]
+      ==
+    =/  updated-content=content  file-content(metadata updated-meta)
+    %=  $
+      files             t.files
+      any-file-changed  |(any-file-changed !file-same)
+      new-contents      (~(put by new-contents) file-name updated-content)
+    ==
+  ::  Process this subdirectory
+  =/  kid-name=@ta  -.i.kids
+  =/  kid-ball=ball  +.i.kids
+  =/  old-kid=(unit ball)  (~(get by dir.old) kid-name)
+  =/  synced-kid=ball
+    ^$(here (snoc here kid-name), new kid-ball, old (fall old-kid *ball))
+  ::  Check if kid changed by comparing mtime
+  =/  kid-changed=?
+    =/  old-kid-mtime=(unit @t)
+      ?~  old-kid  ~
+      ?~  fil.u.old-kid  ~
+      (~(get by metadata.u.fil.u.old-kid) 'mtime')
+    =/  new-kid-mtime=(unit @t)
+      ?~  fil.synced-kid  ~
+      (~(get by metadata.u.fil.synced-kid) 'mtime')
+    !=(old-kid-mtime new-kid-mtime)
+  %=  $
+    kids             t.kids
+    any-kid-changed  |(any-kid-changed kid-changed)
+    new-dir          (~(put by new-dir) kid-name synced-kid)
+  ==
 ::
 ++  ba
   =|  d=(map mark dais:clay)

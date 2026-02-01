@@ -5,7 +5,14 @@
   ==
 ++  veb  &
 +$  card  card:agent:gall
-+$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus =sand:nexus born=(axal @da)]
++$  state-0
+  $:  %0
+      =nexi:nexus
+      =ball:tarball
+      =pool:nexus
+      =sand:nexus
+      born=(axal @da)
+  ==
 --
 ::
 =|  state-0
@@ -23,7 +30,9 @@
   ^-  (quip card _this)
   ~&  >  '%mister initialized'
   =.  nexi  default-nexi:nex-main
-  `this
+  =^  cards  state
+    abet:(reload:hc *pool:nexus *ball:tarball *sand:nexus *(axal @da))
+  [cards this]
 ::
 ++  on-save
   ^-  vase
@@ -34,8 +43,11 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
   =.  nexi  default-nexi:nex-main
-  ?-  -.old
-    %0  `this(ball ball.old, pool pool.old, sand sand.old, born born.old)
+  ?-    -.old
+      %0
+    =^  cards  state
+      abet:(reload:hc pool.old ball.old sand.old born.old)
+    [cards this]
   ==
 ::
 ++  on-poke
@@ -185,7 +197,92 @@
   =^  =take:fiber:nexus  takes  ~(get to takes)
   =.  this  (give-poke-sign [take `err])
   $(takes takes)
+::  On-load helpers
 ::
+::  Nack pokes in old proc queues before rebuilding
+::
+++  nack-old-procs
+  |=  old-pool=pool:nexus
+  ^+  this
+  =/  err=tang  ~[leaf+"agent [re]loaded"]
+  =|  here=path
+  |-
+  ::  Nack pokes in procs at this level (if any)
+  =.  this
+    ?~  fil.old-pool  this
+    =/  procs=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.old-pool)
+    |-
+    ?~  procs  this
+    =.  this  (nack-poke-takes next.+.i.procs err)
+    =.  this  (nack-poke-takes skip.+.i.procs err)
+    $(procs t.procs)
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta pool:nexus])  ~(tap by dir.old-pool)
+  |-
+  ?~  kids  this
+  =.  this  ^$(here (snoc here -.i.kids), old-pool +.i.kids)
+  $(kids t.kids)
+::  Run nexus on-loads top-down recursively
+::
+++  run-on-loads
+  |=  [here=path sub=ball:tarball]
+  ^-  ball:tarball
+  ::  Check if this node has a nexus
+  =/  nex=(unit nexus:nexus)
+    ?~  fil.sub  ~
+    ?~  neck.u.fil.sub  ~
+    (~(get by nexi) u.neck.u.fil.sub)
+  ::  Run on-load if nexus exists
+  =?  sub  ?=(^ nex)
+    (on-load:u.nex sub)
+  ::  Recurse into subdirectories
+  %=  sub
+    dir  %-  ~(urn by dir.sub)
+         |=  [name=@ta kid=ball:tarball]
+         ^$(here (snoc here name), sub kid)
+  ==
+::  Spawn processes for all files in ball
+::
+++  spawn-all-files
+  |=  [here=path sub=ball:tarball]
+  ^+  this
+  ::  Spawn processes for files in this directory's contents
+  =.  this
+    ?~  fil.sub  this
+    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.sub)
+    |-
+    ?~  files  this
+    =/  file-path=path  (snoc here -.i.files)
+    =.  this  (spawn-proc file-path [%load ~])
+    =.  this  (enqu-take file-path (sys-give /load) ~)
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  |-
+  ?~  kids  this
+  =.  this  ^$(here (snoc here -.i.kids), sub +.i.kids)
+  $(kids t.kids)
+::
+++  reload
+  |=  $:  old-pool=pool:nexus
+          old-ball=ball:tarball
+          old-sand=sand:nexus
+          old-born=(axal @da)
+      ==
+  ^+  this
+  ::  Nack pokes in old proc queues
+  =.  this  (nack-old-procs old-pool)
+  ::  Restore state (pool will be rebuilt)
+  =.  ball  old-ball
+  =.  sand  old-sand
+  =.  born  old-born
+  ::  Run nexus on-loads top-down (may modify ball)
+  =/  pre-ball=ball:tarball  ball
+  =.  ball  (run-on-loads / ball)
+  ::  Sync metadata: preserve old mtime where unchanged, update where changed
+  =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
+  ::  Spawn all file processes
+  (spawn-all-files / ball)
 :: TODO: handle outgoing keens
 ::
 ::  Clean up subscriptions when a process dies
@@ -367,10 +464,16 @@
   ::  Generate and store born
   =/  b=@da  (make-born here)
   =.  born  (~(put of born) here b)
-  ::  Build and store proc
-  =/  =spool:fiber:nexus  (need (build-spool here))
+  ::  Build and store proc - use default spool if no nexus
+  =/  =spool:fiber:nexus
+    (fall (build-spool here) default-spool)
   =/  =process:fiber:nexus  (spool prod)
   (store-proc here [process ~ ~])
+::
+++  default-spool
+  ^-  spool:fiber:nexus
+  |=  prod:fiber:nexus
+  stay:(fiber:fiber:nexus ,~)
 ::
 ++  process-take
   |=  [here=path =take:fiber:nexus]
