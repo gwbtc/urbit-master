@@ -51,6 +51,7 @@
 +$  view
   $%  [%ball =ball =sand]
       [%file =cage]
+      [%none ~]
   ==
 +$  seen  (each view tang)
 :: dart payload

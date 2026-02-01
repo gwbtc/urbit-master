@@ -648,7 +648,7 @@
         =/  content=(unit content:tarball)
           (~(get ba:tarball ball) (snip `path`u.dest) (rear `path`u.dest))
         ?~  content
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart |+~[leaf+"file not found at {(spud u.dest)}"])
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%file^cage.u.content)
       ==
     ==
