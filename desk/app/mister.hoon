@@ -341,9 +341,17 @@
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card
 ::
+::  For internal pokes, sanitizes error if source can't peek target.
+::
 ++  give-poke-ack
-  |=  [=from:nexus =wire err=(unit tang)]
+  |=  [here=path =from:nexus =wire err=(unit tang)]
   ^+  this
+  ::  Sanitize error if internal poke without peek permission
+  =/  err=(unit tang)
+    ?.  ?=(%& -.from)  err  :: external pokes see full error
+    ?:  ?=([~ %|] (allowed p.from %peek `here))
+      ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
+    err
   ?-    -.from
       %&
     ::  Internal - send %pack intake to source path
@@ -358,29 +366,29 @@
   ==
 ::
 ++  give-poke-sign
-  |=  =took:eval:fiber:nexus
+  |=  [here=path =took:eval:fiber:nexus]
   ^+  this
   ?.  ?=([~ %poke *] in.take.took)  this
-  (give-poke-ack from.u.in.take.took wire.give.take.took err.took)
+  (give-poke-ack here from.u.in.take.took wire.give.take.took err.took)
 ::
 ++  give-poke-signs
-  |=  done=(list took:eval:fiber:nexus)
+  |=  [here=path done=(list took:eval:fiber:nexus)]
   ^+  this
   ?~  done  this
-  =.  this  (give-poke-sign i.done)
+  =.  this  (give-poke-sign here i.done)
   $(done t.done)
 ::
 ++  nack-poke-takes
-  |=  [takes=(qeu take:fiber:nexus) err=tang]
+  |=  [here=path takes=(qeu take:fiber:nexus) err=tang]
   ^+  this
   ?:  =(~ takes)  this
   =^  =take:fiber:nexus  takes  ~(get to takes)
-  =.  this  (give-poke-sign [take `err])
+  =.  this  (give-poke-sign here [take `err])
   $(takes takes)
 ::  Nack all queued pokes in a pool subtree
 ::
 ++  nack-pool
-  |=  [=pool:nexus err=tang]
+  |=  [here=path =pool:nexus err=tang]
   ^+  this
   ::  Nack pokes in procs at this level
   =.  this
@@ -388,14 +396,15 @@
     =/  procs=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.pool)
     |-
     ?~  procs  this
-    =.  this  (nack-poke-takes next.+.i.procs err)
-    =.  this  (nack-poke-takes skip.+.i.procs err)
+    =/  proc-path=path  (snoc here -.i.procs)
+    =.  this  (nack-poke-takes proc-path next.+.i.procs err)
+    =.  this  (nack-poke-takes proc-path skip.+.i.procs err)
     $(procs t.procs)
   ::  Recurse into subdirectories
   =/  kids=(list [@ta pool:nexus])  ~(tap by dir.pool)
   |-
   ?~  kids  this
-  =.  this  ^$(pool +.i.kids)
+  =.  this  ^$(here (snoc here -.i.kids), pool +.i.kids)
   $(kids t.kids)
 ::  Run nexus on-loads top-down recursively
 ::
@@ -446,7 +455,7 @@
       ==
   ^+  this
   ::  Nack pokes in old proc queues
-  =.  this  (nack-pool old-pool ~[leaf+"agent [re]loaded"])
+  =.  this  (nack-pool / old-pool ~[leaf+"agent [re]loaded"])
   ::  Restore state (pool will be rebuilt)
   =.  ball  old-ball
   =.  sand  old-sand
@@ -707,14 +716,14 @@
   ::  Process darts (emit cards or enqueue takes)
   =.  this  (process-darts here dartz)
   ::  Ack consumed pokes
-  =.  this  (give-poke-signs done)
+  =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
   =/  validated=(each vase tang)
     (validate-state dir name p.cage.u.file-data new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
-    =.  this  (nack-poke-takes next.new-proc p.validated)
-    =.  this  (nack-poke-takes skip.new-proc p.validated)
+    =.  this  (nack-poke-takes here next.new-proc p.validated)
+    =.  this  (nack-poke-takes here skip.new-proc p.validated)
     =.  this  (spawn-proc here [%rise p.validated])
     (enqu-take here (sys-give /rise) ~)
   ::  Validation passed - handle result normally
@@ -726,14 +735,14 @@
       %done
     ::  State was valid, now delete
     =/  err=tang  ~[leaf+"process completed"]
-    =.  this  (nack-poke-takes next.new-proc err)
-    =.  this  (nack-poke-takes skip.new-proc err)
+    =.  this  (nack-poke-takes here next.new-proc err)
+    =.  this  (nack-poke-takes here skip.new-proc err)
     =.  this  (clean here %file)
     (delete here)
       %fail
     ::  Process failed - don't save state, restart
-    =.  this  (nack-poke-takes next.new-proc err.res)
-    =.  this  (nack-poke-takes skip.new-proc err.res)
+    =.  this  (nack-poke-takes here next.new-proc err.res)
+    =.  this  (nack-poke-takes here skip.new-proc err.res)
     =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
@@ -792,7 +801,7 @@
   |=  here=path
   ^+  this
   ::  Nack all queued pokes in subtree
-  =.  this  (nack-pool (~(dip of pool) here) ~[leaf+"culled"])
+  =.  this  (nack-pool here (~(dip of pool) here) ~[leaf+"culled"])
   ::  Clean subscriptions for subtree
   =.  this  (clean here %tree)
   ::  Remove from pool and ball (NOT born - it's a high-water mark)
