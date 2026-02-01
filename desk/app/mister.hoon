@@ -96,7 +96,7 @@
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
     [~ this]
-      [%watch @ *]
+      [%proc @ *]
     =^  cards  state
       abet:(take-watch:hc path)
     [cards this]
@@ -107,9 +107,8 @@
   ^-  (quip card _this)
   ?+    path  (on-leave:def path)
       [%poke @ *]
-    ::  External poke subscription leaving - nothing to do
     [~ this]
-      [%watch @ *]
+      [%proc @ *]
     =^  cards  state
       abet:(take-leave:hc path)
     [cards this]
@@ -368,7 +367,7 @@
   %+  murn  ~(tap by sup.bowl)
   |=  [=duct =ship pat=^path]
   ^-  (unit card)
-  ?.  ?=([%watch @ *] pat)  ~
+  ?.  ?=([%proc @ *] pat)  ~
   =/  [proc-path=^path sub=^path]  (unwrap-watch-path pat)
   ?.  ?-  mode
         %file  =(proc-path path)
@@ -686,7 +685,7 @@
     %-  ~(gas by *bitt:gall)
     %+  murn  ~(tap by sup.bowl)
     |=  [=duct =ship =path]
-    ?.  ?=([%watch @ *] path)  ~
+    ?.  ?=([%proc @ *] path)  ~
     =/  [proc-path=^path sub=^path]  (unwrap-watch-path path)
     ?.  =(proc-path here)  ~
     [~ duct ship sub]
@@ -795,14 +794,14 @@
 ++  unwrap-watch-path
   |=  pat=path
   ^-  [path path]
-  ?>  ?=([%watch @ *] pat)
+  ?>  ?=([%proc @ *] pat)
   =/  len=@ud  (slav %ud i.t.pat)
   [(scag len t.t.pat) (slag len t.t.pat)]
 ::
 ++  wrap-watch-path
   |=  [here=path =path]
   ^+  path
-  (weld /watch/(scot %ud (lent here)) (weld here path))
+  (weld /proc/(scot %ud (lent here)) (weld here path))
 ::
 ++  take-watch
   |=  pat=path
