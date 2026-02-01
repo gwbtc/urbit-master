@@ -54,23 +54,25 @@
   |=  [=mark =vase]
   ^-  (quip card _this)
   ?+    mark  (on-poke:def mark vase)
+      %poke
+    =+  !<([=wire here=path =cage] vase)
+    =/  =give:nexus  [|+[src sap]:bowl wire]
+    =^  cards  state
+      abet:(poke:hc give here cage)
+    [cards this]
+    ::
       %make
+    ?>  =(src our):bowl
     =+  !<([=path =make:nexus] vase)
     =^  cards  state
       abet:(make:hc path make)
     [cards this]
     ::
       %cull
+    ?>  =(src our):bowl
     =+  !<(=path vase)
     =^  cards  state
       abet:(cull:hc path)
-    [cards this]
-    ::
-      %poke
-    =+  !<([=wire here=path =cage] vase)
-    =/  =give:nexus  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(poke:hc give here cage)
     [cards this]
   ==
 ::
@@ -205,30 +207,25 @@
   =^  =take:fiber:nexus  takes  ~(get to takes)
   =.  this  (give-poke-sign [take `err])
   $(takes takes)
-::  On-load helpers
+::  Nack all queued pokes in a pool subtree
 ::
-::  Nack pokes in old proc queues before rebuilding
-::
-++  nack-old-procs
-  |=  old-pool=pool:nexus
+++  nack-pool
+  |=  [=pool:nexus err=tang]
   ^+  this
-  =/  err=tang  ~[leaf+"agent [re]loaded"]
-  =|  here=path
-  |-
-  ::  Nack pokes in procs at this level (if any)
+  ::  Nack pokes in procs at this level
   =.  this
-    ?~  fil.old-pool  this
-    =/  procs=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.old-pool)
+    ?~  fil.pool  this
+    =/  procs=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.pool)
     |-
     ?~  procs  this
     =.  this  (nack-poke-takes next.+.i.procs err)
     =.  this  (nack-poke-takes skip.+.i.procs err)
     $(procs t.procs)
   ::  Recurse into subdirectories
-  =/  kids=(list [@ta pool:nexus])  ~(tap by dir.old-pool)
+  =/  kids=(list [@ta pool:nexus])  ~(tap by dir.pool)
   |-
   ?~  kids  this
-  =.  this  ^$(here (snoc here -.i.kids), old-pool +.i.kids)
+  =.  this  ^$(pool +.i.kids)
   $(kids t.kids)
 ::  Run nexus on-loads top-down recursively
 ::
@@ -279,7 +276,7 @@
       ==
   ^+  this
   ::  Nack pokes in old proc queues
-  =.  this  (nack-old-procs old-pool)
+  =.  this  (nack-pool old-pool ~[leaf+"agent [re]loaded"])
   ::  Restore state (pool will be rebuilt)
   =.  ball  old-ball
   =.  sand  old-sand
@@ -293,10 +290,10 @@
   (spawn-all-files / ball)
 :: TODO: handle outgoing keens
 ::
-::  Clean up subscriptions when a process dies
+::  Clean up subscriptions for a file (%file) or subtree (%tree)
 ::
 ++  clean
-  |=  here=path
+  |=  [=path mode=?(%file %tree)]
   ^+  this
   ::  Leave outgoing subscriptions (wex)
   ::
@@ -305,21 +302,31 @@
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
-    =/  res=(unit [path @da path])
+    =/  res=(unit [^path @da ^path])
       (mole |.((unwrap-wire wire)))
     ?~  res  ~
-    ?.  =(-.u.res here)  ~
+    =/  proc-path=^path  -.u.res
+    ?.  ?-  mode
+          %file  =(proc-path path)
+          %tree  =((scag (lent path) proc-path) path)
+        ==
+      ~
     [~ %pass wire %agent [ship term] %leave ~]
   ::  Kick incoming subscribers (sup)
   ::
   %-  emit-cards
   %+  murn  ~(tap by sup.bowl)
-  |=  [=duct =ship pat=path]
+  |=  [=duct =ship pat=^path]
   ^-  (unit card)
-  =/  res=(unit [path path])
+  =/  res=(unit [^path ^path])
     (mole |.((unwrap-watch-path pat)))
   ?~  res  ~
-  ?.  =(-.u.res here)  ~
+  =/  proc-path=^path  -.u.res
+  ?.  ?-  mode
+        %file  =(proc-path path)
+        %tree  =((scag (lent path) proc-path) path)
+      ==
+    ~
   [~ %give %kick ~[pat] ~]
 ::
 ++  process-darts
@@ -526,7 +533,7 @@
     =.  this  (nack-poke-takes next.new-proc err)
     =.  this  (nack-poke-takes skip.new-proc err)
     ::  Clean up subscriptions and delete file
-    =.  this  (clean here)
+    =.  this  (clean here %file)
     (delete here)
     ::
       %fail
@@ -548,13 +555,22 @@
   ^+  this
   ?-  -.make
       %&
-    ?^  (~(get of ball) here)
-      ~|("directory already exists at path" !!)
-    ?~  p.make
-      this(ball (~(mkd ba:tarball ball) here ~ p.make))
-    ?~  nex=(build-nexus u.p.make)
-      this
-    this(ball (~(pub ba:tarball ball) here (on-load:u.nex *ball:tarball)))
+    ::  Assert nothing exists at path
+    =/  existing=ball:tarball  (~(dip ba:tarball ball) here)
+    ?:  |(?=(^ fil.existing) !=(~ dir.existing))
+      ~|("path is not empty" !!)
+    ::  Put new ball at path
+    =.  ball  (~(pub ba:tarball ball) here p.make)
+    ::  Get the subtree we just put (for running on-loads)
+    =/  new-sub=ball:tarball  (~(dip ba:tarball ball) here)
+    ::  Run on-loads top-down
+    =/  loaded=ball:tarball  (run-on-loads here new-sub)
+    ::  sync-metadata: set mtime for all new files
+    =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball loaded now.bowl)
+    ::  Put the synced subtree back
+    =.  ball  (~(pub ba:tarball ball) here synced)
+    ::  Spawn all file processes
+    (spawn-all-files here synced)
     ::
       %|
     ::  Assert file doesn't already exist
@@ -576,7 +592,13 @@
   |=  here=path
   ^+  this
   ::  TODO: Check weir permissions
-  ::  Delete from ball
+  ::  Nack all queued pokes in subtree
+  =.  this  (nack-pool (~(dip of pool) here) ~[leaf+"culled"])
+  ::  Clean subscriptions for subtree
+  =.  this  (clean here %tree)
+  ::  Remove from pool, born, and ball
+  =.  pool  (~(lop of pool) here)
+  =.  born  (~(lop of born) here)
   this(ball (~(lop ba:tarball ball) here))
 ::
 ++  edit-weir

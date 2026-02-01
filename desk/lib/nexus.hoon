@@ -36,7 +36,7 @@
       here=path
   ==
 ::
-+$  make  (each (unit neck) cage)
++$  make  (each ball cage)
 :: dart payload
 ::
 +$  load
