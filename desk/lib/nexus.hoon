@@ -44,7 +44,6 @@
       [%make =make]
       [%cull ~]
       [%sand weir=(unit weir)]
-      [%kill ~]
       [%peek ~]
   ==
 ::

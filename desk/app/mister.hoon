@@ -382,9 +382,9 @@
       %node
     :_  (path-from-road:nexus here road.dart)
     ?-  -.load.dart
-      %peek                       %peek
-      ?(%poke %kill)              %poke
-      ?(%make %cull %sand)        %make
+      %peek                 %peek
+      %poke                 %poke
+      ?(%make %cull %sand)  %make
     ==
   ==
 ::
@@ -428,10 +428,6 @@
         %sand
       ::  Set weir at dest
       (edit-weir here wire.dart dest weir.load.dart)
-      ::
-        %kill
-      ::  Kill process at dest - not implemented yet
-      this
       ::
         %peek
       ::  Peek at dest - enqueue as intake
