@@ -275,38 +275,66 @@
 ::
 ::  Sandboxing helpers
 ::
+::  Strip leading base from full site path (from rudder/paldev)
+::
+++  decap
+  |=  [base=(list @t) site=(list @t)]
+  ^-  (unit (list @t))
+  ?~  base  `site
+  ?~  site  ~
+  ?.  =(i.base i.site)  ~
+  $(base t.base, site t.site)
+::  Get common prefix of two paths
+::
+++  prefix
+  =|  p=path
+  |=  [a=path b=path]
+  ^-  path
+  ?~  a  (flop p)
+  ?~  b  (flop p)
+  ?.  =(i.a i.b)  (flop p)
+  $(a t.a, b t.b, p [i.a p])
+::  Convert a relative path to an absolute path
+::
+++  path-from-bend
+  |=  [here=path =bend]
+  ^-  (unit path)
+  =.  here  (flop here)
+  |-
+  ?:  =(0 p.bend)
+    `(weld (flop here) q.bend)
+  ?~  here  ~
+  $(here t.here, p.bend (dec p.bend))
+::  Convert an absolute or relative path to an absolute path
+::
 ++  path-from-road
   |=  [here=path =road]
   ^-  (unit path)
   ?-  -.road
     %&  `p.road
-    %|  ?:  (gth p.p.road (lent here))  ~
-        `(weld (scag p.p.road here) q.p.road)
+    %|  (path-from-bend here p.road)
   ==
 ::
 ++  make-bend
   |=  [here=path dest=path]
   ^-  bend
-  =/  pref=path
-    |-
-    ?~  here  ~
-    ?~  dest  ~
-    ?.  =(i.here i.dest)  ~
-    [i.here $(here t.here, dest t.dest)]
-  =/  here-tail=path  (slag (lent pref) here)
-  =/  dest-tail=path  (slag (lent pref) dest)
+  =/  pref=path  (prefix here dest)
+  =/  here-tail=path  (need (decap pref here))
+  =/  dest-tail=path  (need (decap pref dest))
   [(lent here-tail) dest-tail]
+::
+++  raw-filter
+  |=  [dest=path filt=(list path)]
+  ^-  ?
+  ?~  filt  |
+  ?:  ?=(^ (decap i.filt dest))
+    &
+  $(filt t.filt)
 ::
 ++  filter-roads
   |=  [here=path dest=path roads=(list road)]
   ^-  ?
-  ?~  roads  |
-  =/  road-path=(unit path)  (path-from-road here i.roads)
-  ?~  road-path  $(roads t.roads)
-  ::  Check if dest starts with road-path (road-path is prefix of dest)
-  ?:  =((scag (lent u.road-path) dest) u.road-path)
-    &
-  $(roads t.roads)
+  (raw-filter dest (murn roads (cury path-from-road here)))
 ::
 ++  filter
   |=  [dest=path =jump here=path =weir]

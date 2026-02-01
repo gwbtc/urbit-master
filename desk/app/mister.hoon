@@ -407,27 +407,26 @@
     ::
       %node
     ::  Send load to another path
-    =/  dest=path
-      ?-  -.road.dart
-        %&  p.road.dart  :: absolute path
-        %|  (weld (scag p.p.road.dart here) q.p.road.dart)  :: relative path
-      ==
+    =/  dest=(unit path)  (path-from-road:nexus here road.dart)
+    ?~  dest
+      ~&  [%node-bad-road here road.dart]
+      this
     ?-    -.load.dart
         %poke
       ::  Poke with return address
-      (enqu-take dest [&+here wire.dart] ~ %poke &+here cage.load.dart)
+      (enqu-take u.dest [&+here wire.dart] ~ %poke &+here cage.load.dart)
       ::
         %make
       ::  Create file/dir at dest
-      (make dest make.load.dart)
+      (make u.dest make.load.dart)
       ::
         %cull
       ::  Delete file at dest
-      (cull dest)
+      (cull u.dest)
       ::
         %sand
       ::  Set weir at dest
-      (edit-weir here wire.dart dest weir.load.dart)
+      (edit-weir here wire.dart u.dest weir.load.dart)
       ::
         %peek
       ::  Peek at dest - enqueue as intake
