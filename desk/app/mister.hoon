@@ -209,6 +209,10 @@
 ::  This prevents type inflation (overly specific runtime types) and type
 ::  deflation (vases typed as * when they should be the mark's type).
 ::
+::  force=%.n: use nest optimization if same mark + types nest (for incremental
+::    updates like fiber state changes where we can skip dais scries)
+::  force=%.y: always scry for dais (for bulk validation via validate-ball)
+::
 ++  validate-cage
   |=  [pax=path name=@ta new-cage=cage force=?]
   ^-  (each cage tang)
@@ -254,10 +258,15 @@
   &+q.p.res
 ::  Validate all cages in a ball subtree
 ::  Returns validated ball or first error
-::  force=%.y skips nest optimization (use on load when type of $type may have changed)
+::
+::  Always forces full dais validation (no nest optimization). This is correct
+::  because validate-ball is only called when installing a fresh subtree:
+::    - reload: type of $type may have changed, must re-validate
+::    - make subtree: files don't exist in ball yet, optimization wouldn't help
+::  For incremental updates where nest optimization matters, use validate-cage.
 ::
 ++  validate-ball
-  |=  [here=path sub=ball:tarball force=?]
+  |=  [here=path sub=ball:tarball]
   ^-  (each ball:tarball tang)
   ::  Validate files at this level
   =/  validated-contents=(each (map @ta content:tarball) tang)
@@ -267,7 +276,7 @@
     |-
     ?~  files  &+out
     =/  [name=@ta =content:tarball]  i.files
-    =/  res=(each cage tang)  (validate-cage here name cage.content force)
+    =/  res=(each cage tang)  (validate-cage here name cage.content %.y)
     ?:  ?=(%| -.res)  res
     $(files t.files, out (~(put by out) name content(cage p.res)))
   ?:  ?=(%| -.validated-contents)
@@ -425,7 +434,7 @@
   =/  pre-ball=ball:tarball  ball
   =.  ball  (run-on-loads / ball)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
-  =/  validated=(each ball:tarball tang)  (validate-ball / ball %.y)
+  =/  validated=(each ball:tarball tang)  (validate-ball / ball)
   ?:  ?=(%| -.validated)
     ~|("validation failed on reload" (mean p.validated))
   =.  ball  p.validated
@@ -720,8 +729,8 @@
     =/  new-sub=ball:tarball  (~(dip ba:tarball ball) here)
     ::  Run on-loads top-down
     =/  loaded=ball:tarball  (run-on-loads here new-sub)
-    ::  Validate all cages in loaded ball (runtime, no force - on-loads already forced)
-    =/  validated=(each ball:tarball tang)  (validate-ball here loaded %.n)
+    ::  Validate all cages in loaded ball
+    =/  validated=(each ball:tarball tang)  (validate-ball here loaded)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  sync-metadata: set mtime for all new files
