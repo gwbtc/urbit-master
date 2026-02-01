@@ -69,7 +69,6 @@
         [%gone =wire err=(unit tang)] :: response to cull
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
-        [%dead =wire err=(unit tang)] :: response to kill
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::

@@ -9,6 +9,10 @@
 +$  content  [=metadata =cage]
 +$  lump  [=metadata neck=(unit neck) contents=(map @ta content)]
 +$  ball  (axal lump)
+:: simple descriptive file tree
+::
++$  node  [neck=(unit neck) files=(map @ta @tas)]
++$  tree  (axal node)
 ::  Tarball archive types
 ::
 +$  calp   ?(%'A' %'B' %'C' %'D' %'E' %'F' %'G' %'H' %'I' %'J' %'K' %'L' %'M' %'N' %'O' %'P' %'Q' %'R' %'S' %'T' %'U' %'V' %'W' %'X' %'Y' %'Z')
@@ -342,6 +346,17 @@
 ::  Sync metadata from old ball to new ball
 ::  - Files: keep old mtime if unchanged, else now; update size
 ::  - Directories: mtime=now if any child changed, else keep old
+::
+::  Convert ball to tree (structure with marks, no content)
+::
+++  ball-to-tree
+  |=  b=ball
+  ^-  tree
+  :_  (~(run by dir.b) ball-to-tree)
+  ?~  fil.b  ~
+  :-  ~
+  :-  neck.u.fil.b
+  (~(run by contents.u.fil.b) |=(c=content p.cage.c))
 ::
 ++  sync-metadata
   |=  [old=ball new=ball now=@da]

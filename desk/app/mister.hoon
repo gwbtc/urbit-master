@@ -1,4 +1,7 @@
 /+  default-agent, dbug, tarball, nexus, nex-main
+/=  m-  /mar/tree
+/=  m-  /mar/sand
+/=  m-  /mar/kids
 |%
 +$  versioned-state
   $%  state-0
@@ -105,7 +108,38 @@
     abet:(take-leave:hc path)
   [cards this]
 ::
-++  on-peek   on-peek:def
+++  on-peek
+  |=  =path
+  ^-  (unit (unit cage))
+  ?+  path  (on-peek:def path)
+      [%x %peek %file *]
+    ::  Single file's cage with its actual mark
+    =/  here=^path  t.t.t.path
+    ?~  here  ~
+    =/  dir=^path  (snip `^path`here)
+    =/  name=@ta  (rear here)
+    =/  content=(unit content:tarball)
+      (~(get ba:tarball ball) dir name)
+    ?~  content  [~ ~]
+    ``cage.u.content
+    ::
+      [%x %peek %kids *]
+    ::  Immediate children names at path
+    =/  here=^path  t.t.t.path
+    =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
+    ``kids+!>(~(key by dir.sub))
+    ::
+      [%x %peek %tree *]
+    ::  Tree structure with marks, no content
+    =/  here=^path  t.t.t.path
+    =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
+    ``tree+!>((ball-to-tree:tarball sub))
+    ::
+      [%x %peek %sand *]
+    ::  Sand (filter) subtree
+    =/  here=^path  t.t.t.path
+    ``sand+!>((~(dip of sand) here))
+  ==
 ::
 ++  on-agent
   |=  [=wire =sign:agent:gall]
@@ -123,7 +157,6 @@
 ::
 ++  on-fail   on-fail:def
 --
-::
 ::  helper core for routing events to processes
 ::
 =|  cards=(list card)
@@ -150,7 +183,6 @@
 ++  enqu-take
   |=  [here=path =give:nexus in=(unit intake:fiber:nexus)]
   this(takes (~(put to takes) [here give in]))
-::
 ::  Generate a system give (for internal system operations)
 ::
 ++  sys-give
@@ -174,7 +206,6 @@
   =.  ball  (~(lop ba:tarball ball) here)
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   this(pool (~(put of pool) dir pipe))
-::
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card (TODO)
@@ -446,9 +477,10 @@
       (edit-weir here wire.dart u.dest weir.load.dart)
       ::
         %peek
-      ::  Peek at dest - enqueue as intake
-      ::  TODO: implement peek handling
-      this
+      ::  Peek at dest - return ball and sand subtrees
+      =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) u.dest)
+      =/  sub-sand=sand:nexus  (~(dip of sand) u.dest)
+      (enqu-take here (sys-give /peek) ~ %peek wire.dart u.dest sub-ball sub-sand)
     ==
     ::
       %scry
@@ -646,7 +678,6 @@
     ?.  =(-.u.res here)  ~
     [~ duct ship +.u.res]
   [now our eny filtered-wex filtered-sup here]:[bowl .]
-::
 ::  Sandboxing / weir filtering
 ::
 ++  allowed
