@@ -178,7 +178,7 @@
       =^  =^take  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced
       =/  res=(each output tang)
-        (mule |.((process.proc state in.take)))
+        (hoss |.((process.proc state in.take)))
       ?:  ?=(%| -.res)
         =/  =tang  [leaf+"crash" p.res]
         :-  darts :: no output darts on failure
@@ -262,6 +262,17 @@
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
 +$  nexi  (map neck nexus)
+::
+::  Scry-free mule: like +mule but blocks .^ calls
+::
+++  hoss
+  |*  tap=(trap)
+  =/  ton=toon  (mock [tap %9 2 %0 1] |=((pair) ~))
+  ?-  -.ton
+    %0  [%& p=$:tap]
+    %1  [%| ~[leaf+"blocked on scry"]]
+    %2  [%| p.ton]
+  ==
 ::
 ::  Sandboxing helpers
 ::
