@@ -51,7 +51,7 @@
   ?-    -.old
       %0
     =^  cards  state
-      abet:(reload:hc pool.old ball.old sand.old born.old)
+      abet:(reload:hc [pool ball sand born]:old)
     [cards this]
   ==
 ::
@@ -59,48 +59,20 @@
   |=  [=mark =vase]
   ^-  (quip card _this)
   ?+    mark  (on-poke:def mark vase)
-      %poke
-    :: anyone can poke; process handles gatekeeping
-    =+  !<([=wire here=path =cage] vase)
-    =/  =give:nexus  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(poke:hc give here cage)
-    [cards this]
-    ::
-      %make
-    ?>  =(src our):bowl
-    =+  !<([=path =make:nexus] vase)
-    =^  cards  state
-      abet:(make:hc path make)
-    [cards this]
-    ::
-      %cull
-    ?>  =(src our):bowl
-    =+  !<(=path vase)
-    =^  cards  state
-      abet:(cull:hc path)
-    [cards this]
-    ::
-      %sand
-    ?>  =(src our):bowl
-    =+  !<([=path weir=(unit weir:nexus)] vase)
-    =^  cards  state
-      abet:(set-weir:hc path weir)
-    [cards this]
-    ::
       %mister-action
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
+      :: anyone can poke; process handles gatekeeping
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
-        abet:(poke:hc give here.action cage.action)
+        abet:(poke:hc give [here cage]:action)
       [cards this]
       ::
         %make
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(make:hc here.action make.action)
+        abet:(make:hc [here make]:action)
       [cards this]
       ::
         %cull
@@ -112,7 +84,7 @@
         %sand
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(set-weir:hc here.action weir.action)
+        abet:(set-weir:hc [here weir]:action)
       [cards this]
     ==
   ==
@@ -120,23 +92,28 @@
 ++  on-watch
   |=  =path
   ^-  (quip card _this)
-  ?:  ?=([%poke @ *] path)
-    ::  External poke subscription - verify src matches path
+  ?+    path  (on-watch:def path)
+      [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
     [~ this]
-  =^  cards  state
-    abet:(take-watch:hc path)
-  [cards this]
+      [%watch @ *]
+    =^  cards  state
+      abet:(take-watch:hc path)
+    [cards this]
+  ==
 ::
 ++  on-leave
   |=  =path
   ^-  (quip card _this)
-  ?:  ?=([%poke @ *] path)
+  ?+    path  (on-leave:def path)
+      [%poke @ *]
     ::  External poke subscription leaving - nothing to do
     [~ this]
-  =^  cards  state
-    abet:(take-leave:hc path)
-  [cards this]
+      [%watch @ *]
+    =^  cards  state
+      abet:(take-leave:hc path)
+    [cards this]
+  ==
 ::
 ++  on-peek
   |=  =path
@@ -244,7 +221,7 @@
   this(pool (~(put of pool) dir pipe))
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
-::  - External (%|): emit gall card (TODO)
+::  - External (%|): emit gall card
 ::
 ++  give-poke-ack
   |=  [=from:nexus =wire err=(unit tang)]
@@ -377,10 +354,8 @@
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
-    =/  res=(unit [^path @da ^path])
-      (mole |.((unwrap-wire wire)))
-    ?~  res  ~
-    =/  proc-path=^path  -.u.res
+    ?.  ?=([%proc @ *] wire)  ~
+    =/  [proc-path=^path @ ^path]  (unwrap-wire wire)
     ?.  ?-  mode
           %file  =(proc-path path)
           %tree  =((scag (lent path) proc-path) path)
@@ -393,10 +368,8 @@
   %+  murn  ~(tap by sup.bowl)
   |=  [=duct =ship pat=^path]
   ^-  (unit card)
-  =/  res=(unit [^path ^path])
-    (mole |.((unwrap-watch-path pat)))
-  ?~  res  ~
-  =/  proc-path=^path  -.u.res
+  ?.  ?=([%watch @ *] pat)  ~
+  =/  [proc-path=^path sub=^path]  (unwrap-watch-path pat)
   ?.  ?-  mode
         %file  =(proc-path path)
         %tree  =((scag (lent path) proc-path) path)
@@ -464,17 +437,21 @@
     ::  TODO: implement clamming
     (handle-dart here dart)
   ==
+::  Extract jump category and destination from a dart for weir filtering.
+::  Returns [jump dest] where:
+::    - jump: the filter category (%sysc, %make, %poke, %peek)
+::    - dest: absolute destination path, or ~ for syscalls
 ::
 ++  dart-to-jump-here
   |=  [here=path =dart:nexus]
   ^-  [jump:nexus (unit path)]
-  ?+    -.dart  [%sysc ~]
-      %node
+  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl have no dest
+      %node                        :: %node darts target another path
     :_  (path-from-road:nexus here road.dart)
     ?-  -.load.dart
       %peek                 %peek
       %poke                 %poke
-      ?(%make %cull %sand)  %make
+      ?(%make %cull %sand)  %make  :: all modify tree structure
     ==
   ==
 ::
@@ -483,11 +460,16 @@
   ^+  this
   ?-    -.dart
       %sysc
-    ::  Emit gall card directly (with wrapped wire)
+    ::  Emit gall card directly (with wrapped wire/paths)
     =/  =card  card.dart
-    =?  card  ?=([%pass *] card)
-      card(p (wrap-wire here p.card))
-    (emit-card card)
+    ?+    card  (emit-card card)
+        [%pass *]
+      (emit-card card(p (wrap-wire here p.card)))
+        [%give ?(%fact %kick) *]
+      =/  wrapped=(list path)
+        (turn paths.p.card |=(p=path (wrap-watch-path here p)))
+      (emit-card card(paths.p wrapped))
+    ==
     ::
       %node
     ::  Send load to another path
@@ -666,7 +648,6 @@
 ++  cull
   |=  here=path
   ^+  this
-  ::  TODO: Check weir permissions
   ::  Nack all queued pokes in subtree
   =.  this  (nack-pool (~(dip of pool) here) ~[leaf+"culled"])
   ::  Clean subscriptions for subtree
@@ -695,45 +676,51 @@
   =/  filtered-wex=boat:gall
     %-  ~(gas by *boat:gall)
     %+  murn  ~(tap by wex.bowl)
-    |=  [[=wire =ship =term] acked=? pat=path]
-    =/  res=(unit [path @da path])
-      (mole |.((unwrap-wire wire)))
-    ?~  res  ~
-    ?.  =(-.u.res here)  ~
-    [~ [+>.u.res ship term] acked pat]
+    |=  [[=wire =ship =term] acked=? =path]
+    ?.  ?=([%proc @ *] wire)  ~
+    =/  [proc-path=^path @ orig-wire=^path]  (unwrap-wire wire)
+    ?.  =(proc-path here)  ~
+    [~ [orig-wire ship term] acked path]
   ::  Filter sup to only include incoming subscriptions for this process
   =/  filtered-sup=bitt:gall
     %-  ~(gas by *bitt:gall)
     %+  murn  ~(tap by sup.bowl)
-    |=  [=duct =ship pat=path]
-    =/  res=(unit [path path])
-      (mole |.((unwrap-watch-path pat)))
-    ?~  res  ~
-    ?.  =(-.u.res here)  ~
-    [~ duct ship +.u.res]
+    |=  [=duct =ship =path]
+    ?.  ?=([%watch @ *] path)  ~
+    =/  [proc-path=^path sub=^path]  (unwrap-watch-path path)
+    ?.  =(proc-path here)  ~
+    [~ duct ship sub]
   [now our eny filtered-wex filtered-sup here]:[bowl .]
 ::  Sandboxing / weir filtering
+::
+::  Check weirs on the upward path from source dir to dest dir.
+::  Downward movement is always free, so we only check weirs while
+::  walking UP - we stop at the common ancestor without checking it.
 ::
 ++  allowed
   |=  [here=path =jump:nexus dest=(unit path)]
   ^-  filt:nexus
   ?~  dest  [~ |]
-  =/  =bend:nexus  (make-bend:nexus here u.dest)
+  ?~  here  [~ |]
+  ?~  u.dest  [~ |]
+  ::  Work at directory level (files are always the last path segment)
+  ::
+  =/  here-dir=path  (snip `path`here)
+  =/  dest-dir=path  (snip `path`u.dest)
+  =/  =bend:nexus  (make-bend:nexus here-dir dest-dir)
   =/  steps=@ud  p.bend
   =|  =filt:nexus
   |-
-  =/  weir=(unit weir:nexus)  (~(get of sand) here)
-  =/  nex=filt:nexus
-    ?~  weir  ~
-    (filter:nexus u.dest jump here u.weir)
-  =.  filt  (next-filt:nexus filt nex)
-  ?:  =(0 steps)
-    ?:(=(/ q.bend) filt nex)  :: check for self, not kids
-  ?:  ?=([~ %|] filt)  filt
+  ?:  =(0 steps)  filt             :: done - at common ancestor
+  =/  next=filt:nexus
+    %+  next-filt:nexus
+      filt
+    (filter:nexus dest-dir jump here-dir (~(get of sand) here-dir))
+  ?:  ?=([~ %|] next)  next        :: early exit on veto
   %=  $
-    filt   filt
-    here   (snip here)
-    steps  (dec steps)
+    filt      next
+    here-dir  (snip here-dir)
+    steps     (dec steps)
   ==
 ::
 ++  get-born
@@ -767,7 +754,7 @@
   ^+  wire
   =/  b=@da  (need (get-born here))
   ;:  weld
-    /(scot %ud (lent here))
+    /proc/(scot %ud (lent here))
     here
     /(scot %da b)
     wire
@@ -776,10 +763,10 @@
 ++  unwrap-wire
   |=  =wire
   ^-  [path @da ^wire]
-  ?>  ?=([@ *] wire)
-  =/  len=@ud  (slav %ud i.wire)
-  =/  here=path  (scag len t.wire)
-  =/  rest=^wire  (slag len t.wire)
+  ?>  ?=([%proc @ *] wire)
+  =/  len=@ud  (slav %ud i.t.wire)
+  =/  here=path  (scag len t.t.wire)
+  =/  rest=^wire  (slag len t.t.wire)
   ?>  ?=([@ *] rest)
   =/  b=@da  (slav %da i.rest)
   [here b t.rest]
@@ -808,9 +795,14 @@
 ++  unwrap-watch-path
   |=  pat=path
   ^-  [path path]
-  ?>  ?=([@ *] pat)
-  =/  len=@ud  (slav %ud i.pat)
-  [(scag len t.pat) (slag len t.pat)]
+  ?>  ?=([%watch @ *] pat)
+  =/  len=@ud  (slav %ud i.t.pat)
+  [(scag len t.t.pat) (slag len t.t.pat)]
+::
+++  wrap-watch-path
+  |=  [here=path =path]
+  ^+  path
+  (weld /watch/(scot %ud (lent here)) (weld here path))
 ::
 ++  take-watch
   |=  pat=path

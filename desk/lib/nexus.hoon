@@ -12,20 +12,32 @@
 +$  give  [=from =wire]          :: return address
 +$  scry  [=mold =path]
 +$  take  [here=path take:fiber] :: localized input + return address
-:: a filter or net
+::
+::  SANDBOXING
+::
+::  Darts are conceptually emitted by processes and travel up the tree
+::  to the nearest common ancestor with their destination, then down to
+::  the destination. Downward movement is always legal. Upward movement
+::  (or darts to self) must pass through weir filters at each directory.
+::
+::  Each weir specifies allowed destination prefixes for make/poke/peek.
+::  If a dart's destination matches any allowed prefix, it passes.
+::  If no weir exists at a directory, there's no filter (permissive).
+::  Any weir can veto a dart; vetoed darts become %veto intakes.
+::
+::  filt results:
+::    ~       no filter at this level (permissive)
+::    [~ &]   filtered and allowed (should clam vases)
+::    [~ |]   filtered and blocked (veto the dart)
 ::
 +$  weir
-  $:  sand=(set road)
-      poke=(set road)
-      peek=(set road)
+  $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
+      poke=(set road)  :: allowed destinations for %poke
+      peek=(set road)  :: allowed destinations for %peek
   ==
-+$  sand  (axal weir)
-::  filter result: ~ = no filter, [~ &] = allow+clam, [~ |] = veto
-::
-+$  filt  (unit ?)
-::  dart category for filtering
-::
-+$  jump  ?(%sysc %make %poke %peek)
++$  sand  (axal weir)   :: weir at each directory in the tree
++$  filt  (unit ?)      :: filter result (see above)
++$  jump  ?(%sysc %make %poke %peek)  :: dart category for filtering
 ::
 +$  bowl
   $:  now=@da
@@ -289,7 +301,8 @@
 ::
 ::  Sandboxing helpers
 ::
-::  Strip leading base from full site path (from rudder/paldev)
+::  Strip leading prefix from path. Returns remainder if prefix matches,
+::  or ~ if prefix doesn't match. E.g. (decap /a/b /a/b/c/d) -> `/c/d
 ::
 ++  decap
   |=  [base=(list @t) site=(list @t)]
@@ -329,6 +342,9 @@
     %|  (path-from-bend here p.road)
   ==
 ::
+::  Compute relative path from here to dest. Returns [steps-up tail-path].
+::  E.g. from /a/b/c to /a/d/e -> [2 /d/e] (go up 2, then down /d/e)
+::
 ++  make-bend
   |=  [here=path dest=path]
   ^-  bend
@@ -336,30 +352,36 @@
   =/  here-tail=path  (need (decap pref here))
   =/  dest-tail=path  (need (decap pref dest))
   [(lent here-tail) dest-tail]
+::  Check if dest is under any of the allowed path prefixes
 ::
 ++  raw-filter
-  |=  [dest=path filt=(list path)]
+  |=  [dest=path allowed=(list path)]
   ^-  ?
-  ?~  filt  |
-  ?:  ?=(^ (decap i.filt dest))
+  ?~  allowed  |
+  ?:  ?=(^ (decap i.allowed dest))
     &
-  $(filt t.filt)
+  $(allowed t.allowed)
+::  Convert roads to absolute paths, then check if dest is allowed
 ::
 ++  filter-roads
   |=  [here=path dest=path roads=(list road)]
   ^-  ?
   (raw-filter dest (murn roads (cury path-from-road here)))
+::  Check a single weir: is this jump to dest allowed from here?
 ::
 ++  filter
-  |=  [dest=path =jump here=path =weir]
+  |=  [dest=path =jump here=path weir=(unit weir)]
   ^-  filt
-  ?:  ?=(%sysc jump)  [~ |]  :: any filter blocks syscalls
+  ?~  weir  ~                       :: no weir = no filter (permissive)
+  ?:  ?=(%sysc jump)
+    [~ |]                           :: weirs always block syscalls
   :-  ~
   ?-  jump
-    %make  (filter-roads here dest ~(tap in sand.weir))
-    %poke  (filter-roads here dest ~(tap in poke.weir))
-    %peek  (filter-roads here dest ~(tap in peek.weir))
+    %make  (filter-roads here dest ~(tap in make.u.weir))
+    %poke  (filter-roads here dest ~(tap in poke.u.weir))
+    %peek  (filter-roads here dest ~(tap in peek.u.weir))
   ==
+::  Combine two filter results. Veto wins; otherwise allow+clam wins.
 ::
 ++  next-filt
   |=  [cur=filt nex=filt]
