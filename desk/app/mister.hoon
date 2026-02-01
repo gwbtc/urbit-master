@@ -256,6 +256,29 @@
   =/  res=(each cage tang)  (validate-cage pax name [mark new-state] force)
   ?:  ?=(%| -.res)  res
   &+q.p.res
+::  Clam a cage at sandbox boundary
+::  Like validate-cage but always forces (no nest optimization) and
+::  doesn't need path context. Used when data crosses a weir filter.
+::
+++  clam-cage
+  |=  =cage
+  ^-  (each ^cage tang)
+  ::  Reject %temp mark - no dais, can't validate untrusted data
+  ?:  =(%temp p.cage)
+    |+~[leaf+"clam: cannot validate %temp mark from untrusted source"]
+  ::  Get dais for the mark
+  =/  dais-path=path
+    /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage]
+  =/  dais-result=(each dais:clay tang)
+    (mule |.(.^(dais:clay %cb dais-path)))
+  ?:  ?=(%| -.dais-result)
+    |+[leaf+"clam: no dais for mark {<p.cage>}" p.dais-result]
+  ::  Validate using vale - returns vase with mark's canonical type
+  =/  vale-result=(each vase tang)
+    (mule |.((vale:p.dais-result q.q.cage)))
+  ?:  ?=(%| -.vale-result)
+    |+[leaf+"clam: validation failed for {<p.cage>}" p.vale-result]
+  &+[p.cage p.vale-result]
 ::  Validate all cages in a ball subtree
 ::  Returns validated ball or first error
 ::
@@ -535,9 +558,15 @@
     (enqu-take here (sys-give /veto) ~ %veto dart)
     ::
       [~ %&]
-    ::  Allowed but should clam vases - for now just handle
-    ::  TODO: implement clamming
-    (handle-dart here dart)
+    ::  Allowed but should clam poke vases
+    ::  (make darts don't need clamming - they go through validate-cage anyway)
+    ?.  ?=([%node * * %poke *] dart)
+      (handle-dart here dart)
+    =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
+    ?:  ?=(%| -.clammed)
+      ~&  [%clam-failed here p.clammed]
+      (enqu-take here (sys-give /veto) ~ %veto dart)
+    (handle-dart here dart(cage.load p.clammed))
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
