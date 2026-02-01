@@ -635,10 +635,22 @@
       (edit-weir here wire.dart u.dest weir.load.dart)
       ::
         %peek
-      ::  Peek at dest - return ball and sand subtrees
-      =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) u.dest)
-      =/  sub-sand=sand:nexus  (~(dip of sand) u.dest)
-      (enqu-take here (sys-give /peek) ~ %peek wire.dart u.dest sub-ball sub-sand)
+      ::  Peek at dest - return ball+sand subtree or single file
+      ?-    kind.load.dart
+          %ball
+        =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) u.dest)
+        =/  sub-sand=sand:nexus  (~(dip of sand) u.dest)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%ball^sub-ball^sub-sand)
+        ::
+          %file
+        ?~  u.dest
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart |+~[leaf+"cannot peek file at root"])
+        =/  content=(unit content:tarball)
+          (~(get ba:tarball ball) (snip `path`u.dest) (rear `path`u.dest))
+        ?~  content
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart |+~[leaf+"file not found at {(spud u.dest)}"])
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%file^cage.u.content)
+      ==
     ==
     ::
       %scry

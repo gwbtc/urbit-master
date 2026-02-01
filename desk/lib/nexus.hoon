@@ -48,6 +48,11 @@
   ==
 ::
 +$  make  (each ball cage)
++$  view
+  $%  [%ball =ball =sand]
+      [%file =cage]
+  ==
++$  seen  (each view tang)
 :: dart payload
 ::
 +$  load
@@ -55,7 +60,7 @@
       [%make =make]
       [%cull ~]
       [%sand weir=(unit weir)]
-      [%peek ~]
+      [%peek kind=?(%ball %file)]
   ==
 ::
 +$  dart
@@ -75,7 +80,7 @@
   ::
   +$  intake
     $%  [%poke =from =cage] :: command for a running process
-        [%peek =wire =path =ball =sand] :: local read
+        [%peek =wire =seen] :: local read result
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to cull
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
