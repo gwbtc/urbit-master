@@ -276,6 +276,9 @@
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
 +$  nexi  (map neck nexus)
+::  Eyre bindings: URL path → file path in the tree
+::
++$  bindings  (map path path)
 ::  Process instance IDs - NEVER deleted, even when files are deleted.
 ::  Acts as high-water mark so recreated files get higher IDs,
 ::  preventing stale responses from being delivered to new processes.

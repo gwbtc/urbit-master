@@ -341,8 +341,9 @@
     (~(put ba base-with-dirs) full-parent store-name file-content)
   $(parts t.parts, base new-base)
 ::  Sync metadata from old ball to new ball
-::  - Files: keep old mtime if unchanged, else now; update size
+::  - Files: keep old mtime if unchanged, else now
 ::  - Directories: mtime=now if any child changed, else keep old
+::  Note: size is computed on-demand during tarball export
 ::
 ::  Convert ball to tree (structure with marks, no content)
 ::
@@ -407,12 +408,7 @@
       ?&  =(p.cage.u.old-content p.cage.file-content)
           =(q.q.cage.u.old-content q.q.cage.file-content)
       ==
-    ::  Compute new metadata
-    =/  file-size=@ud  (met 3 (jam q.q.cage.file-content))
-    =/  file-mtime=@t
-      ?:  file-same
-        (~(gut by metadata.file-content) 'mtime' now-text)
-      now-text
+    ::  Compute new metadata (mtime only - size computed on tarball export)
     =/  old-mtime=(unit @t)
       ?~  old-content  ~
       (~(get by metadata.u.old-content) 'mtime')
@@ -421,10 +417,7 @@
         (fall old-mtime now-text)
       now-text
     =/  updated-meta=metadata
-      %-  ~(gas by metadata.file-content)
-      :~  ['mtime' final-mtime]
-          ['size' (scot %ud file-size)]
-      ==
+      (~(put by metadata.file-content) 'mtime' final-mtime)
     =/  updated-content=content  file-content(metadata updated-meta)
     %=  $
       files             t.files
@@ -475,6 +468,42 @@
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
     b(dir (~(put by dir.b) i.pax (~(put ba filled) t.pax name c)))
+  ::  Touch a file: update mtime, propagate mtime up to parents
+  ::
+  ++  touch
+    |=  [pax=path name=@ta now=@da]
+    ^-  ball
+    =/  mtime=@t  (da-oct now)
+    ::  Helper to update directory mtime
+    =*  touch-dir
+      |=  =lump
+      ^-  ^lump
+      lump(metadata (~(put by metadata.lump) 'mtime' mtime))
+    ::  Recurse to file location, updating parent mtimes on the way back
+    ?~  pax
+      ::  At target directory - update file metadata
+      =/  lmp=lump  (fall fil.b [~ ~ ~])
+      ?~  con=(~(get by contents.lmp) name)
+        b  ::  file doesn't exist, no-op
+      ::  Update file mtime
+      =/  new-meta=metadata
+        (~(put by metadata.u.con) 'mtime' mtime)
+      =/  new-con=content  u.con(metadata new-meta)
+      ::  Update file in lump, and lump mtime
+      =/  new-lmp=lump  (touch-dir lmp(contents (~(put by contents.lmp) name new-con)))
+      b(fil `new-lmp)
+    ::  Check if subdirectory exists before recursing
+    ?~  kid=(~(get by dir.b) i.pax)
+      b  ::  path doesn't exist, no-op
+    =/  touched=ball  (~(touch ba u.kid) t.pax name now)
+    ::  Only update parent if child actually changed
+    ?:  =(touched u.kid)
+      b  ::  no change, return unchanged
+    ::  Update this directory's mtime
+    =/  new-kid=ball
+      ?~  fil.touched  touched
+      touched(fil `(touch-dir u.fil.touched))
+    b(dir (~(put by dir.b) i.pax new-kid))
   ::  Check if a content item exists
   ::
   ++  has

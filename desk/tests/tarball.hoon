@@ -274,10 +274,10 @@
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
   =/  result  (~(lop ba:tarball g1) /baz)
-  ::  Should be no-op, file still exists
+  ::  Should be no-op, ball unchanged
   %+  expect-eq
-    !>  `content
-  !>  (~(get ba:tarball result) /foo/bar %test)
+    !>  g1
+  !>  result
 ::
 ++  test-dip-nonexistent
   =/  my-ball  *ball:tarball
@@ -1515,8 +1515,8 @@
     !>  `now-text
   !>  mtime
 ::
-++  test-sync-metadata-size-updated
-  ::  Size should be updated
+++  test-sync-metadata-no-size
+  ::  Size should NOT be stored in sync-metadata (computed on tarball export)
   =/  now  ~2025.1.1
   =/  content=content:tarball  [~ [%test !>('hello-world')]]
   =/  new  (~(put ba:tarball *ball:tarball) / %file content)
@@ -1524,9 +1524,10 @@
   =/  got  (~(get ba:tarball result) / %file)
   ?~  got  !!
   =/  size  (~(get by metadata.u.got) 'size')
-  ::  Size should be set (not empty)
-  %-  expect
-  !>  ?=(^ size)
+  ::  Size should NOT be set (computed on tarball export only)
+  %+  expect-eq
+    !>  ~
+  !>  size
 ::
 ::  lump creation tests (put/mkd/pub ensure directories have lumps)
 ::
@@ -1823,5 +1824,143 @@
   %+  expect-eq
     !>  `now-text
   !>  parent-mtime
+::
+::  touch tests
+::
+++  test-touch-updates-file-mtime
+  ::  touch should update the file's mtime
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  now  ~2025.6.15
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  got  (~(get ba:tarball result) /foo %test)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  mtime
+::
+++  test-touch-updates-directory-mtime
+  ::  touch should also update the containing directory's mtime
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  now  ~2025.6.15
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  at-foo  (~(dip ba:tarball result) /foo)
+  ?~  fil.at-foo  !!
+  =/  dir-mtime  (~(get by metadata.u.fil.at-foo) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  dir-mtime
+::
+++  test-touch-propagates-to-parents
+  ::  touch should update mtime of all parent directories
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /a/b/c %test content)
+  =/  now  ~2025.6.15
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  result  (~(touch ba:tarball g1) /a/b/c %test now)
+  ::  Check all levels got updated
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  =/  at-abc  (~(dip ba:tarball result) /a/b/c)
+  ?~  fil.at-a  !!
+  ?~  fil.at-ab  !!
+  ?~  fil.at-abc  !!
+  ;:  weld
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-a) 'mtime')
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-ab) 'mtime')
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-abc) 'mtime')
+  ==
+::
+++  test-touch-nonexistent-file
+  ::  touch on nonexistent file should be a no-op
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %existing content)
+  =/  now  ~2025.6.15
+  =/  result  (~(touch ba:tarball g1) /foo %nonexistent now)
+  ::  Ball should be unchanged
+  %+  expect-eq
+    !>  g1
+  !>  result
+::
+++  test-touch-nonexistent-path
+  ::  touch at nonexistent path should be a no-op
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  now  ~2025.6.15
+  =/  result  (~(touch ba:tarball g1) /bar %test now)
+  ::  Ball should be unchanged
+  %+  expect-eq
+    !>  g1
+  !>  result
+::
+++  test-touch-at-root
+  ::  touch should work for files at root
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) / %test content)
+  =/  now  ~2025.6.15
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  result  (~(touch ba:tarball g1) / %test now)
+  =/  got  (~(get ba:tarball result) / %test)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  mtime
+::
+++  test-touch-preserves-other-metadata
+  ::  touch should preserve existing metadata other than mtime
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value'] ['mtime' '0']])
+  =/  content=content:tarball  [meta [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  now  ~2025.6.15
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  got  (~(get ba:tarball result) /foo %test)
+  ?~  got  !!
+  ;:  weld
+    ::  mtime should be updated
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.got) 'mtime')
+    ::  other metadata should be preserved
+    %+  expect-eq
+      !>  `'value'
+    !>  (~(get by metadata.u.got) 'key')
+  ==
+::
+++  test-touch-different-times
+  ::  Multiple touches with different times should update correctly
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  time1  ~2020.1.1
+  =/  time2  ~2025.6.15
+  =/  time2-text=@t  (da-oct:tarball time2)
+  =/  g2  (~(touch ba:tarball g1) /foo %test time1)
+  =/  result  (~(touch ba:tarball g2) /foo %test time2)
+  =/  got  (~(get ba:tarball result) /foo %test)
+  ?~  got  !!
+  =/  mtime  (~(get by metadata.u.got) 'mtime')
+  ::  Should have the latest time
+  %+  expect-eq
+    !>  `time2-text
+  !>  mtime
 ::
 --

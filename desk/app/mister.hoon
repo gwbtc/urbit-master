@@ -1,4 +1,4 @@
-/+  default-agent, dbug, tarball, nexus, nex-main
+/+  default-agent, dbug, tarball, nexus, nex-main, server
 /=  m-  /mar/tree
 /=  m-  /mar/sand
 /=  m-  /mar/kids
@@ -17,6 +17,7 @@
       =pool:nexus
       =sand:nexus
       =born:nexus
+      =bindings:nexus
   ==
 --
 ::
@@ -33,10 +34,11 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  ~&  >  '%mister initialized'
   =.  nexi  default-nexi:nex-main
+  ::  Create empty ball with %root nexus at root
+  =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
-    abet:(reload:hc *pool:nexus *ball:tarball *sand:nexus *born:nexus)
+    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *bindings:nexus)
   [cards this]
 ::
 ++  on-save
@@ -50,8 +52,12 @@
   =.  nexi  default-nexi:nex-main
   ?-    -.old
       %0
+    ::  Ensure neck at root is %root (nexus on-load will create main.sig)
+    =/  new-ball=ball:tarball
+      =/  lmp=lump:tarball  (fall fil.ball.old [~ ~ ~])
+      ball.old(fil `lmp(neck `%root))
     =^  cards  state
-      abet:(reload:hc [pool ball sand born]:old)
+      abet:(reload:hc pool.old new-ball sand.old born.old bindings.old)
     [cards this]
   ==
 ::
@@ -87,6 +93,43 @@
         abet:(set-weir:hc [here weir]:action)
       [cards this]
     ==
+    ::  Eyre binding: bind URL path to file path
+    ::
+      %connect
+    ?>  =(src our):bowl
+    =+  !<([url=path here=path] vase)
+    :_  this
+    [%pass [%connect here] %arvo %e %connect `url dap.bowl]~
+    ::  Eyre unbinding
+    ::
+      %disconnect
+    ?>  =(src our):bowl
+    =+  !<(url=path vase)
+    :_  this(bindings (~(del by bindings) url))
+    [%pass / %arvo %e %disconnect `url]~
+    ::  HTTP request from eyre: route to bound file
+    ::
+      %handle-http-request
+    =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
+    =/  lin=request-line:server  (parse-request-line:server url.request.req)
+    ::  Find binding by progressively extending URL prefix
+    ::
+    =/  prefix=(list @t)  (scag 1 site.lin)
+    |-
+    ?~  here=(~(get by bindings) prefix)
+      ?:  (lth (lent prefix) (lent site.lin))
+        $(prefix (scag +((lent prefix)) site.lin))
+      ::  No binding found
+      ::
+      :_  this
+      %+  give-simple-payload:app:server  eyre-id
+      [[404 ~] `(as-octs:mimes:html 'Not Found')]
+    ::  Poke the bound file with the request
+    ::
+    =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
+    =^  cards  state
+      abet:(poke:hc give u.here handle-http-request+!>([lin req]))
+    [cards this]
   ==
 ::
 ++  on-watch
@@ -95,6 +138,8 @@
   ?+    path  (on-watch:def path)
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
+    [~ this]
+      [%http-response *]
     [~ this]
       [%proc @ *]
     =^  cards  state
@@ -108,7 +153,7 @@
   ?+    path  (on-leave:def path)
       [%poke @ *]
     [~ this]
-      [%proc @ *]
+      [%proc ^]
     =^  cards  state
       abet:(take-leave:hc path)
     [cards this]
@@ -161,9 +206,20 @@
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
-  =^  cards  state
-    abet:(take-arvo:hc wire sign)
-  [cards this]
+  ?+    wire
+    =^  cards  state
+      abet:(take-arvo:hc wire sign)
+    [cards this]
+    ::  Eyre binding response
+    ::
+      [%connect *]
+    ?>  ?=([%eyre %bound *] sign)
+    ?.  accepted.sign
+      %-  (slog leaf+"eyre bind failed: {(spud path.binding.sign)}" ~)
+      [~ this]
+    %-  (slog leaf+"eyre bound: {(spud path.binding.sign)} -> {(spud t.wire)}" ~)
+    [~ this(bindings (~(put by bindings) path.binding.sign t.wire))]
+  ==
 ::
 ++  on-fail   on-fail:def
 --
@@ -452,6 +508,7 @@
           old-ball=ball:tarball
           old-sand=sand:nexus
           old-born=born:nexus
+          old-bindings=bindings:nexus
       ==
   ^+  this
   ::  Nack pokes in old proc queues
@@ -460,6 +517,7 @@
   =.  ball  old-ball
   =.  sand  old-sand
   =.  born  old-born
+  =.  bindings  old-bindings
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
   ::  Run nexus on-loads top-down (may modify ball)
@@ -559,7 +617,7 @@
 ++  process-dart
   |=  [here=path =dart:nexus]
   ^+  this
-  =/  [=jump:nexus dest=(unit path)]  (dart-to-jump-here here dart)
+  =/  [=jump:nexus dest=(unit path)]  (dart-to-dest here dart)
   =/  =filt:nexus  (allowed here jump dest)
   ?+    filt  (handle-dart here dart)
       [~ %|]
@@ -582,11 +640,11 @@
 ::    - jump: the filter category (%sysc, %make, %poke, %peek)
 ::    - dest: absolute destination path, or ~ for syscalls
 ::
-++  dart-to-jump-here
+++  dart-to-dest
   |=  [here=path =dart:nexus]
   ^-  [jump:nexus (unit path)]
-  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl have no dest
-      %node                        :: %node darts target another path
+  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl target system
+      %node                        :: %node darts target a file
     :_  (path-from-road:nexus here road.dart)
     ?-  -.load.dart
       %peek                 %peek
@@ -601,13 +659,18 @@
   ?-    -.dart
       %sysc
     ::  Emit gall card directly (with wrapped wire/paths)
+    ::  Exception: /http-response/ paths go to eyre unwrapped
     =/  =card  card.dart
     ?+    card  (emit-card card)
         [%pass *]
       (emit-card card(p (wrap-wire here p.card)))
         [%give ?(%fact %kick) *]
       =/  wrapped=(list path)
-        (turn paths.p.card |=(p=path (wrap-watch-path here p)))
+        %+  turn  paths.p.card
+        |=  p=path
+        ?:  ?=([%http-response *] p)
+          p  :: don't wrap http-response paths
+        (wrap-watch-path here p)
       (emit-card card(paths.p wrapped))
     ==
     ::
@@ -743,12 +806,15 @@
       %next
     ::  Update state in ball and proc in pool
     =.  ball  (~(put ba:tarball ball) dir name [metadata.u.file-data p.cage.u.file-data p.validated])
+    ::  Touch file to update mtime/size and propagate up
+    =.  ball  (~(touch ba:tarball ball) dir name now.bowl)
     (store-proc here new-proc)
       %done
     ::  State was valid, now delete
     =/  err=tang  ~[leaf+"process completed"]
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
+    =.  ball  (~(touch ba:tarball ball) dir name now.bowl)
     =.  this  (clean here %file)
     (delete here)
       %fail
@@ -857,35 +923,35 @@
   [now our eny filtered-wex filtered-sup here]:[bowl .]
 ::  Sandboxing / weir filtering
 ::
-::  Check weirs on the upward path from source dir to dest dir.
-::  Downward movement is always free, so we only check weirs while
-::  walking UP - we stop at the common ancestor without checking it.
+::  System destination (~): walk up through ALL weirs to root
+::  File destination ([~ path]): walk up to common ancestor only
+::  Downward movement is always free.
 ::
 ++  allowed
   |=  [here=path =jump:nexus dest=(unit path)]
   ^-  filt:nexus
-  ?~  dest  [~ |]
-  ?~  here  [~ |]
-  ?~  u.dest  [~ |]
-  ::  Work at directory level (files are always the last path segment)
-  ::
+  ?>  ?=(^ here)
   =/  here-dir=path  (snip `path`here)
+  ?~  dest
+    ::  System: walk all the way up to root
+    =|  =filt:nexus
+    |-
+    =/  next=filt:nexus
+      (next-filt:nexus filt (filter:nexus / jump here-dir (~(get of sand) here-dir)))
+    ?:  ?=([~ %|] next)  next
+    ?~  here-dir  next
+    $(filt next, here-dir (snip `path`here-dir))
+  ::  File: walk up to common ancestor
   =/  dest-dir=path  (snip `path`u.dest)
   =/  =bend:nexus  (make-bend:nexus here-dir dest-dir)
   =/  steps=@ud  p.bend
   =|  =filt:nexus
   |-
-  ?:  =(0 steps)  filt             :: done - at common ancestor
+  ?:  =(0 steps)  filt
   =/  next=filt:nexus
-    %+  next-filt:nexus
-      filt
-    (filter:nexus dest-dir jump here-dir (~(get of sand) here-dir))
-  ?:  ?=([~ %|] next)  next        :: early exit on veto
-  %=  $
-    filt      next
-    here-dir  (snip here-dir)
-    steps     (dec steps)
-  ==
+    (next-filt:nexus filt (filter:nexus dest-dir jump here-dir (~(get of sand) here-dir)))
+  ?:  ?=([~ %|] next)  next
+  $(filt next, here-dir (snip here-dir), steps (dec steps))
 ::
 ++  get-born
   |=  here=path
