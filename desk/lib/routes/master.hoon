@@ -141,35 +141,6 @@
     =/  message=@t  (need (get-key:kv 'message' args))
     (handle-send-message:telegram-routes message)
   ::
-      [%master %test-diff ~]
-    ;<  ball=ball:tarball  bind:m  get-state:io
-    ::  Create original version
-    =/  old-text=wain  ~['line 1' 'line 2' 'line 3']
-    ;<  ~  bind:m
-      (put-cage:io /state 'test.txt' [%txt !>(old-text)])
-    ::  Create new version
-    =/  new-text=wain  ~['line 1' 'line 2 MODIFIED' 'line 3' 'line 4 ADDED']
-    ::  Compute diff
-    ;<  diff=vase  bind:m
-      (diff-file:io ball /state 'test.txt' %txt !>(old-text) !>(new-text))
-    ::  Apply patch
-    ;<  ~  bind:m
-      (patch-file:io /state 'test.txt' diff)
-    ::  Re-read ball and result after patch
-    ;<  ball=ball:tarball  bind:m  get-state:io
-    =/  result=wain  (~(got-cage-as ba:tarball ball) /state 'test.txt' wain)
-    ::  Return success with result
-    =/  response=tape
-      """
-      Diff/Patch Test Success!
-
-      Original: [{(trip (of-wain:format old-text))}]
-      Expected: [{(trip (of-wain:format new-text))}]
-      Result:   [{(trip (of-wain:format result))}]
-      Match: {?:(=(new-text result) "YES" "NO")}
-      """
-    (give-simple-payload:io [[200 ~] `(as-octs:mimes:html (crip response))])
-  ::
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
     ;<  ball=ball:tarball  bind:m  get-state:io

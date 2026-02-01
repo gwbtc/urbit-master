@@ -971,31 +971,4 @@
   ^-  form:m
   ;<  =ball:tarball  bind:m  get-state
   (replace (~(lop ba:tarball ball) pax))
-::  +diff-file: compute diff between two versions of a file
-::
-++  diff-file
-  |=  [b=ball:tarball pax=path name=@ta mak=mark old=vase new=vase]
-  =/  m  (fiber ,vase)
-  ^-  form:m
-  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais mak)
-  ?~  dais
-    (fiber-fail leaf+"mark {<mak>} not found" ~)
-  (pure:m (~(diff u.dais old) new))
-::  +patch-file: apply a diff to a file in the ball
-::
-++  patch-file
-  |=  [pax=path name=@ta diff=vase]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ;<  b=ball:tarball  bind:m  get-state
-  ::  Get current file to determine its mark
-  =/  current=(unit content:tarball)  (~(get ba:tarball b) pax name)
-  ?~  current
-    (fiber-fail leaf+"file not found: {<pax>}/{<name>}" ~)
-  ::  Build dais for the mark (try our desk, then %base)
-  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.cage.u.current)
-  ?~  dais
-    (fiber-fail leaf+"mark {<p.cage.u.current>} not found" ~)
-  ::  Apply patch using tarball
-  (replace (~(patch-cage ba:tarball b) pax name diff u.dais))
 --

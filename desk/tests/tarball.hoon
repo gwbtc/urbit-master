@@ -1528,4 +1528,300 @@
   %-  expect
   !>  ?=(^ size)
 ::
+::  lump creation tests (put/mkd/pub ensure directories have lumps)
+::
+++  test-put-creates-intermediate-lumps
+  ::  Put at deep path should create lumps for intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  result  (~(put ba:tarball my-ball) /a/b/c %file content)
+  ::  Check intermediate directories have lumps
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  ;:  weld
+    %-  expect
+    !>  ?=(^ fil.at-a)
+    %-  expect
+    !>  ?=(^ fil.at-ab)
+  ==
+::
+++  test-put-preserves-existing-lumps
+  ::  Put should not overwrite existing lumps on intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  result  (~(put ba:tarball g1) /a/b/c %file content)
+  =/  at-a  (~(dip ba:tarball result) /a)
+  ?~  fil.at-a  !!
+  ;:  weld
+    ::  Neck should be preserved
+    %+  expect-eq
+      !>  `%special
+    !>  neck.u.fil.at-a
+    ::  Metadata should be preserved
+    %+  expect-eq
+      !>  `'value'
+    !>  (~(get by metadata.u.fil.at-a) 'key')
+  ==
+::
+++  test-put-at-root
+  ::  Put at root (empty path) should work correctly
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  result  (~(put ba:tarball my-ball) / %file content)
+  ;:  weld
+    ::  File should exist
+    %+  expect-eq
+      !>  `content
+    !>  (~(get ba:tarball result) / %file)
+    ::  Root should have a lump
+    %-  expect
+    !>  ?=(^ fil.result)
+  ==
+::
+++  test-put-multiple-paths-independent
+  ::  Multiple puts to different paths should not interfere
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
+  =/  g1  (~(mkd ba:tarball my-ball) /x meta `%first)
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  g2  (~(put ba:tarball g1) /y/z %file content)
+  ::  /x should still have its original lump
+  =/  at-x  (~(dip ba:tarball g2) /x)
+  =/  at-y  (~(dip ba:tarball g2) /y)
+  ?~  fil.at-x  !!
+  ;:  weld
+    %+  expect-eq
+      !>  `%first
+    !>  neck.u.fil.at-x
+    ::  /y should have a lump too
+    %-  expect
+    !>  ?=(^ fil.at-y)
+  ==
+::
+++  test-put-deep-nesting
+  ::  Put at very deep path should create lumps at all levels
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  result  (~(put ba:tarball my-ball) /a/b/c/d/e %file content)
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  =/  at-abc  (~(dip ba:tarball result) /a/b/c)
+  =/  at-abcd  (~(dip ba:tarball result) /a/b/c/d)
+  ;:  weld
+    %-  expect
+    !>  ?=(^ fil.at-a)
+    %-  expect
+    !>  ?=(^ fil.at-ab)
+    %-  expect
+    !>  ?=(^ fil.at-abc)
+    %-  expect
+    !>  ?=(^ fil.at-abcd)
+  ==
+::
+++  test-mkd-creates-intermediate-lumps
+  ::  mkd at deep path should create lumps for intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  result  (~(mkd ba:tarball my-ball) /a/b/c ~ `%target)
+  ::  Check intermediate directories have lumps
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  ;:  weld
+    %-  expect
+    !>  ?=(^ fil.at-a)
+    %-  expect
+    !>  ?=(^ fil.at-ab)
+  ==
+::
+++  test-mkd-preserves-existing-lumps
+  ::  mkd should not overwrite existing lumps on intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
+  =/  result  (~(mkd ba:tarball g1) /a/b/c ~ `%target)
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-abc  (~(dip ba:tarball result) /a/b/c)
+  ?~  fil.at-a  !!
+  ?~  fil.at-abc  !!
+  ;:  weld
+    ::  /a neck should be preserved
+    %+  expect-eq
+      !>  `%special
+    !>  neck.u.fil.at-a
+    ::  /a metadata should be preserved
+    %+  expect-eq
+      !>  `'value'
+    !>  (~(get by metadata.u.fil.at-a) 'key')
+    ::  /a/b/c should have the target neck
+    %+  expect-eq
+      !>  `%target
+    !>  neck.u.fil.at-abc
+  ==
+::
+++  test-pub-creates-intermediate-lumps
+  ::  pub at deep path should create lumps for intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  result  (~(pub ba:tarball my-ball) /a/b/c sub-ball)
+  ::  Check intermediate directories have lumps
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  ;:  weld
+    %-  expect
+    !>  ?=(^ fil.at-a)
+    %-  expect
+    !>  ?=(^ fil.at-ab)
+  ==
+::
+++  test-pub-preserves-existing-lumps
+  ::  pub should not overwrite existing lumps on intermediate directories
+  =/  my-ball  *ball:tarball
+  =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
+  =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  result  (~(pub ba:tarball g1) /a/b/c sub-ball)
+  =/  at-a  (~(dip ba:tarball result) /a)
+  ?~  fil.at-a  !!
+  ;:  weld
+    ::  Neck should be preserved
+    %+  expect-eq
+      !>  `%special
+    !>  neck.u.fil.at-a
+    ::  Metadata should be preserved
+    %+  expect-eq
+      !>  `'value'
+    !>  (~(get by metadata.u.fil.at-a) 'key')
+  ==
+::
+++  test-pub-subtree-lump-preserved
+  ::  pub should preserve the subtree's own lump structure
+  =/  my-ball  *ball:tarball
+  =/  sub-meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['sub-key' 'sub-value']])
+  =/  sub-ball  (~(mkd ba:tarball *ball:tarball) / sub-meta `%sub-neck)
+  =/  result  (~(pub ba:tarball my-ball) /target sub-ball)
+  =/  at-target  (~(dip ba:tarball result) /target)
+  ?~  fil.at-target  !!
+  ;:  weld
+    ::  Subtree's neck should be preserved
+    %+  expect-eq
+      !>  `%sub-neck
+    !>  neck.u.fil.at-target
+    ::  Subtree's metadata should be preserved
+    %+  expect-eq
+      !>  `'sub-value'
+    !>  (~(get by metadata.u.fil.at-target) 'sub-key')
+  ==
+::
+++  test-sync-metadata-creates-lumps-for-fil-less-dirs
+  ::  sync-metadata should create lumps for directories without them
+  ::  This is defense in depth - shouldn't happen after pave fix
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  content=content:tarball  [~ [%test !>('hello')]]
+  ::  Manually create a ball with fil-less intermediate directory
+  ::  by directly manipulating the axal structure
+  =/  new=ball:tarball
+    :-  ~  ::  no lump at root
+    %+  ~(put by *(map @ta ball:tarball))  %foo
+    :-  `[~ ~ ~]  ::  lump at /foo
+    %+  ~(put by *(map @ta ball:tarball))  %bar
+    :-  `[~ ~ (~(put by *(map @ta content:tarball)) %file content)]
+    ~
+  =/  result  (sync-metadata:tarball *ball:tarball new now)
+  ::  /foo should have mtime set (lump was present)
+  =/  at-foo  (~(dip ba:tarball result) /foo)
+  ?~  fil.at-foo  !!
+  =/  foo-mtime  (~(get by metadata.u.fil.at-foo) 'mtime')
+  %-  expect
+  !>  ?=(^ foo-mtime)
+::
+++  test-sync-metadata-new-empty-dir-gets-now
+  ::  A new empty directory should get mtime=now
+  =/  old  *ball:tarball
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  ::  Create new ball with empty directory via mkd
+  =/  new  (~(mkd ba:tarball *ball:tarball) /newdir ~ ~)
+  =/  result  (sync-metadata:tarball old new now)
+  =/  at-newdir  (~(dip ba:tarball result) /newdir)
+  ?~  fil.at-newdir  !!
+  =/  dir-mtime  (~(get by metadata.u.fil.at-newdir) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  dir-mtime
+::
+++  test-sync-metadata-new-nested-empty-dirs-all-get-now
+  ::  New nested empty directories should all get mtime=now
+  ::  and ancestors should also get now (since kids changed)
+  =/  old  *ball:tarball
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  ::  Create /a/b/c via mkd
+  =/  new  (~(mkd ba:tarball *ball:tarball) /a/b/c ~ ~)
+  =/  result  (sync-metadata:tarball old new now)
+  ::  Check all levels got mtime=now
+  =/  at-a  (~(dip ba:tarball result) /a)
+  =/  at-ab  (~(dip ba:tarball result) /a/b)
+  =/  at-abc  (~(dip ba:tarball result) /a/b/c)
+  ?~  fil.at-a  !!
+  ?~  fil.at-ab  !!
+  ?~  fil.at-abc  !!
+  ;:  weld
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-a) 'mtime')
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-ab) 'mtime')
+    %+  expect-eq
+      !>  `now-text
+    !>  (~(get by metadata.u.fil.at-abc) 'mtime')
+  ==
+::
+++  test-sync-metadata-unchanged-empty-dir-keeps-old-mtime
+  ::  An unchanged empty directory should keep its old mtime
+  =/  old-time  ~2020.1.1
+  =/  old-time-text=@t  (da-oct:tarball old-time)
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  ::  Create old ball with empty directory that has mtime
+  =/  old-meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' old-time-text]])
+  =/  old  (~(mkd ba:tarball *ball:tarball) /mydir old-meta ~)
+  ::  Create identical new ball
+  =/  new  (~(mkd ba:tarball *ball:tarball) /mydir old-meta ~)
+  =/  result  (sync-metadata:tarball old new now)
+  =/  at-mydir  (~(dip ba:tarball result) /mydir)
+  ?~  fil.at-mydir  !!
+  =/  dir-mtime  (~(get by metadata.u.fil.at-mydir) 'mtime')
+  %+  expect-eq
+    !>  `old-time-text
+  !>  dir-mtime
+::
+++  test-sync-metadata-parent-updates-when-child-changes
+  ::  When a child directory's content changes, parent should get now
+  =/  old-time  ~2020.1.1
+  =/  old-time-text=@t  (da-oct:tarball old-time)
+  =/  now  ~2025.1.1
+  =/  now-text=@t  (da-oct:tarball now)
+  =/  old-content=content:tarball  [~ [%test !>('old')]]
+  =/  new-content=content:tarball  [~ [%test !>('new')]]
+  =/  old-meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' old-time-text]])
+  ::  Create old ball with /parent/child/file
+  =/  old=ball:tarball  (~(mkd ba:tarball *ball:tarball) /parent old-meta ~)
+  =.  old  (~(put ba:tarball old) /parent/child %file old-content)
+  ::  Create new ball with changed file
+  =/  new=ball:tarball  (~(mkd ba:tarball *ball:tarball) /parent old-meta ~)
+  =.  new  (~(put ba:tarball new) /parent/child %file new-content)
+  =/  result  (sync-metadata:tarball old new now)
+  ::  Parent should have updated mtime because child changed
+  =/  at-parent  (~(dip ba:tarball result) /parent)
+  ?~  fil.at-parent  !!
+  =/  parent-mtime  (~(get by metadata.u.fil.at-parent) 'mtime')
+  %+  expect-eq
+    !>  `now-text
+  !>  parent-mtime
+::
 --

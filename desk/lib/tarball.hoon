@@ -364,20 +364,20 @@
   ^-  ball
   ::  First, recurse into subdirectories and track if any changed
   =/  kids=(list [@ta ball])  ~(tap by dir.new)
-  =|  any-kid-changed=?
+  =|  any-kid-changed=_|
   =|  new-dir=(map @ta ball)
   |-  ^-  ball
   ?~  kids
     ::  All subdirectories processed, now handle this node
     ::  Process files in contents
-    =/  old-lump=(unit lump)  (~(get of old) here)
-    =/  new-lump=(unit lump)  fil.new
-    ?~  new-lump
-      ::  No lump at this node, just update dir
+    =/  old-lump=(unit lump)  fil.old
+    =/  new-lump=lump  (fall fil.new [~ ~ ~])
+    ?:  &(?=(~ fil.new) ?=(~ new-dir))
+      ::  Empty root with no subdirectories - leave as is
       new(dir new-dir)
     ::  Process each file in contents
-    =/  files=(list [@ta content])  ~(tap by contents.u.new-lump)
-    =|  any-file-changed=?
+    =/  files=(list [@ta content])  ~(tap by contents.new-lump)
+    =|  any-file-changed=_|
     =|  new-contents=(map @ta content)
     |-  ^-  ball
     ?~  files
@@ -390,9 +390,9 @@
         ?:  lump-changed  now-text
         (~(gut by old-lump-meta) 'mtime' now-text)
       =/  updated-lump=lump
-        %=  u.new-lump
+        %=  new-lump
           contents  new-contents
-          metadata  (~(put by metadata.u.new-lump) 'mtime' new-lump-mtime)
+          metadata  (~(put by metadata.new-lump) 'mtime' new-lump-mtime)
         ==
       new(fil `updated-lump, dir new-dir)
     ::  Process this file
@@ -463,16 +463,18 @@
     ?~  nod=(~(get of b) pax)
       ~
     (~(get by contents.u.nod) name)
-  ::  Put a content item at directory path with name
+  ::  Put a content item at directory path with name.
+  ::  Ensures all directories along the path have lumps.
   ::
   ++  put
     |=  [pax=path name=@ta c=content]
     ^-  ball
-    =/  lmp=lump
-      ?~  nod=(~(get of b) pax)
-        [~ ~ ~]
-      u.nod
-    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c)))
+    ?~  pax
+      =/  lmp=lump  (fall fil.b [~ ~ ~])
+      b(fil `lmp(contents (~(put by contents.lmp) name c)))
+    =/  kid=ball  (~(gut by dir.b) i.pax *ball)
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    b(dir (~(put by dir.b) i.pax (~(put ba filled) t.pax name c)))
   ::  Check if a content item exists
   ::
   ++  has
@@ -625,20 +627,27 @@
     |=  pax=path
     ^-  ball
     (~(lop of b) pax)
-  ::  Make directory at path
+  ::  Make directory at path with metadata and optional neck.
+  ::  Ensures all intermediate directories have lumps.
   ::
   ++  mkd
     |=  [pax=path met=metadata nec=(unit neck)]
     ^-  ball
-    (~(put of b) pax [met nec ~])
-  ::  Put a ball (subtree) at path, replacing any existing subtree
+    ?~  pax
+      b(fil `[met nec ~])
+    =/  kid=ball  (~(gut by dir.b) i.pax *ball)
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax met nec)))
+  ::  Put a ball (subtree) at path, replacing any existing subtree.
+  ::  Ensures all intermediate directories have lumps.
   ::
   ++  pub
     |=  [pax=path sub=ball]
     ^-  ball
     ?~  pax  sub
-    =/  kid  (~(gut by dir.b) i.pax *ball)
-    b(dir (~(put by dir.b) i.pax $(b kid, pax t.pax)))
+    =/  kid=ball  (~(gut by dir.b) i.pax *ball)
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
   ++  dip
@@ -656,17 +665,6 @@
     ?~  kid=(~(get by dir.b) i.pax)
       ~
     $(b u.kid, pax t.pax)
-  ::  Apply diff to a cage file in the ball using mark's ++pact
-  ::
-  ++  patch-cage
-    |=  [pax=path name=@ta diff=vase dais=dais:clay]
-    ^-  ball
-    =/  current=(unit content)  (get pax name)
-    ?~  current
-      ~|  [%file-not-found pax name]  !!
-    =/  new-vase  (~(pact dais q.cage.u.current) diff)
-    ::  Preserve metadata, update vase
-    (put pax name [metadata.u.current [p.cage.u.current new-vase]])
   --
 ::  Tarball encoding utilities
 ::
