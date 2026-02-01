@@ -67,8 +67,8 @@
     [cards this]
     ::
       %poke
-    =+  !<([here=path =cage] vase)
-    =/  =give:nexus  [|+[src sap]:bowl /poke]
+    =+  !<([=wire here=path =cage] vase)
+    =/  =give:nexus  [|+[src sap]:bowl wire]
     =^  cards  state
       abet:(poke:hc give here cage)
     [cards this]
@@ -77,6 +77,10 @@
 ++  on-watch
   |=  =path
   ^-  (quip card _this)
+  ?:  ?=([%poke @ *] path)
+    ::  External poke subscription - verify src matches path
+    ?>  =(src.bowl (slav %p i.t.path))
+    [~ this]
   =^  cards  state
     abet:(take-watch:hc path)
   [cards this]
@@ -84,6 +88,9 @@
 ++  on-leave
   |=  =path
   ^-  (quip card _this)
+  ?:  ?=([%poke @ *] path)
+    ::  External poke subscription leaving - nothing to do
+    [~ this]
   =^  cards  state
     abet:(take-leave:hc path)
   [cards this]
@@ -167,14 +174,15 @@
   ^+  this
   ?-    -.from
       %&
-    ::  Internal - send %pack intake to source process
+    ::  Internal - send %pack intake to source path
     (enqu-take p.from (sys-give /pack) ~ %pack wire err)
     ::
       %|
-    ::  External - TODO: emit gall card back to caller
-    ::  For now just log if error
-    ?~  err  this
-    ((slog leaf+"external poke failed" u.err) this)
+    ::  External - send fact on caller's subscription path, then kick
+    =/  src=@ta  (scot %p src.p.from)
+    =/  pat=path  (weld /poke/[src] wire)
+    =.  this  (emit-card %give %fact ~[pat] noun+!>(err))
+    (emit-card %give %kick ~[pat] ~)
   ==
 ::
 ++  give-poke-sign
@@ -398,12 +406,6 @@
     =?  card  ?=([%pass *] card)
       card(p (wrap-wire here p.card))
     (emit-card card)
-    ::
-      %cull
-    ::  Delete self - enqueue a cull for this file
-    ::  The actual deletion happens via the %done result
-    ::  For now just note it - process should return %done
-    this
     ::
       %node
     ::  Send load to another path

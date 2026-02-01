@@ -49,7 +49,6 @@
 ::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card
-      [%cull ~]
       [%node =wire =road =load]
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
