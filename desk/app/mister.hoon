@@ -5,7 +5,7 @@
   ==
 ++  veb  &
 +$  card  card:agent:gall
-+$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus =sand:nexus]
++$  state-0  [%0 =ball:tarball =pool:nexus =nexi:nexus =sand:nexus born=(axal @da)]
 --
 ::
 =|  state-0
@@ -35,7 +35,7 @@
   =/  old  !<(versioned-state old-state)
   =.  nexi  default-nexi:nex-main
   ?-  -.old
-    %0  `this(ball ball.old, pool pool.old, sand sand.old)
+    %0  `this(ball ball.old, pool pool.old, sand sand.old, born born.old)
   ==
 ::
 ++  on-poke
@@ -200,7 +200,7 @@
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
-    =/  res=(unit [path ^wire])
+    =/  res=(unit [path @da path])
       (mole |.((unwrap-wire wire)))
     ?~  res  ~
     ?.  =(-.u.res here)  ~
@@ -211,8 +211,8 @@
   %+  murn  ~(tap by sup.bowl)
   |=  [=duct =ship pat=path]
   ^-  (unit card)
-  =/  res=(unit [path wire])
-    (mole |.((unwrap-wire pat)))
+  =/  res=(unit [path path])
+    (mole |.((unwrap-watch-path pat)))
   ?~  res  ~
   ?.  =(-.u.res here)  ~
   [~ %give %kick ~[pat] ~]
@@ -360,6 +360,18 @@
     (enqu-take here (sys-give /bowl) ~ %bowl wire.dart (make-bowl here))
   ==
 ::
+++  spawn-proc
+  |=  [here=path =prod:fiber:nexus]
+  ^+  this
+  ?~  here  this
+  ::  Generate and store born
+  =/  b=@da  (make-born here)
+  =.  born  (~(put of born) here b)
+  ::  Build and store proc
+  =/  =spool:fiber:nexus  (need (build-spool here))
+  =/  =process:fiber:nexus  (spool prod)
+  (store-proc here [process ~ ~])
+::
 ++  process-take
   |=  [here=path =take:fiber:nexus]
   ^+  this
@@ -368,14 +380,13 @@
   =/  name=@ta  (rear here)
   ::  Get pipe at directory, or empty map
   =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
-  ::  Get proc for this file, or create one
-  =/  =proc:fiber:nexus
-    ?^  prc=(~(get by pipe) name)
-      u.prc
-    =/  =spool:fiber:nexus  (need (build-spool here))
-    =/  =process:fiber:nexus  (spool [%make ~])
-    [process ~ ~]
+  ::  Get proc for this file - must exist
+  =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name)
+  ?~  prc
+    ~?  veb  "no process at {(spud here)}"
+    this
   ::  Add take to queue, store, and run
+  =/  =proc:fiber:nexus  u.prc
   =.  proc  proc(next (~(put to next.proc) take))
   =.  this  (store-proc here proc)
   (process-do-next here)
@@ -410,6 +421,10 @@
     (store-proc here new-proc)
     ::
       %done
+    ::  Nack any remaining queued pokes - process finished without handling them
+    =/  err=tang  ~[leaf+"process completed"]
+    =.  this  (nack-poke-takes next.new-proc err)
+    =.  this  (nack-poke-takes skip.new-proc err)
     ::  Clean up subscriptions and delete file
     =.  this  (clean here)
     (delete here)
@@ -418,9 +433,8 @@
     ::  Nack queued pokes and restart process with %rise
     =.  this  (nack-poke-takes next.new-proc err.res)
     =.  this  (nack-poke-takes skip.new-proc err.res)
-    =/  =spool:fiber:nexus  (need (build-spool here))
-    =/  =process:fiber:nexus  (spool [%rise err.res])
-    =.  this  (store-proc here [process ~ ~])
+    ::  Respawn process with crash info
+    =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
 ::
@@ -453,7 +467,8 @@
     ::  For now, use empty dais map (validation will crash if needed)
     =/  ba  (~(das ba:tarball ball) ~)
     =.  ball  (put:ba (snip `path`here) (rear here) [~ p.make])
-    ::  Start the process with ~ input
+    ::  Spawn the process and start it with ~ input
+    =.  this  (spawn-proc here [%make ~])
     (enqu-take here (sys-give /make) ~)
   ==
 ::
@@ -483,18 +498,18 @@
     %-  ~(gas by *boat:gall)
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] acked=? pat=path]
-    =/  res=(unit [path ^wire])
+    =/  res=(unit [path @da path])
       (mole |.((unwrap-wire wire)))
     ?~  res  ~
     ?.  =(-.u.res here)  ~
-    [~ [+.u.res ship term] acked pat]
+    [~ [+>.u.res ship term] acked pat]
   ::  Filter sup to only include incoming subscriptions for this process
   =/  filtered-sup=bitt:gall
     %-  ~(gas by *bitt:gall)
     %+  murn  ~(tap by sup.bowl)
     |=  [=duct =ship pat=path]
-    =/  res=(unit [path wire])
-      (mole |.((unwrap-wire pat)))
+    =/  res=(unit [path path])
+      (mole |.((unwrap-watch-path pat)))
     ?~  res  ~
     ?.  =(-.u.res here)  ~
     [~ duct ship +.u.res]
@@ -524,43 +539,72 @@
     steps  (dec steps)
   ==
 ::
+++  make-born
+  |=  here=path
+  ^-  @da
+  =/  last=(unit @da)  (~(get of born) here)
+  ?~  last  now.bowl
+  ?:((lth u.last now.bowl) now.bowl +(u.last))
+::
 ++  wrap-wire
   |=  [here=path =wire]
   ^+  wire
+  =/  b=@da  (need (~(get of born) here))
   ;:  weld
     /(scot %ud (lent here))
-    here  wire
+    here
+    /(scot %da b)
+    wire
   ==
 ::
 ++  unwrap-wire
   |=  =wire
-  ^-  [path ^wire]
+  ^-  [path @da ^wire]
   ?>  ?=([@ *] wire)
   =/  len=@ud  (slav %ud i.wire)
-  :-  (scag len t.wire)
-  (slag len t.wire)
+  =/  here=path  (scag len t.wire)
+  =/  rest=^wire  (slag len t.wire)
+  ?>  ?=([@ *] rest)
+  =/  b=@da  (slav %da i.rest)
+  [here b t.rest]
 ::
 ++  take-arvo
   |=  [wir=wire sign=sign-arvo]
   ^+  this
-  =/  [here=path =wire]  (unwrap-wire wir)
+  =/  [here=path b=@da =wire]  (unwrap-wire wir)
+  =/  cur=(unit @da)  (~(get of born) here)
+  ?.  ?&(?=(^ cur) =(b u.cur))
+    ~?  veb  "stale arvo response for {(spud here)}"
+    this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
-  =/  [here=path =wire]  (unwrap-wire wir)
+  =/  [here=path b=@da =wire]  (unwrap-wire wir)
+  =/  cur=(unit @da)  (~(get of born) here)
+  ?.  ?&(?=(^ cur) =(b u.cur))
+    ~?  veb  "stale agent response for {(spud here)}"
+    this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
+::  Unwrap incoming watch/leave paths (no born - subscribers don't know it)
+::
+++  unwrap-watch-path
+  |=  pat=path
+  ^-  [path path]
+  ?>  ?=([@ *] pat)
+  =/  len=@ud  (slav %ud i.pat)
+  [(scag len t.pat) (slag len t.pat)]
 ::
 ++  take-watch
   |=  pat=path
   ^+  this
-  =/  [here=path =wire]  (unwrap-wire pat)
-  (enqu-take here (sys-give /watch) ~ %watch wire)
+  =/  [here=path sub=path]  (unwrap-watch-path pat)
+  (enqu-take here (sys-give /watch) ~ %watch sub)
 ::
 ++  take-leave
   |=  pat=path
   ^+  this
-  =/  [here=path =wire]  (unwrap-wire pat)
-  (enqu-take here (sys-give /leave) ~ %leave wire)
+  =/  [here=path sub=path]  (unwrap-watch-path pat)
+  (enqu-take here (sys-give /leave) ~ %leave sub)
 --
