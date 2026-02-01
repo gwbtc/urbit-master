@@ -55,6 +55,7 @@
   ^-  (quip card _this)
   ?+    mark  (on-poke:def mark vase)
       %poke
+    :: anyone can poke; process handles gatekeeping
     =+  !<([=wire here=path =cage] vase)
     =/  =give:nexus  [|+[src sap]:bowl wire]
     =^  cards  state
@@ -73,6 +74,13 @@
     =+  !<(=path vase)
     =^  cards  state
       abet:(cull:hc path)
+    [cards this]
+    ::
+      %sand
+    ?>  =(src our):bowl
+    =+  !<([=path weir=(unit weir:nexus)] vase)
+    =^  cards  state
+      abet:(set-weir:hc path weir)
     [cards this]
   ==
 ::
@@ -601,14 +609,16 @@
   =.  born  (~(lop of born) here)
   this(ball (~(lop ba:tarball ball) here))
 ::
+++  set-weir
+  |=  [dest=path weir=(unit weir:nexus)]
+  ^+  this
+  ?>  ?=(^ dest)  :: root should always have system access
+  this(sand ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir)))
+::
 ++  edit-weir
   |=  [src=path =wire dest=path weir=(unit weir:nexus)]
   ^+  this
-  ?>  ?=(^ dest)  :: root should always have system access
-  =.  sand
-    ?~  weir
-      (~(del of sand) dest)
-    (~(put of sand) dest u.weir)
+  =.  this  (set-weir dest weir)
   ::  Send ack back to source
   (enqu-take src (sys-give /sand) ~ %sand wire ~)
 ::
