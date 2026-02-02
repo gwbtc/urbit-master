@@ -1,15 +1,15 @@
-::  road: symbolic link mark
+::  symlink: symbolic link mark
 ::  Represents symlinks as either absolute or relative paths
 ::
 /+  tarball
-|_  =road:tarball
+|_  =symlink:tarball
 ++  grad  %noun
 ++  grow
   |%
-  ++  noun  road
+  ++  noun  symlink
   --
 ++  grab
   |%
-  ++  noun  road:tarball
+  ++  noun  symlink:tarball
   --
 --

@@ -37,7 +37,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -83,7 +83,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -126,7 +126,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -169,7 +169,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Normalize S3 prefix
@@ -197,7 +197,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Normalize S3 prefix
@@ -223,7 +223,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Convert ball-path to path
@@ -255,7 +255,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Convert ball-path to path
@@ -284,7 +284,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Convert ball-path to path
@@ -313,7 +313,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 's3.json'] json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ::  Convert ball-path to path

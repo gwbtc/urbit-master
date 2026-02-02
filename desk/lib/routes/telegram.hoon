@@ -8,7 +8,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 'telegram.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 'telegram.json'] json)
   =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
   =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
   ;<  ~  bind:m

@@ -13,10 +13,10 @@
   ^-  nexus:nexus
   |%
   ++  on-load
-    |~  =ball:nexus
-    ^-  ball:nexus
+    |=  =ball:tarball
+    ^-  ball:tarball
     ::  Create /main file
-    =.  ball  (~(put ba:tarball ball) / %main [~ %sig !>(~)])
+    =.  ball  (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
     ::  Create /requests directory with neck=%requests
     (~(put of ball) /requests [~ `%requests ~])
   ::
@@ -42,7 +42,7 @@
       =/  [eyre-id=@ta req=inbound-request:eyre]
         !<([eyre-id=@ta inbound-request:eyre] q.cage)
       ::  Create request file at /requests/[eyre-id]
-      =/  dest=(list @ta)  [%requests eyre-id ~]
+      =/  dest=lane:tarball  [%& /requests eyre-id]  :: file: dir=/requests, name=eyre-id
       ;<  ~  bind:m  (node-make:fiberio /make [%| 1 dest] |+[%http-request !>(req)])
       $
         ::
@@ -63,12 +63,12 @@
       ::  Validate source: must be internal from /requests/[eyre-id]
       ::
       ::  From /server/main's perspective, /server/requests/[eyre-id] is:
-      ::    [1 /requests/[eyre-id]] - go up 1, then down /requests/[eyre-id]
+      ::    bend=[1 rail=[path=/requests name=eyre-id]]
       ::
-      ::  Validate: must be internal from [1 /requests/[eyre-id]]
+      ::  Validate: must be internal from [1 [/requests eyre-id]]
       ::
-      ?>  ?=([%& %1 %requests @ ~] from)
-      ?>  =(i.t.q.p.from eyre-id)
+      ?>  ?=([%& %1 [%requests ~] @] from)
+      ?>  =(name.q.p.from eyre-id)
       ?-    -.act
           %header
         ;<  ~  bind:m
@@ -101,7 +101,7 @@
   ^-  nexus:nexus
   |%
   ++  on-load
-    |~  =ball:nexus
+    |~  =ball:tarball
     ball
   ::
   ++  on-file
@@ -124,7 +124,9 @@
     =/  payload=simple-payload:http
       [[200 ~] `(as-octs:mimes:html 'Hello from request file!!!')]
     ::  Poke /main with response
-    ;<  ~  bind:m  (node-poke:fiberio /respond [%| 2 /main] server-action+!>([%response eyre-id payload]))
+    ::  Poke /main (up 2, then file at ./main)
+    =/  dest=road:tarball  [%| 2 [%& ~ %main]]  :: up 2, then file main in current dir
+    ;<  ~  bind:m  (node-poke:fiberio /respond dest server-action+!>([%response eyre-id payload]))
     ::  Done
     (pure:m ~)
   --

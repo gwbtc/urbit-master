@@ -79,7 +79,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  filename=@ta  (crip "{(scow %da process-id)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) [/processes/alarms filename] json)
   (pure:m (~(dog jo:json-utils jon) /timer-set bo:dejs:format))
 ::
 ::  Mark timer as set and send behn timer
@@ -90,7 +90,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  filename=@ta  (crip "{(scow %da process-id)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) [/processes/alarms filename] json)
   ::  Mark timer as set
   =/  updated-jon=json  (~(put jo:json-utils jon) /timer-set b+%.y)
   ;<  ~  bind:m  (put-cage:io /processes/alarms filename [%json !>(updated-jon)])
@@ -128,7 +128,7 @@
   ::  Read current index from alarm state (for restart resilience)
   =/  filename=@ta  (crip "{(scow %da start-time.rule)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) [/processes/alarms filename] json)
   =/  start-index=@ud
     =/  maybe-index=(unit @ud)
       (bind (~(get jo:json-utils jon) /current-index) ni:dejs:format)
@@ -153,7 +153,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  filename=@ta  (crip "{(scow %da start-time.rule)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) [/processes/alarms filename] json)
   =/  updated-jon=json
     %-  ~(put jo:json-utils jon)
     :-  /current-index

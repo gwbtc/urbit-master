@@ -83,7 +83,7 @@
     ::  Read bindings from config and set them (with fallback if not found)
     =/  bindings=(list binding:eyre)
       =/  maybe-bindings=(unit (list binding:eyre))
-        (~(get-cage-as ba:tarball ball) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+        (~(get-cage-as ba:tarball ball) [/config 'bindings.eyre-bindings'] ,(list binding:eyre))
       ?~  maybe-bindings
         ~[[~ /master]]  ::  fallback to default
       u.maybe-bindings
@@ -103,7 +103,7 @@
       $(chat-files t.chat-files)
     ::  Read as noun and check version
     =/  maybe-noun=(unit *)
-      (~(get-cage-as ba:tarball ball) /claude/chats i.chat-files *)
+      (~(get-cage-as ba:tarball ball) [/claude/chats i.chat-files] *)
     ?~  maybe-noun
       $(chat-files t.chat-files)
     ::  Check version tag and migrate if needed
@@ -150,7 +150,7 @@
     ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Read current bindings from config
     =/  current-bindings=(list binding:eyre)
-      (~(got-cage-as ba:tarball ball) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+      (~(got-cage-as ba:tarball ball) [/config 'bindings.eyre-bindings'] ,(list binding:eyre))
     ::  Add new binding if not already present
     =/  updated-bindings=(list binding:eyre)
       ?:  (lien current-bindings |=(b=binding:eyre =(b new-binding)))

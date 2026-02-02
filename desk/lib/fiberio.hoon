@@ -1,6 +1,6 @@
 ::  fiberio: helper functions for nexus fibers
 ::
-/+  nexus
+/+  nexus, tarball
 |%
 ++  fiber   fiber:fiber:nexus
 +$  input   input:fiber:nexus
@@ -264,28 +264,28 @@
 ::  Node operations: make, poke, peek, cull, sand
 ::
 ++  node-make
-  |=  [=wire =road:nexus =make:nexus]
+  |=  [=wire =road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %make make)
   (take-made wire)
 ::
 ++  node-poke
-  |=  [=wire =road:nexus =cage]
+  |=  [=wire =road:tarball =cage]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %poke cage)
   (take-pack wire)
 ::
 ++  node-peek
-  |=  [=wire =road:nexus kind=?(%ball %file)]
+  |=  [=wire =road:tarball kind=?(%ball %file)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %peek kind)
   (take-peek wire)
 ::
 ++  node-cull
-  |=  [=wire =road:nexus]
+  |=  [=wire =road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %cull ~)
@@ -304,7 +304,7 @@
   ==
 ::
 ++  node-sand
-  |=  [=wire =road:nexus weir=(unit weir:nexus)]
+  |=  [=wire =road:tarball weir=(unit weir:nexus)]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %sand weir)
@@ -501,7 +501,7 @@
   (pure:m eny.bowl)
 ::
 ++  get-here
-  =/  m  (fiber ,path)
+  =/  m  (fiber ,rail:tarball)
   ^-  form:m
   ;<  =bowl:nexus  bind:m  (get-bowl /get-here)
   (pure:m here.bowl)

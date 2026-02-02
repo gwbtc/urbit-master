@@ -12,7 +12,7 @@
 ++  get-claude-creds
   |=  =ball:tarball
   ^-  (unit json)
-  (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+  (~(get-cage-as ba:tarball ball) [/config/creds 'claude.json'] json)
 ::  GET request router
 ::
 ++  handle-get-request
@@ -23,7 +23,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -111,7 +111,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -128,7 +128,7 @@
     |-
     ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Read counter from ball
-    =/  counter=@ud  (~(got-cage-as ba:tarball ball) /state 'counter.ud' @ud)
+    =/  counter=@ud  (~(got-cage-as ba:tarball ball) [/state 'counter.ud'] @ud)
     ?:  (gte counter 5)
       (give-simple-payload:io [[200 ~] ~])
     ::  Increment counter in ball
@@ -226,7 +226,7 @@
     =/  message=@t  (need (get-key:kv 'message' args))
     ;<  ball=ball:tarball  bind:m  get-state:io
     =/  jon=json
-      (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+      (~(got-cage-as ba:tarball ball) [/config/creds 'claude.json'] json)
     =/  api-key=@t  (~(dog jo:json-utils jon) /api-key so:dejs:format)
     =/  ai-model=@t  (~(dog jo:json-utils jon) /ai-model so:dejs:format)
     %:  handle-message:claude-routes

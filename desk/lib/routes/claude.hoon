@@ -42,7 +42,7 @@
   |=  =ball:tarball
   ^-  (unit @ux)
   =/  txt=(unit wain)
-    (~(get-cage-as ba:tarball ball) /claude 'active-chat.txt' wain)
+    (~(get-cage-as ba:tarball ball) [/claude 'active-chat.txt'] wain)
   ?~  txt  ~
   ?~  u.txt  ~
   (rush i.u.txt hex)
@@ -52,7 +52,7 @@
 ++  get-chat
   |=  [=ball:tarball chat-id=@ux]
   ^-  (unit chat:claude)
-  (~(get-cage-as ba:tarball ball) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
+  (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat")] chat:claude)
 ::
 ::  Helper: Put a chat to ball
 ::
@@ -435,7 +435,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Get existing creds from ball
   =/  existing=(unit json)
-    (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+    (~(get-cage-as ba:tarball ball) [/config/creds 'claude.json'] json)
   ::  Use existing values if not provided
   =/  api-key=@t
     ?~  existing
@@ -563,11 +563,11 @@
     (add-message-to-chat:sse chat-id result-timestamp chat-with-results result-msg)
   ::  Continue conversation with Claude
   =/  creds-jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 'claude.json'] json)
   =/  api-key=@t  (~(dog jo:json-utils creds-jon) /api-key so:dejs:format)
   =/  ai-model=@t  (~(dog jo:json-utils creds-jon) /ai-model so:dejs:format)
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -700,11 +700,11 @@
     (add-message-to-chat:sse chat-id result-timestamp chat-with-results result-msg)
   ::  Continue conversation with Claude
   =/  creds-jon=json
-    (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+    (~(got-cage-as ba:tarball ball) [/config/creds 'claude.json'] json)
   =/  api-key=@t  (~(dog jo:json-utils creds-jon) /api-key so:dejs:format)
   =/  ai-model=@t  (~(dog jo:json-utils creds-jon) /ai-model so:dejs:format)
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'

@@ -8,7 +8,7 @@
 ++  test-put-and-get
   =/  my-ball  *ball:tarball
   =/  test-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
+  =/  updated  (~(put ba:tarball my-ball) [/foo %test] test-content)
   =/  result  (~(get ba:tarball updated) /foo %test)
   %+  expect-eq
     !>  `test-content
@@ -24,7 +24,7 @@
 ++  test-has-exists
   =/  my-ball  *ball:tarball
   =/  test-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
+  =/  updated  (~(put ba:tarball my-ball) [/foo %test] test-content)
   %-  expect
   !>  (~(has ba:tarball updated) /foo %test)
 ::
@@ -38,7 +38,7 @@
 ++  test-del
   =/  my-ball  *ball:tarball
   =/  test-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test test-content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] test-content)
   =/  g2  (~(del ba:tarball g1) /foo %test)
   =/  result  (~(get ba:tarball g2) /foo %test)
   %+  expect-eq
@@ -49,8 +49,8 @@
   =/  my-ball  *ball:tarball
   =/  test1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  test2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test test1)
-  =/  g2  (~(put ba:tarball g1) /foo %other test2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] test1)
+  =/  g2  (~(put ba:tarball g1) [/foo %other] test2)
   =/  files  (~(lis ba:tarball g2) /foo)
   ::  Check that both files are in the list
   ;:  weld
@@ -64,8 +64,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ;:  weld
     %+  expect-eq
       !>  `content1
@@ -78,7 +78,7 @@
 ++  test-got
   =/  my-ball  *ball:tarball
   =/  test-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
+  =/  updated  (~(put ba:tarball my-ball) [/foo %test] test-content)
   %+  expect-eq
     !>  test-content
   !>  (~(got ba:tarball updated) /foo %test)
@@ -91,7 +91,7 @@
 ++  test-gut
   =/  my-ball  *ball:tarball
   =/  default=content:tarball  [~ [%mime !>([/text/plain [7 'default']])]]
-  =/  result  (~(gut ba:tarball my-ball) /foo %test default)
+  =/  result  (~(gut ba:tarball my-ball) [/foo %test] default)
   %+  expect-eq
     !>  default
   !>  result
@@ -100,18 +100,18 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   %+  expect-eq
     !>  2
   !>  ~(wyt ba:tarball g2)
 ::
 ++  test-gas
   =/  my-ball  *ball:tarball
-  =/  files=(list [path @ta content:tarball])
-    :~  [/foo %test [~ [%mime !>([/text/plain [5 'hello']])]]]
-        [/foo %other [~ [%mime !>([/text/html [3 'bye']])]]]
-        [/bar %thing [~ [%mime !>([/text/css [4 'hmm']])]]]
+  =/  files=(list [rail:tarball content:tarball])
+    :~  [[/foo %test] [~ [%mime !>([/text/plain [5 'hello']])]]]
+        [[/foo %other] [~ [%mime !>([/text/html [3 'bye']])]]]
+        [[/bar %thing] [~ [%mime !>([/text/css [4 'hmm']])]]]
     ==
   =/  updated  (~(gas ba:tarball my-ball) files)
   ;:  weld
@@ -127,8 +127,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /foo %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/foo %other] content2)
   =/  result  ~(tap ba:tarball g2)
   %-  expect
   !>  =((lent result) 2)
@@ -136,7 +136,7 @@
 ++  test-run
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
   ::  Identity transform - run should preserve content
   =/  updated  (~(run ba:tarball g1) |=(c=content:tarball c))
   =/  result  (~(got ba:tarball updated) /foo %test)
@@ -148,10 +148,10 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ::  Count all entries
-  =/  total  (~(rep ba:tarball g2) |=([[* * c=content:tarball] acc=@ud] (add acc 1)))
+  =/  total  (~(rep ba:tarball g2) |=([[* c=content:tarball] acc=@ud] (add acc 1)))
   %+  expect-eq
     !>  2
   !>  total
@@ -160,8 +160,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/plain [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ::  Check all are mime cages (all content is now just cage)
   %-  expect
   !>  (~(all ba:tarball g2) |=(c=content:tarball =(%mime p.cage.c)))
@@ -170,8 +170,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ::  Check if all match false predicate (should be false)
   %+  expect-eq
     !>  %.n
@@ -181,8 +181,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /foo %test content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/foo %test] content2)
   =/  result  (~(get ba:tarball g2) /foo %test)
   %+  expect-eq
     !>  `content2
@@ -206,8 +206,8 @@
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  default=content:tarball  [~ [%mime !>([/text/html [7 'default']])]]
-  =/  updated  (~(put ba:tarball my-ball) /foo %test content)
-  =/  result  (~(gut ba:tarball updated) /foo %test default)
+  =/  updated  (~(put ba:tarball my-ball) [/foo %test] content)
+  =/  result  (~(gut ba:tarball updated) [/foo %test] default)
   %+  expect-eq
     !>  content
   !>  result
@@ -240,7 +240,7 @@
 ::
 ++  test-rep-empty
   =/  my-ball  *ball:tarball
-  =/  result  (~(rep ba:tarball my-ball) |=([[* * c=content:tarball] acc=@ud] acc))
+  =/  result  (~(rep ba:tarball my-ball) |=([[* c=content:tarball] acc=@ud] acc))
   %+  expect-eq
     !>  0
   !>  result
@@ -262,8 +262,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/plain [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ::  Check if any match false predicate (should be false)
   %+  expect-eq
     !>  %.n
@@ -272,7 +272,7 @@
 ++  test-lop-nonexistent
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content)
   =/  result  (~(lop ba:tarball g1) /baz)
   ::  Should be no-op, ball unchanged
   %+  expect-eq
@@ -290,8 +290,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
-  =/  g2  (~(put ba:tarball g1) /bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/bar %other] content2)
   ::  Check if any are mime cages (all content is now just cage)
   %-  expect
   !>  (~(any ba:tarball g2) |=(c=content:tarball =(%mime p.cage.c)))
@@ -300,8 +300,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content1)
-  =/  g2  (~(put ba:tarball g1) /foo/bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/foo/bar %other] content2)
   ::  Delete entire /foo subtree
   =/  updated  (~(lop ba:tarball g2) /foo)
   %+  expect-eq
@@ -312,8 +312,8 @@
   =/  my-ball  *ball:tarball
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/html [3 'bye']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content1)
-  =/  g2  (~(put ba:tarball g1) /foo/bar %other content2)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content1)
+  =/  g2  (~(put ba:tarball g1) [/foo/bar %other] content2)
   ::  Get directory at /foo/bar as a ball
   =/  subball  (~(dip ba:tarball g2) /foo/bar)
   =/  files  (~(get of subball) /)
@@ -355,7 +355,7 @@
   ::  Path exists when files are present
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content)
   =/  dap-result  (~(dap ba:tarball g1) /foo/bar)
   =/  dip-result  (~(dip ba:tarball g1) /foo/bar)
   ;:  weld
@@ -371,7 +371,7 @@
   ::  Path still exists after deleting files (structure remains)
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content)
   =/  g2  (~(del ba:tarball g1) /foo/bar %test)
   =/  dap-result  (~(dap ba:tarball g2) /foo/bar)
   =/  dip-result  (~(dip ba:tarball g2) /foo/bar)
@@ -389,7 +389,7 @@
   ::  Path doesn't exist if we never created it
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  dap-result  (~(dap ba:tarball g1) /bar)
   =/  dip-result  (~(dip ba:tarball g1) /bar)
   ;:  weld
@@ -407,7 +407,7 @@
   ::  Path doesn't exist if we go deeper than structure
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  dap-result  (~(dap ba:tarball g1) /foo/bar)
   =/  dip-result  (~(dip ba:tarball g1) /foo/bar)
   ;:  weld
@@ -425,7 +425,7 @@
   ::  Parent path exists when child has files
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar/baz %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar/baz %test] content)
   =/  dap-result  (~(dap ba:tarball g1) /foo)
   =/  dip-result  (~(dip ba:tarball g1) /foo)
   ;:  weld
@@ -437,259 +437,259 @@
     !>  !=(~ dir.dip-result)
   ==
 ::
-::  parse-road tests
+::  parse-symlink tests
 ::
-++  test-parse-road-absolute-simple
-  =/  result  (parse-road:tarball '/foo')
+++  test-parse-symlink-absolute-simple
+  =/  result  (parse-symlink:tarball '/foo')
   %+  expect-eq
     !>  `[%& /foo]
   !>  result
 ::
-++  test-parse-road-absolute-multi
-  =/  result  (parse-road:tarball '/foo/bar/baz')
+++  test-parse-symlink-absolute-multi
+  =/  result  (parse-symlink:tarball '/foo/bar/baz')
   %+  expect-eq
     !>  `[%& /foo/bar/baz]
   !>  result
 ::
-++  test-parse-road-absolute-root
-  =/  result  (parse-road:tarball '/')
+++  test-parse-symlink-absolute-root
+  =/  result  (parse-symlink:tarball '/')
   %+  expect-eq
     !>  `[%& ~]
   !>  result
 ::
-++  test-parse-road-absolute-two-level
-  =/  result  (parse-road:tarball '/a/b')
+++  test-parse-symlink-absolute-two-level
+  =/  result  (parse-symlink:tarball '/a/b')
   %+  expect-eq
     !>  `[%& /a/b]
   !>  result
 ::
-++  test-parse-road-relative-simple
-  =/  result  (parse-road:tarball 'foo')
+++  test-parse-symlink-relative-simple
+  =/  result  (parse-symlink:tarball 'foo')
   %+  expect-eq
     !>  `[%| [0 /foo]]
   !>  result
 ::
-++  test-parse-road-relative-multi
-  =/  result  (parse-road:tarball 'foo/bar')
+++  test-parse-symlink-relative-multi
+  =/  result  (parse-symlink:tarball 'foo/bar')
   %+  expect-eq
     !>  `[%| [0 /foo/bar]]
   !>  result
 ::
-++  test-parse-road-relative-three
-  =/  result  (parse-road:tarball 'foo/bar/baz')
+++  test-parse-symlink-relative-three
+  =/  result  (parse-symlink:tarball 'foo/bar/baz')
   %+  expect-eq
     !>  `[%| [0 /foo/bar/baz]]
   !>  result
 ::
-++  test-parse-road-relative-with-dots
-  =/  result  (parse-road:tarball 'foo.txt')
+++  test-parse-symlink-relative-with-dots
+  =/  result  (parse-symlink:tarball 'foo.txt')
   ::  Just check it parses successfully
   %+  expect-eq
     !>  `[%| [0 /'foo.txt']]
   !>  result
 ::
-++  test-parse-road-up-one
-  =/  result  (parse-road:tarball '../foo')
+++  test-parse-symlink-up-one
+  =/  result  (parse-symlink:tarball '../foo')
   %+  expect-eq
     !>  `[%| [1 /foo]]
   !>  result
 ::
-++  test-parse-road-up-two
-  =/  result  (parse-road:tarball '../../foo')
+++  test-parse-symlink-up-two
+  =/  result  (parse-symlink:tarball '../../foo')
   %+  expect-eq
     !>  `[%| [2 /foo]]
   !>  result
 ::
-++  test-parse-road-up-three
-  =/  result  (parse-road:tarball '../../../foo')
+++  test-parse-symlink-up-three
+  =/  result  (parse-symlink:tarball '../../../foo')
   %+  expect-eq
     !>  `[%| [3 /foo]]
   !>  result
 ::
-++  test-parse-road-up-with-multi-path
-  =/  result  (parse-road:tarball '../foo/bar')
+++  test-parse-symlink-up-with-multi-path
+  =/  result  (parse-symlink:tarball '../foo/bar')
   %+  expect-eq
     !>  `[%| [1 /foo/bar]]
   !>  result
 ::
-++  test-parse-road-up-two-with-path
-  =/  result  (parse-road:tarball '../../foo/bar/baz')
+++  test-parse-symlink-up-two-with-path
+  =/  result  (parse-symlink:tarball '../../foo/bar/baz')
   %+  expect-eq
     !>  `[%| [2 /foo/bar/baz]]
   !>  result
 ::
-++  test-parse-road-just-one-up
-  =/  result  (parse-road:tarball '..')
+++  test-parse-symlink-just-one-up
+  =/  result  (parse-symlink:tarball '..')
   %+  expect-eq
     !>  `[%| [1 ~]]
   !>  result
 ::
-++  test-parse-road-just-two-up
-  =/  result  (parse-road:tarball '../..')
+++  test-parse-symlink-just-two-up
+  =/  result  (parse-symlink:tarball '../..')
   %+  expect-eq
     !>  `[%| [2 ~]]
   !>  result
 ::
-++  test-parse-road-just-three-up
-  =/  result  (parse-road:tarball '../../..')
+++  test-parse-symlink-just-three-up
+  =/  result  (parse-symlink:tarball '../../..')
   %+  expect-eq
     !>  `[%| [3 ~]]
   !>  result
 ::
-++  test-parse-road-empty
-  =/  result  (parse-road:tarball '')
+++  test-parse-symlink-empty
+  =/  result  (parse-symlink:tarball '')
   %+  expect-eq
     !>  `[%| [0 ~]]
   !>  result
 ::
-++  test-parse-road-absolute-trailing-slash
+++  test-parse-symlink-absolute-trailing-slash
   ::  stap parser handles trailing slashes
-  =/  result  (parse-road:tarball '/foo/')
+  =/  result  (parse-symlink:tarball '/foo/')
   %-  expect
   !>  ?=(^ result)
 ::
-++  test-parse-road-relative-complex
-  =/  result  (parse-road:tarball 'a/b/c/d')
+++  test-parse-symlink-relative-complex
+  =/  result  (parse-symlink:tarball 'a/b/c/d')
   %+  expect-eq
     !>  `[%| [0 /a/b/c/d]]
   !>  result
 ::
-++  test-parse-road-up-four
-  =/  result  (parse-road:tarball '../../../../foo')
+++  test-parse-symlink-up-four
+  =/  result  (parse-symlink:tarball '../../../../foo')
   %+  expect-eq
     !>  `[%| [4 /foo]]
   !>  result
 ::
-++  test-parse-road-up-many-no-path
-  =/  result  (parse-road:tarball '../../../..')
+++  test-parse-symlink-up-many-no-path
+  =/  result  (parse-symlink:tarball '../../../..')
   %+  expect-eq
     !>  `[%| [4 ~]]
   !>  result
 ::
-++  test-parse-road-single-char
-  =/  result  (parse-road:tarball 'a')
+++  test-parse-symlink-single-char
+  =/  result  (parse-symlink:tarball 'a')
   %+  expect-eq
     !>  `[%| [0 /a]]
   !>  result
 ::
-++  test-parse-road-absolute-single-char
-  =/  result  (parse-road:tarball '/x')
+++  test-parse-symlink-absolute-single-char
+  =/  result  (parse-symlink:tarball '/x')
   %+  expect-eq
     !>  `[%& /x]
   !>  result
 ::
-++  test-parse-road-up-then-simple
-  =/  result  (parse-road:tarball '../x')
+++  test-parse-symlink-up-then-simple
+  =/  result  (parse-symlink:tarball '../x')
   %+  expect-eq
     !>  `[%| [1 /x]]
   !>  result
 ::
-++  test-parse-road-numbers-in-path
-  =/  result  (parse-road:tarball 'foo123/bar456')
+++  test-parse-symlink-numbers-in-path
+  =/  result  (parse-symlink:tarball 'foo123/bar456')
   %+  expect-eq
     !>  `[%| [0 /foo123/bar456]]
   !>  result
 ::
-++  test-parse-road-hyphens-in-path
-  =/  result  (parse-road:tarball 'foo-bar/baz-qux')
+++  test-parse-symlink-hyphens-in-path
+  =/  result  (parse-symlink:tarball 'foo-bar/baz-qux')
   %+  expect-eq
     !>  `[%| [0 /foo-bar/baz-qux]]
   !>  result
 ::
-++  test-parse-road-absolute-deep
-  =/  result  (parse-road:tarball '/a/b/c/d/e/f')
+++  test-parse-symlink-absolute-deep
+  =/  result  (parse-symlink:tarball '/a/b/c/d/e/f')
   %+  expect-eq
     !>  `[%& /a/b/c/d/e/f]
   !>  result
 ::
-++  test-parse-road-up-mixed
-  =/  result  (parse-road:tarball '../foo/../bar')
+++  test-parse-symlink-up-mixed
+  =/  result  (parse-symlink:tarball '../foo/../bar')
   ::  Should parse but normalize differently - just check it parses
   %-  expect
   !>  ?=(^ result)
 ::
-::  encode-road tests
+::  encode-symlink tests
 ::
-++  test-encode-road-absolute-simple
-  =/  result  (encode-road:tarball [%& /foo])
+++  test-encode-symlink-absolute-simple
+  =/  result  (encode-symlink:tarball [%& /foo])
   %+  expect-eq
     !>  '/foo'
   !>  result
 ::
-++  test-encode-road-absolute-multi
-  =/  result  (encode-road:tarball [%& /foo/bar/baz])
+++  test-encode-symlink-absolute-multi
+  =/  result  (encode-symlink:tarball [%& /foo/bar/baz])
   %+  expect-eq
     !>  '/foo/bar/baz'
   !>  result
 ::
-++  test-encode-road-absolute-root
-  =/  result  (encode-road:tarball [%& ~])
+++  test-encode-symlink-absolute-root
+  =/  result  (encode-symlink:tarball [%& ~])
   %+  expect-eq
     !>  '/'
   !>  result
 ::
-++  test-encode-road-relative-simple
-  =/  result  (encode-road:tarball [%| [0 /foo]])
+++  test-encode-symlink-relative-simple
+  =/  result  (encode-symlink:tarball [%| [0 /foo]])
   %+  expect-eq
     !>  'foo'
   !>  result
 ::
-++  test-encode-road-relative-multi
-  =/  result  (encode-road:tarball [%| [0 /foo/bar]])
+++  test-encode-symlink-relative-multi
+  =/  result  (encode-symlink:tarball [%| [0 /foo/bar]])
   %+  expect-eq
     !>  'foo/bar'
   !>  result
 ::
-++  test-encode-road-relative-empty
-  =/  result  (encode-road:tarball [%| [0 ~]])
+++  test-encode-symlink-relative-empty
+  =/  result  (encode-symlink:tarball [%| [0 ~]])
   %+  expect-eq
     !>  ''
   !>  result
 ::
-++  test-encode-road-up-one
-  =/  result  (encode-road:tarball [%| [1 /foo]])
+++  test-encode-symlink-up-one
+  =/  result  (encode-symlink:tarball [%| [1 /foo]])
   %+  expect-eq
     !>  '../foo'
   !>  result
 ::
-++  test-encode-road-up-two
-  =/  result  (encode-road:tarball [%| [2 /foo]])
+++  test-encode-symlink-up-two
+  =/  result  (encode-symlink:tarball [%| [2 /foo]])
   %+  expect-eq
     !>  '../../foo'
   !>  result
 ::
-++  test-encode-road-up-three
-  =/  result  (encode-road:tarball [%| [3 /foo]])
+++  test-encode-symlink-up-three
+  =/  result  (encode-symlink:tarball [%| [3 /foo]])
   %+  expect-eq
     !>  '../../../foo'
   !>  result
 ::
-++  test-encode-road-just-one-up
-  =/  result  (encode-road:tarball [%| [1 ~]])
+++  test-encode-symlink-just-one-up
+  =/  result  (encode-symlink:tarball [%| [1 ~]])
   %+  expect-eq
     !>  '..'
   !>  result
 ::
-++  test-encode-road-just-two-up
-  =/  result  (encode-road:tarball [%| [2 ~]])
+++  test-encode-symlink-just-two-up
+  =/  result  (encode-symlink:tarball [%| [2 ~]])
   %+  expect-eq
     !>  '../..'
   !>  result
 ::
-++  test-encode-road-just-three-up
-  =/  result  (encode-road:tarball [%| [3 ~]])
+++  test-encode-symlink-just-three-up
+  =/  result  (encode-symlink:tarball [%| [3 ~]])
   %+  expect-eq
     !>  '../../..'
   !>  result
 ::
-++  test-encode-road-up-with-multi-path
-  =/  result  (encode-road:tarball [%| [1 /foo/bar]])
+++  test-encode-symlink-up-with-multi-path
+  =/  result  (encode-symlink:tarball [%| [1 /foo/bar]])
   %+  expect-eq
     !>  '../foo/bar'
   !>  result
 ::
-++  test-encode-road-up-four-with-path
-  =/  result  (encode-road:tarball [%| [4 /foo]])
+++  test-encode-symlink-up-four-with-path
+  =/  result  (encode-symlink:tarball [%| [4 /foo]])
   %+  expect-eq
     !>  '../../../../foo'
   !>  result
@@ -698,180 +698,180 @@
 ::
 ++  test-roundtrip-absolute-simple
   =/  original  '/foo'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-absolute-multi
   =/  original  '/foo/bar/baz'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-absolute-root
   =/  original  '/'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-relative-simple
   =/  original  'foo'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-relative-multi
   =/  original  'foo/bar'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-empty
   =/  original  ''
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-up-one
   =/  original  '../foo'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-up-two
   =/  original  '../../foo'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-just-one-up
   =/  original  '..'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-just-two-up
   =/  original  '../..'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
 ++  test-roundtrip-complex
   =/  original  '../../foo/bar/baz'
-  =/  parsed  (parse-road:tarball original)
+  =/  parsed  (parse-symlink:tarball original)
   ?~  parsed  !!
-  =/  encoded  (encode-road:tarball u.parsed)
+  =/  encoded  (encode-symlink:tarball u.parsed)
   %+  expect-eq
     !>  original
   !>  encoded
 ::
-::  resolve-road tests
+::  resolve-symlink tests
 ::
-++  test-resolve-road-absolute
-  =/  result  (resolve-road:tarball [%& /absolute/path] /foo/bar)
+++  test-resolve-symlink-absolute
+  =/  result  (resolve-symlink:tarball [%& /absolute/path] /foo/bar)
   %+  expect-eq
     !>  /absolute/path
   !>  result
 ::
-++  test-resolve-road-absolute-from-root
-  =/  result  (resolve-road:tarball [%& /foo] ~)
+++  test-resolve-symlink-absolute-from-root
+  =/  result  (resolve-symlink:tarball [%& /foo] ~)
   %+  expect-eq
     !>  /foo
   !>  result
 ::
-++  test-resolve-road-relative-simple
-  =/  result  (resolve-road:tarball [%| [0 /baz]] /foo/bar)
+++  test-resolve-symlink-relative-simple
+  =/  result  (resolve-symlink:tarball [%| [0 /baz]] /foo/bar)
   %+  expect-eq
     !>  /foo/bar/baz
   !>  result
 ::
-++  test-resolve-road-relative-multi
-  =/  result  (resolve-road:tarball [%| [0 /baz/qux]] /foo/bar)
+++  test-resolve-symlink-relative-multi
+  =/  result  (resolve-symlink:tarball [%| [0 /baz/qux]] /foo/bar)
   %+  expect-eq
     !>  /foo/bar/baz/qux
   !>  result
 ::
-++  test-resolve-road-up-one
-  =/  result  (resolve-road:tarball [%| [1 /baz]] /foo/bar)
+++  test-resolve-symlink-up-one
+  =/  result  (resolve-symlink:tarball [%| [1 /baz]] /foo/bar)
   %+  expect-eq
     !>  /foo/baz
   !>  result
 ::
-++  test-resolve-road-up-two
-  =/  result  (resolve-road:tarball [%| [2 /baz]] /foo/bar/qux)
+++  test-resolve-symlink-up-two
+  =/  result  (resolve-symlink:tarball [%| [2 /baz]] /foo/bar/qux)
   %+  expect-eq
     !>  /foo/baz
   !>  result
 ::
-++  test-resolve-road-up-to-root
-  =/  result  (resolve-road:tarball [%| [2 /baz]] /foo/bar)
+++  test-resolve-symlink-up-to-root
+  =/  result  (resolve-symlink:tarball [%| [2 /baz]] /foo/bar)
   %+  expect-eq
     !>  /baz
   !>  result
 ::
-++  test-resolve-road-just-up-one
-  =/  result  (resolve-road:tarball [%| [1 ~]] /foo/bar)
+++  test-resolve-symlink-just-up-one
+  =/  result  (resolve-symlink:tarball [%| [1 ~]] /foo/bar)
   %+  expect-eq
     !>  /foo
   !>  result
 ::
-++  test-resolve-road-just-up-two
-  =/  result  (resolve-road:tarball [%| [2 ~]] /foo/bar/baz)
+++  test-resolve-symlink-just-up-two
+  =/  result  (resolve-symlink:tarball [%| [2 ~]] /foo/bar/baz)
   %+  expect-eq
     !>  /foo
   !>  result
 ::
-++  test-resolve-road-current-dir
-  =/  result  (resolve-road:tarball [%| [0 ~]] /foo/bar)
+++  test-resolve-symlink-current-dir
+  =/  result  (resolve-symlink:tarball [%| [0 ~]] /foo/bar)
   %+  expect-eq
     !>  /foo/bar
   !>  result
 ::
-++  test-resolve-road-relative-from-root
-  =/  result  (resolve-road:tarball [%| [0 /foo]] ~)
+++  test-resolve-symlink-relative-from-root
+  =/  result  (resolve-symlink:tarball [%| [0 /foo]] ~)
   %+  expect-eq
     !>  /foo
   !>  result
 ::
-++  test-resolve-road-up-past-root
+++  test-resolve-symlink-up-past-root
   ::  Going up past root should just give root
-  =/  result  (resolve-road:tarball [%| [5 /foo]] /bar)
+  =/  result  (resolve-symlink:tarball [%| [5 /foo]] /bar)
   %+  expect-eq
     !>  /foo
   !>  result
 ::
-++  test-resolve-road-complex
-  =/  result  (resolve-road:tarball [%| [1 /sibling/child]] /foo/bar/baz)
+++  test-resolve-symlink-complex
+  =/  result  (resolve-symlink:tarball [%| [1 /sibling/child]] /foo/bar/baz)
   %+  expect-eq
     !>  /foo/bar/sibling/child
   !>  result
@@ -1204,7 +1204,7 @@
   ::  %temp cages should be removed
   =/  my-ball  *ball:tarball
   =/  temp-content=content:tarball  [~ [%temp !>('ephemeral')]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %temp-file temp-content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %temp-file] temp-content)
   =/  result  ~(clear-temp ba:tarball g1)
   ;:  weld
     ::  temp file should be gone
@@ -1222,8 +1222,8 @@
   =/  my-ball  *ball:tarball
   =/  mime-content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  temp-content=content:tarball  [~ [%temp !>('ephemeral')]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %keep-file mime-content)
-  =/  g2  (~(put ba:tarball g1) /foo %temp-file temp-content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %keep-file] mime-content)
+  =/  g2  (~(put ba:tarball g1) [/foo %temp-file] temp-content)
   =/  result  ~(clear-temp ba:tarball g2)
   ;:  weld
     ::  mime file should remain
@@ -1246,9 +1246,9 @@
   =/  temp1=content:tarball  [~ [%temp !>('t1')]]
   =/  temp2=content:tarball  [~ [%temp !>('t2')]]
   =/  keep=content:tarball   [~ [%mime !>([/text/plain [4 'keep']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %temp1 temp1)
-  =/  g2  (~(put ba:tarball g1) /bar %temp2 temp2)
-  =/  g3  (~(put ba:tarball g2) /baz %keep keep)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %temp1] temp1)
+  =/  g2  (~(put ba:tarball g1) [/bar %temp2] temp2)
+  =/  g3  (~(put ba:tarball g2) [/baz %keep] keep)
   =/  result  ~(clear-temp ba:tarball g3)
   ;:  weld
     %+  expect-eq
@@ -1278,8 +1278,8 @@
   ::  Should list subdirectories
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
-  =/  g2  (~(put ba:tarball g1) /baz %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %test] content)
+  =/  g2  (~(put ba:tarball g1) [/baz %test] content)
   =/  dirs  (~(lss ba:tarball g2) /)
   =/  dir-set  (~(gas in *(set @ta)) dirs)
   ;:  weld
@@ -1296,7 +1296,7 @@
   ::  Should list only immediate children
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar/baz %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar/baz %test] content)
   =/  dirs-at-root  (~(lss ba:tarball g1) /)
   =/  dirs-at-foo   (~(lss ba:tarball g1) /foo)
   ;:  weld
@@ -1314,7 +1314,7 @@
   ::  Non-existent path returns empty
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   %+  expect-eq
     !>  ~
   !>  (~(lss ba:tarball g1) /nonexistent)
@@ -1386,7 +1386,7 @@
   ::  Pub at root replaces entire ball
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %test content)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %test] content)
   =/  result  (~(pub ba:tarball my-ball) / sub-ball)
   %+  expect-eq
     !>  `content
@@ -1396,7 +1396,7 @@
   ::  Pub at path inserts subtree
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %test content)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %test] content)
   =/  result  (~(pub ba:tarball my-ball) /foo/bar sub-ball)
   %+  expect-eq
     !>  `content
@@ -1407,8 +1407,8 @@
   =/  my-ball  *ball:tarball
   =/  old=content:tarball  [~ [%mime !>([/text/plain [3 'old']])]]
   =/  new=content:tarball  [~ [%mime !>([/text/plain [3 'new']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/bar %file old)
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file new)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/bar %file] old)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %file] new)
   =/  result  (~(pub ba:tarball g1) /foo/bar sub-ball)
   %+  expect-eq
     !>  `new
@@ -1419,8 +1419,8 @@
   =/  my-ball  *ball:tarball
   =/  sibling=content:tarball  [~ [%mime !>([/text/plain [7 'sibling']])]]
   =/  new=content:tarball  [~ [%mime !>([/text/plain [3 'new']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo/sibling %file sibling)
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file new)
+  =/  g1  (~(put ba:tarball my-ball) [/foo/sibling %file] sibling)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %file] new)
   =/  result  (~(pub ba:tarball g1) /foo/target sub-ball)
   ;:  weld
     ::  New file should exist
@@ -1439,8 +1439,8 @@
   =/  content1=content:tarball  [~ [%mime !>([/text/plain [2 'c1']])]]
   =/  content2=content:tarball  [~ [%mime !>([/text/plain [2 'c2']])]]
   =/  sub-ball  *ball:tarball
-  =.  sub-ball  (~(put ba:tarball sub-ball) /deep/nested %file1 content1)
-  =.  sub-ball  (~(put ba:tarball sub-ball) /other %file2 content2)
+  =.  sub-ball  (~(put ba:tarball sub-ball) [/deep/nested %file1] content1)
+  =.  sub-ball  (~(put ba:tarball sub-ball) [/other %file2] content2)
   =/  result  (~(pub ba:tarball my-ball) /root sub-ball)
   ;:  weld
     %+  expect-eq
@@ -1469,7 +1469,7 @@
   =/  now  ~2025.1.1
   =/  now-text=@t  (da-oct:tarball now)
   =/  content=content:tarball  [~ [%test !>('hello')]]
-  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  new  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (sync-metadata:tarball old new now)
   =/  got  (~(get ba:tarball result) / %file)
   ?~  got  !!
@@ -1485,8 +1485,8 @@
   =/  now  ~2025.1.1
   =/  content=content:tarball
     [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('hello')]]
-  =/  old  (~(put ba:tarball *ball:tarball) / %file content)
-  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  old  (~(put ba:tarball *ball:tarball) [/ %file] content)
+  =/  new  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (sync-metadata:tarball old new now)
   =/  got  (~(get ba:tarball result) / %file)
   ?~  got  !!
@@ -1505,8 +1505,8 @@
     [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('hello')]]
   =/  new-content=content:tarball
     [(~(gas by *metadata:tarball) ~[['mtime' old-time-text]]) [%test !>('goodbye')]]
-  =/  old  (~(put ba:tarball *ball:tarball) / %file old-content)
-  =/  new  (~(put ba:tarball *ball:tarball) / %file new-content)
+  =/  old  (~(put ba:tarball *ball:tarball) [/ %file] old-content)
+  =/  new  (~(put ba:tarball *ball:tarball) [/ %file] new-content)
   =/  result  (sync-metadata:tarball old new now)
   =/  got  (~(get ba:tarball result) / %file)
   ?~  got  !!
@@ -1519,7 +1519,7 @@
   ::  Size should NOT be stored in sync-metadata (computed on tarball export)
   =/  now  ~2025.1.1
   =/  content=content:tarball  [~ [%test !>('hello-world')]]
-  =/  new  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  new  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (sync-metadata:tarball *ball:tarball new now)
   =/  got  (~(get ba:tarball result) / %file)
   ?~  got  !!
@@ -1535,7 +1535,7 @@
   ::  Put at deep path should create lumps for intermediate directories
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  result  (~(put ba:tarball my-ball) /a/b/c %file content)
+  =/  result  (~(put ba:tarball my-ball) [/a/b/c %file] content)
   ::  Check intermediate directories have lumps
   =/  at-a  (~(dip ba:tarball result) /a)
   =/  at-ab  (~(dip ba:tarball result) /a/b)
@@ -1552,7 +1552,7 @@
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
   =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  result  (~(put ba:tarball g1) /a/b/c %file content)
+  =/  result  (~(put ba:tarball g1) [/a/b/c %file] content)
   =/  at-a  (~(dip ba:tarball result) /a)
   ?~  fil.at-a  !!
   ;:  weld
@@ -1570,7 +1570,7 @@
   ::  Put at root (empty path) should work correctly
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  result  (~(put ba:tarball my-ball) / %file content)
+  =/  result  (~(put ba:tarball my-ball) [/ %file] content)
   ;:  weld
     ::  File should exist
     %+  expect-eq
@@ -1587,7 +1587,7 @@
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
   =/  g1  (~(mkd ba:tarball my-ball) /x meta `%first)
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g2  (~(put ba:tarball g1) /y/z %file content)
+  =/  g2  (~(put ba:tarball g1) [/y/z %file] content)
   ::  /x should still have its original lump
   =/  at-x  (~(dip ba:tarball g2) /x)
   =/  at-y  (~(dip ba:tarball g2) /y)
@@ -1605,7 +1605,7 @@
   ::  Put at very deep path should create lumps at all levels
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  result  (~(put ba:tarball my-ball) /a/b/c/d/e %file content)
+  =/  result  (~(put ba:tarball my-ball) [/a/b/c/d/e %file] content)
   =/  at-a  (~(dip ba:tarball result) /a)
   =/  at-ab  (~(dip ba:tarball result) /a/b)
   =/  at-abc  (~(dip ba:tarball result) /a/b/c)
@@ -1664,7 +1664,7 @@
   ::  pub at deep path should create lumps for intermediate directories
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (~(pub ba:tarball my-ball) /a/b/c sub-ball)
   ::  Check intermediate directories have lumps
   =/  at-a  (~(dip ba:tarball result) /a)
@@ -1682,7 +1682,7 @@
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
   =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  sub-ball  (~(put ba:tarball *ball:tarball) / %file content)
+  =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (~(pub ba:tarball g1) /a/b/c sub-ball)
   =/  at-a  (~(dip ba:tarball result) /a)
   ?~  fil.at-a  !!
@@ -1812,10 +1812,10 @@
   =/  old-meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' old-time-text]])
   ::  Create old ball with /parent/child/file
   =/  old=ball:tarball  (~(mkd ba:tarball *ball:tarball) /parent old-meta ~)
-  =.  old  (~(put ba:tarball old) /parent/child %file old-content)
+  =.  old  (~(put ba:tarball old) [/parent/child %file] old-content)
   ::  Create new ball with changed file
   =/  new=ball:tarball  (~(mkd ba:tarball *ball:tarball) /parent old-meta ~)
-  =.  new  (~(put ba:tarball new) /parent/child %file new-content)
+  =.  new  (~(put ba:tarball new) [/parent/child %file] new-content)
   =/  result  (sync-metadata:tarball old new now)
   ::  Parent should have updated mtime because child changed
   =/  at-parent  (~(dip ba:tarball result) /parent)
@@ -1831,10 +1831,10 @@
   ::  touch should update the file's mtime
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  now  ~2025.6.15
   =/  now-text=@t  (da-oct:tarball now)
-  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  result  (~(touch ba:tarball g1) [/foo %test] now)
   =/  got  (~(get ba:tarball result) /foo %test)
   ?~  got  !!
   =/  mtime  (~(get by metadata.u.got) 'mtime')
@@ -1846,10 +1846,10 @@
   ::  touch should also update the containing directory's mtime
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  now  ~2025.6.15
   =/  now-text=@t  (da-oct:tarball now)
-  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  result  (~(touch ba:tarball g1) [/foo %test] now)
   =/  at-foo  (~(dip ba:tarball result) /foo)
   ?~  fil.at-foo  !!
   =/  dir-mtime  (~(get by metadata.u.fil.at-foo) 'mtime')
@@ -1861,10 +1861,10 @@
   ::  touch should update mtime of all parent directories
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /a/b/c %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/a/b/c %test] content)
   =/  now  ~2025.6.15
   =/  now-text=@t  (da-oct:tarball now)
-  =/  result  (~(touch ba:tarball g1) /a/b/c %test now)
+  =/  result  (~(touch ba:tarball g1) [/a/b/c %test] now)
   ::  Check all levels got updated
   =/  at-a  (~(dip ba:tarball result) /a)
   =/  at-ab  (~(dip ba:tarball result) /a/b)
@@ -1888,9 +1888,9 @@
   ::  touch on nonexistent file should be a no-op
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %existing content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %existing] content)
   =/  now  ~2025.6.15
-  =/  result  (~(touch ba:tarball g1) /foo %nonexistent now)
+  =/  result  (~(touch ba:tarball g1) [/foo %nonexistent] now)
   ::  Ball should be unchanged
   %+  expect-eq
     !>  g1
@@ -1900,9 +1900,9 @@
   ::  touch at nonexistent path should be a no-op
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  now  ~2025.6.15
-  =/  result  (~(touch ba:tarball g1) /bar %test now)
+  =/  result  (~(touch ba:tarball g1) [/bar %test] now)
   ::  Ball should be unchanged
   %+  expect-eq
     !>  g1
@@ -1912,10 +1912,10 @@
   ::  touch should work for files at root
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) / %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/ %test] content)
   =/  now  ~2025.6.15
   =/  now-text=@t  (da-oct:tarball now)
-  =/  result  (~(touch ba:tarball g1) / %test now)
+  =/  result  (~(touch ba:tarball g1) [/ %test] now)
   =/  got  (~(get ba:tarball result) / %test)
   ?~  got  !!
   =/  mtime  (~(get by metadata.u.got) 'mtime')
@@ -1928,10 +1928,10 @@
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value'] ['mtime' '0']])
   =/  content=content:tarball  [meta [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  now  ~2025.6.15
   =/  now-text=@t  (da-oct:tarball now)
-  =/  result  (~(touch ba:tarball g1) /foo %test now)
+  =/  result  (~(touch ba:tarball g1) [/foo %test] now)
   =/  got  (~(get ba:tarball result) /foo %test)
   ?~  got  !!
   ;:  weld
@@ -1949,12 +1949,12 @@
   ::  Multiple touches with different times should update correctly
   =/  my-ball  *ball:tarball
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
-  =/  g1  (~(put ba:tarball my-ball) /foo %test content)
+  =/  g1  (~(put ba:tarball my-ball) [/foo %test] content)
   =/  time1  ~2020.1.1
   =/  time2  ~2025.6.15
   =/  time2-text=@t  (da-oct:tarball time2)
-  =/  g2  (~(touch ba:tarball g1) /foo %test time1)
-  =/  result  (~(touch ba:tarball g2) /foo %test time2)
+  =/  g2  (~(touch ba:tarball g1) [/foo %test] time1)
+  =/  result  (~(touch ba:tarball g2) [/foo %test] time2)
   =/  got  (~(get ba:tarball result) /foo %test)
   ?~  got  !!
   =/  mtime  (~(get by metadata.u.got) 'mtime')

@@ -4,8 +4,16 @@
 |%
 +$  neck      @tas                :: a "mark" at the directory level
 +$  metadata  (map @t @t)
-+$  bend      (pair @ud path)      :: relative path
-+$  road      (each path bend)     :: absolute or relative path
+::  Path types with file/directory distinction
+::
++$  rail  [=path name=@ta]        :: path to file (dir + filename)
++$  fold  path                    :: path to directory
++$  lane  (each rail fold)        :: [%& rail] file or [%| fold] directory
++$  bend  (pair @ud lane)         :: relative: steps up + destination lane
++$  road  (each lane bend)        :: [%& lane] absolute or [%| bend] relative
+::  Symlink: untyped path reference (resolved at lookup time)
+::
++$  symlink   (each path (pair @ud path))
 +$  content   [=metadata =cage]
 +$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
 +$  ball      (axal lump)
@@ -47,19 +55,100 @@
   ==
 +$  tarball-entry  [header=tarball-header data=(unit octs)]
 +$  tarball        (list tarball-entry)
-::  Helper: wrap road as cage instead of using %| branch
+::  Path helper functions
 ::
-++  road-to-cage
-  |=  =road
+::  Convert a file path to a rail (split into dir + name)
+::  E.g. /a/b/c -> [path=/a/b name=%c]
+::
+++  rail-from-path
+  |=  pax=path
+  ^-  rail
+  ?>  ?=(^ pax)  :: path must be non-empty for a file
+  [(snip `path`pax) (rear pax)]
+::
+++  rail-to-path
+  |=  =rail
+  ^-  path
+  (snoc [path name]:rail)
+::  Get the full path from a lane (dir path for fold, dir+name for rail)
+::
+++  path-from-lane
+  |=  =lane
+  ^-  path
+  ?-(-.lane %& (rail-to-path p.lane), %| p.lane)
+::  Get the directory path from a lane
+::
+++  fold-from-lane
+  |=  =lane
+  ^-  path
+  ?-(-.lane %& path.p.lane, %| p.lane)
+::  Resolve a bend relative to a location to get an absolute lane.
+::
+++  lane-from-bend
+  |=  [loc=lane =bend]
+  ^-  (unit lane)
+  ?:  =(0 p.bend)
+    `q.bend
+  =/  loc-path=path  (fold-from-lane loc)
+  ?~  loc-path  ~
+  $(loc [%| (snip `path`loc-path)], p.bend (dec p.bend))
+::  Convert a road (absolute or relative) to an absolute lane
+::  `here` is a lane: [%& rail] for file context, [%| fold] for directory context.
+::
+++  lane-from-road
+  |=  [here=lane =road]
+  ^-  (unit lane)
+  ?-(-.road %& `p.road, %| (lane-from-bend here p.road))
+::  Compute relative bend from here to dest lane.
+::  E.g. from /a/b/c to file /a/d/e/foo -> [2 [%& /d/e %foo]]
+::
+++  make-bend
+  |=  [here=rail dest=lane]
+  ^-  bend
+  =/  here-path=path  (snoc path.here name.here)
+  =/  dest-dir=path  (fold-from-lane dest)
+  =/  pref=path  (prefix here-path dest-dir)
+  =/  here-tail=path  (need (decap pref here-path))
+  =/  dest-tail=path  (need (decap pref dest-dir))
+  :-  (lent here-tail)
+  ?-(-.dest %& [%& dest-tail name.p.dest], %| [%| dest-tail])
+::  Make a bend to a file (rail) - convenience for common case
+::
+++  make-bend-rail
+  |=  [here=rail dest=rail]
+  ^-  bend
+  (make-bend here [%& dest])
+::  Compute common prefix of two paths
+::
+++  prefix
+  |=  [a=path b=path]
+  ^-  path
+  ?~  a  ~
+  ?~  b  ~
+  ?.  =(i.a i.b)  ~
+  [i.a $(a t.a, b t.b)]
+::  Remove prefix from path, returning the tail
+::
+++  decap
+  |=  [pre=path pax=path]
+  ^-  (unit path)
+  ?~  pre  `pax
+  ?~  pax  ~
+  ?.  =(i.pre i.pax)  ~
+  $(pre t.pre, pax t.pax)
+::  Helper: wrap symlink as cage for storage
+::
+++  symlink-to-cage
+  |=  =symlink
   ^-  cage
-  [%road !>(road)]
+  [%symlink !>(symlink)]
 ::
-++  cage-to-road
+++  cage-to-symlink
   |=  =cage
-  ^-  (unit road)
-  ?.  =(%road p.cage)
+  ^-  (unit symlink)
+  ?.  =(%symlink p.cage)
     ~
-  `!<(road q.cage)
+  `!<(symlink q.cage)
 ::
 ++  ext-to-mime
   |=  ext=@ta
@@ -134,11 +223,11 @@
   ?^  mime-type
     u.mime-type
   /application/octet-stream
-::  Parse Unix-style path string into road
+::  Parse Unix-style path string into symlink
 ::
-++  parse-road
+++  parse-symlink
   |=  target=@t
-  ^-  (unit road)
+  ^-  (unit symlink)
   ::  Empty path is current directory
   ?:  =(target '')
     `[%| [0 ~]]
@@ -176,10 +265,10 @@
   =/  parsed=(unit path)  (rush path-text stap)
   ?~  parsed  ~
   `[%| [up-count u.parsed]]
-::  Encode road back to Unix-style path string
+::  Encode symlink back to Unix-style path string
 ::
-++  encode-road
-  |=  r=road
+++  encode-symlink
+  |=  r=symlink
   ^-  @t
   ?-  -.r
     %&  (spat p.r)
@@ -208,10 +297,10 @@
   ::  Combine prefix and path
   (crip (weld prefix path-text))
   ==
-::  Resolve a road relative to a base path to get absolute path
+::  Resolve a symlink relative to a base path to get absolute path
 ::
-++  resolve-road
-  |=  [r=road base=path]
+++  resolve-symlink
+  |=  [r=symlink base=path]
   ^-  path
   ?-  -.r
       %&  p.r
@@ -338,7 +427,7 @@
     [name-without-ext [file-metadata u.maybe-cage]]
   ::  Add file to base with explicit directories
   =/  new-base=ball
-    (~(put ba base-with-dirs) full-parent store-name file-content)
+    (~(put ba base-with-dirs) [full-parent store-name] file-content)
   $(parts t.parts, base new-base)
 ::  Sync metadata from old ball to new ball
 ::  - Files: keep old mtime if unchanged, else now
@@ -448,30 +537,30 @@
 ::
 ++  ba
   |_  b=ball
-  ::  Get a content item (file or symlink) by directory path and name
+  ::  Get a content item (file or symlink) by rail
   ::
   ++  get
-    |=  [pax=path name=@ta]
+    |=  =rail
     ^-  (unit content)
-    ?~  nod=(~(get of b) pax)
+    ?~  nod=(~(get of b) path.rail)
       ~
-    (~(get by contents.u.nod) name)
-  ::  Put a content item at directory path with name.
+    (~(get by contents.u.nod) name.rail)
+  ::  Put a content item at rail (directory path + filename).
   ::  Ensures all directories along the path have lumps.
   ::
   ++  put
-    |=  [pax=path name=@ta c=content]
+    |=  [=rail c=content]
     ^-  ball
-    ?~  pax
+    ?~  path.rail
       =/  lmp=lump  (fall fil.b [~ ~ ~])
-      b(fil `lmp(contents (~(put by contents.lmp) name c)))
-    =/  kid=ball  (~(gut by dir.b) i.pax *ball)
+      b(fil `lmp(contents (~(put by contents.lmp) name.rail c)))
+    =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
-    b(dir (~(put by dir.b) i.pax (~(put ba filled) t.pax name c)))
+    b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
   ::  Touch a file: update mtime, propagate mtime up to parents
   ::
   ++  touch
-    |=  [pax=path name=@ta now=@da]
+    |=  [=rail now=@da]
     ^-  ball
     =/  mtime=@t  (da-oct now)
     ::  Helper to update directory mtime
@@ -480,22 +569,22 @@
       ^-  ^lump
       lump(metadata (~(put by metadata.lump) 'mtime' mtime))
     ::  Recurse to file location, updating parent mtimes on the way back
-    ?~  pax
+    ?~  path.rail
       ::  At target directory - update file metadata
       =/  lmp=lump  (fall fil.b [~ ~ ~])
-      ?~  con=(~(get by contents.lmp) name)
+      ?~  con=(~(get by contents.lmp) name.rail)
         b  ::  file doesn't exist, no-op
       ::  Update file mtime
       =/  new-meta=metadata
         (~(put by metadata.u.con) 'mtime' mtime)
       =/  new-con=content  u.con(metadata new-meta)
       ::  Update file in lump, and lump mtime
-      =/  new-lmp=lump  (touch-dir lmp(contents (~(put by contents.lmp) name new-con)))
+      =/  new-lmp=lump  (touch-dir lmp(contents (~(put by contents.lmp) name.rail new-con)))
       b(fil `new-lmp)
     ::  Check if subdirectory exists before recursing
-    ?~  kid=(~(get by dir.b) i.pax)
+    ?~  kid=(~(get by dir.b) i.path.rail)
       b  ::  path doesn't exist, no-op
-    =/  touched=ball  (~(touch ba u.kid) t.pax name now)
+    =/  touched=ball  (~(touch ba u.kid) [[t.path.rail name.rail] now])
     ::  Only update parent if child actually changed
     ?:  =(touched u.kid)
       b  ::  no change, return unchanged
@@ -503,85 +592,85 @@
     =/  new-kid=ball
       ?~  fil.touched  touched
       touched(fil `(touch-dir u.fil.touched))
-    b(dir (~(put by dir.b) i.pax new-kid))
+    b(dir (~(put by dir.b) i.path.rail new-kid))
   ::  Check if a content item exists
   ::
   ++  has
-    |=  [pax=path name=@ta]
+    |=  =rail
     ^-  ?
-    !=(~ (get pax name))
+    !=(~ (get rail))
   ::  Delete a content item
   ::
   ++  del
-    |=  [pax=path name=@ta]
+    |=  =rail
     ^-  ball
-    ?~  nod=(~(get of b) pax)
+    ?~  nod=(~(get of b) path.rail)
       b
-    (~(put of b) pax u.nod(contents (~(del by contents.u.nod) name)))
+    (~(put of b) path.rail u.nod(contents (~(del by contents.u.nod) name.rail)))
   ::  List all content items in a directory
   ::
   ++  lis
-    |=  pax=path
+    |=  =fold
     ^-  (list @ta)
-    ?~  nod=(~(get of b) pax)
+    ?~  nod=(~(get of b) fold)
       ~
     ~(tap in ~(key by contents.u.nod))
   ::  List all subdirectories in a directory
   ::
   ++  lss
-    |=  pax=path
+    |=  =fold
     ^-  (list @ta)
-    ?~  dap=(dap pax)
+    ?~  dap=(dap fold)
       ~
     ~(tap in ~(key by dir.u.dap))
   ::  Get or crash
   ::
   ++  got
-    |=  [pax=path name=@ta]
-    (need (get pax name))
+    |=  =rail
+    (need (get rail))
   ::  Get with default
   ::
   ++  gut
-    |=  [pax=path name=@ta default=content]
-    (fall (get pax name) default)
+    |=  [=rail default=content]
+    (fall (get rail) default)
   ::  Get a cage (crash if not found)
   ::
   ++  got-cage
-    |=  [pax=path name=@ta]
+    |=  =rail
     ^-  cage
-    =/  c=content  (got pax name)
+    =/  c=content  (got rail)
     cage.c
   ::  Get a file as mime (crash if not found or not a mime cage)
   ::
   ++  got-file
-    |=  [pax=path name=@ta]
+    |=  =rail
     ^-  mime
-    =/  c=content  (got pax name)
+    =/  c=content  (got rail)
     ?.  =(%mime p.cage.c)
-      ~|("not a mime file: {(spud (snoc pax name))}" !!)
+      ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
     !<(mime q.cage.c)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
-    |=  [pax=path name=@ta]
-    ^-  road
-    =/  c=content  (got pax name)
-    =/  maybe-road=(unit road)  (cage-to-road cage.c)
-    ?~  maybe-road
-      ~|("not a symlink: {(spud (snoc pax name))}" !!)
-    u.maybe-road
+    |=  =rail
+    ^-  symlink
+    =/  c=content  (got rail)
+    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.c)
+    ?~  maybe-sym
+      ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
+    u.maybe-sym
   ::  Get cage and extract as specific type (crash if wrong type)
   ::
   ++  got-cage-as
-    |*  [pax=path name=@ta a=mold]
+    |*  [=rail a=mold]
     ^-  a
-    !<(a q:(got-cage pax name))
+    !<(a q:(got-cage rail))
   ::  Get cage as unit (returns ~ if not found)
   ::
   ++  get-cage-as
-    |*  [pax=path name=@ta a=mold]
+    |*  [=rail a=mold]
     ^-  (unit a)
-    ?~  may=(get pax name)
+    ?~  may=(get rail)
       ~
     `!<(a q.cage.u.may)
   ::  Count total content items across all directories
@@ -591,16 +680,16 @@
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=@ud]
     (add acc ~(wyt by contents.lmp))
-  ::  Convert entire ball to flat list
+  ::  Convert entire ball to flat list of [rail content] pairs
   ::
   ++  tap
-    ^-  (list [path @ta content])
+    ^-  (list [rail content])
     %-  zing
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
     |=  [name=@ta c=content]
-    [pax name c]
+    [[pax name] c]
   ::  Apply function to all content items
   ::
   ++  run
@@ -612,11 +701,11 @@
   ::  Insert list of content items
   ::
   ++  gas
-    |=  items=(list [path @ta content])
+    |=  items=(list [rail content])
     ^-  ball
     %+  roll  items
-    |=  [[pax=path name=@ta c=content] acc=ball]
-    (~(put ba acc) pax name c)
+    |=  [[=rail c=content] acc=ball]
+    (~(put ba acc) rail c)
   ::  Reduce over all content items
   ::
   ++  rep
@@ -629,7 +718,7 @@
     |=  fn=$-(content ?)
     ^-  ?
     %+  levy  tap
-    |=  [pax=path name=@ta c=content]
+    |=  [=rail c=content]
     (fn c)
   ::  Check if any content item matches predicate
   ::
@@ -637,7 +726,7 @@
     |=  fn=$-(content ?)
     ^-  ?
     %+  lien  tap
-    |=  [pax=path name=@ta c=content]
+    |=  [=rail c=content]
     (fn c)
   ::  Clear all %temp cages from ball
   ::
@@ -680,20 +769,20 @@
   ::  Descend to subdirectory as new ball
   ::
   ++  dip
-    |=  pax=path
+    |=  =fold
     ^-  ball
-    (~(dip of b) pax)
+    (~(dip of b) fold)
   ::  Descend to subdirectory, return ~ if path doesn't exist
   ::
   ++  dap
-    |=  pax=path
+    |=  =fold
     ^-  (unit ball)
     |-
-    ?~  pax
+    ?~  fold
       [~ b]
-    ?~  kid=(~(get by dir.b) i.pax)
+    ?~  kid=(~(get by dir.b) i.fold)
       ~
-    $(b u.kid, pax t.pax)
+    $(b u.kid, fold t.fold)
   --
 ::  Tarball encoding utilities
 ::
@@ -919,16 +1008,16 @@
     |=  [=path =content]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
-    ::  Check if this is a road cage (symlink)
-    =/  maybe-road=(unit road)  (cage-to-road cage.content)
-    ?^  maybe-road
+    ::  Check if this is a symlink cage
+    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.content)
+    ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
         %-  ~(gas by metadata.content)
         :~  ['typeflag' '2']
             ['prefix' (rsh [3 1] (spat prefix))]
             ['name' (rsh [3 1] (spat name))]
-            ['linkname' (encode-road u.maybe-road)]
+            ['linkname' (encode-symlink u.maybe-sym)]
         ==
       (generate-entry sym-metadata ~)
     ::  It's a regular file - add extension based on mark

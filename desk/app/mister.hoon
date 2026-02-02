@@ -89,16 +89,18 @@
         %sand
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(set-weir:hc [here weir]:action)
+        abet:(set-weir:hc [path.here weir]:action)
       [cards this]
     ==
     ::  Eyre binding: bind URL path to file path
     ::
       %connect
     ?>  =(src our):bowl
-    =+  !<([url=path here=path] vase)
+    =+  !<([url=path here=rail:tarball] vase)
+    ::  Encode rail in wire: [%connect len ...path... name]
+    =/  wir=wire  [%connect (scot %ud (lent path.here)) (snoc path.here name.here)]
     :_  this
-    [%pass [%connect here] %arvo %e %connect `url dap.bowl]~
+    [%pass wir %arvo %e %connect `url dap.bowl]~
     ::  Eyre unbinding
     ::
       %disconnect
@@ -216,8 +218,13 @@
     ?.  accepted.sign
       %-  (slog leaf+"eyre bind failed: {(spud path.binding.sign)}" ~)
       [~ this]
-    %-  (slog leaf+"eyre bound: {(spud path.binding.sign)} -> {(spud t.wire)}" ~)
-    [~ this(bindings (~(put by bindings) path.binding.sign t.wire))]
+    ::  Decode rail from wire: [len ...path... name]
+    ?>  ?=([@ @ *] t.wire)
+    =/  len=@ud  (slav %ud i.t.wire)
+    =/  rest=path  t.t.wire
+    =/  here=rail:tarball  [(scag len rest) (snag len rest)]
+    %-  (slog leaf+"eyre bound: {(spud path.binding.sign)} -> {(spud (snoc path.here name.here))}" ~)
+    [~ this(bindings (~(put by bindings) path.binding.sign here))]
   ==
 ::
 ++  on-fail   on-fail:def
@@ -233,7 +240,7 @@
   |-
   ?:  =(~ takes)
     [(flop cards) state]
-  =^  [here=path =take:fiber:nexus]  takes  ~(get to takes)
+  =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   $(this (process-take here take))
 ::
 ++  emit-card
@@ -245,7 +252,7 @@
   this(cards (welp (flop cadz) cards))
 ::
 ++  enqu-take
-  |=  [here=path =give:nexus in=(unit intake:fiber:nexus)]
+  |=  [here=rail:tarball =give:nexus in=(unit intake:fiber:nexus)]
   this(takes (~(put to takes) [here give in]))
 ::  Generate a system give (for internal system operations)
 ::
@@ -343,7 +350,7 @@
 ::  For incremental updates where nest optimization matters, use validate-cage.
 ::
 ++  validate-ball
-  |=  [here=path sub=ball:tarball]
+  |=  [here=fold:tarball sub=ball:tarball]
   ^-  (each ball:tarball tang)
   ::  Validate files at this level
   =/  validated-contents=(each (map @ta content:tarball) tang)
@@ -374,12 +381,10 @@
   $(kids t.kids, validated-dir (~(put by validated-dir) name p.res))
 ::
 ++  store-proc
-  |=  [here=path =proc:fiber:nexus]
+  |=  [here=rail:tarball =proc:fiber:nexus]
   ^+  this
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
-  =/  =pipe:nexus  (~(put by (fall (~(get of pool) dir) ~)) name proc)
-  this(pool (~(put of pool) dir pipe))
+  =/  =pipe:nexus  (~(put by (fall (~(get of pool) path.here) ~)) name.here proc)
+  this(pool (~(put of pool) path.here pipe))
 ::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
@@ -395,12 +400,12 @@
 ::  For internal pokes, sanitizes error if source can't peek target.
 ::
 ++  give-poke-ack
-  |=  [here=path =from:nexus =wire err=(unit tang)]
+  |=  [here=rail:tarball =from:nexus =wire err=(unit tang)]
   ^+  this
   ::  Sanitize error if internal poke without peek permission
   =/  err=(unit tang)
     ?.  ?=(%& -.from)  err  :: external pokes see full error
-    ?:  ?=([~ %|] (allowed p.from %peek `here))
+    ?:  ?=([~ %|] (allowed p.from %peek `[%& here]))
       ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
     err
   ?-    -.from
@@ -417,20 +422,20 @@
   ==
 ::
 ++  give-poke-sign
-  |=  [here=path =took:eval:fiber:nexus]
+  |=  [here=rail:tarball =took:eval:fiber:nexus]
   ^+  this
   ?.  ?=([~ %poke *] in.take.took)  this
   (give-poke-ack here from.give.take.took wire.give.take.took err.took)
 ::
 ++  give-poke-signs
-  |=  [here=path done=(list took:eval:fiber:nexus)]
+  |=  [here=rail:tarball done=(list took:eval:fiber:nexus)]
   ^+  this
   ?~  done  this
   =.  this  (give-poke-sign here i.done)
   $(done t.done)
 ::
 ++  nack-poke-takes
-  |=  [here=path takes=(qeu take:fiber:nexus) err=tang]
+  |=  [here=rail:tarball takes=(qeu take:fiber:nexus) err=tang]
   ^+  this
   ?:  =(~ takes)  this
   =^  =take:fiber:nexus  takes  ~(get to takes)
@@ -439,17 +444,17 @@
 ::  Nack all queued pokes in a pool subtree
 ::
 ++  nack-pool
-  |=  [here=path =pool:nexus err=tang]
+  |=  [here=fold:tarball =pool:nexus err=tang]
   ^+  this
   ::  Nack pokes in procs at this level
   =.  this
     ?~  fil.pool  this
-    =/  procs=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.pool)
+    =/  procs=(list [name=@ta =proc:fiber:nexus])  ~(tap by u.fil.pool)
     |-
     ?~  procs  this
-    =/  proc-path=path  (snoc here -.i.procs)
-    =.  this  (nack-poke-takes proc-path next.+.i.procs err)
-    =.  this  (nack-poke-takes proc-path skip.+.i.procs err)
+    =/  proc-rail=rail:tarball  [here name.i.procs]
+    =.  this  (nack-poke-takes proc-rail next.proc.i.procs err)
+    =.  this  (nack-poke-takes proc-rail skip.proc.i.procs err)
     $(procs t.procs)
   ::  Recurse into subdirectories
   =/  kids=(list [@ta pool:nexus])  ~(tap by dir.pool)
@@ -460,7 +465,7 @@
 ::  Run nexus on-loads top-down recursively
 ::
 ++  run-on-loads
-  |=  [here=path sub=ball:tarball]
+  |=  [here=fold:tarball sub=ball:tarball]
   ^-  ball:tarball
   ::  Check if this node has a nexus
   =/  nex=(unit nexus:nexus)
@@ -479,7 +484,7 @@
 ::  Spawn processes for all files in ball
 ::
 ++  spawn-all-files
-  |=  [here=path sub=ball:tarball]
+  |=  [here=fold:tarball sub=ball:tarball]
   ^+  this
   ::  Spawn processes for files in this directory's contents
   =.  this
@@ -487,9 +492,9 @@
     =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.sub)
     |-
     ?~  files  this
-    =/  file-path=path  (snoc here -.i.files)
-    =.  this  (spawn-proc file-path [%load ~])
-    =.  this  (enqu-take file-path (sys-give /load) ~)
+    =/  file-rail=rail:tarball  [here -.i.files]
+    =.  this  (spawn-proc file-rail [%load ~])
+    =.  this  (enqu-take file-rail (sys-give /load) ~)
     $(files t.files)
   ::  Recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
@@ -542,7 +547,8 @@
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-path=^path @ ^path]  (unwrap-wire wire)
+    =/  [proc-rail=rail:tarball @ ^path]  (unwrap-wire wire)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  ?-  mode
           %file  =(proc-path path)
           %tree  =((scag (lent path) proc-path) path)
@@ -556,7 +562,8 @@
   |=  [=duct =ship pat=^path]
   ^-  (unit card)
   ?.  ?=([%proc @ *] pat)  ~
-  =/  [proc-path=^path sub=^path]  (unwrap-watch-path pat)
+  =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path pat)
+  =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
   ?.  ?-  mode
         %file  =(proc-path path)
         %tree  =((scag (lent path) proc-path) path)
@@ -565,7 +572,7 @@
   [~ %give %kick ~[pat] ~]
 ::
 ++  process-darts
-  |=  [here=path darts=(list dart:nexus)]
+  |=  [here=rail:tarball darts=(list dart:nexus)]
   ^+  this
   ?~  darts  this
   =.  this  (process-dart here i.darts)
@@ -577,25 +584,23 @@
   (~(get by nexi) neck)
 ::
 ++  find-nearest-nexus
-  |=  here=path
+  |=  here=rail:tarball
   ^-  (unit (pair path neck:tarball))
-  ?~  lump=(~(get of ball) here)
-    ?~  here  ~
-    $(here (snip `path`here))
+  =/  here-path=path  (snoc path.here name.here)
+  |-
+  ?~  lump=(~(get of ball) here-path)
+    ?~  here-path  ~
+    $(here-path (snip `path`here-path))
   ?^  neck.u.lump
-    `[here u.neck.u.lump]
-  ?~  here  ~
-  $(here (snip `path`here))
+    `[here-path u.neck.u.lump]
+  ?~  here-path  ~
+  $(here-path (snip `path`here-path))
 ::
 ++  build-spool
-  |=  here=path
+  |=  here=rail:tarball
   ^-  (unit spool:fiber:nexus)
-  ::  Must have at least one element in path (the filename)
-  ?~  here  ~
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
   ::  Get the file from the ball - must exist
-  =/  file-data=(unit content:tarball)  (~(get ba:tarball ball) dir name)
+  =/  file-data=(unit content:tarball)  (~(get ba:tarball ball) path.here name.here)
   ?~  file-data  ~
   ::  Extract mark from the cage
   =/  =mark  p.cage.u.file-data
@@ -606,14 +611,14 @@
   =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
   ?~  nex  ~
   ::  Calculate the subpath (directory relative to nexus)
-  =/  subpath=path  (slag (lent p.u.nex-info) dir)
+  =/  subpath=path  (slag (lent p.u.nex-info) path.here)
   ::  Call on-file with subpath, name, and mark
-  `(on-file:u.nex subpath name mark)
+  `(on-file:u.nex subpath name.here mark)
 ::
 ++  process-dart
-  |=  [here=path =dart:nexus]
+  |=  [here=rail:tarball =dart:nexus]
   ^+  this
-  =/  [=jump:nexus dest=(unit path)]  (dart-to-dest here dart)
+  =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
   =/  =filt:nexus  (allowed here jump dest)
   ?+    filt  (handle-dart here dart)
       [~ %|]
@@ -637,11 +642,12 @@
 ::    - dest: absolute destination path, or ~ for syscalls
 ::
 ++  dart-to-dest
-  |=  [here=path =dart:nexus]
-  ^-  [jump:nexus (unit path)]
+  |=  [here=rail:tarball =dart:nexus]
+  ^-  [jump:nexus (unit lane:tarball)]
   ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl target system
-      %node                        :: %node darts target a file
-    :_  (path-from-road:nexus here road.dart)
+      %node                        :: %node darts target a file/dir
+    =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
+    :_  dest-lane
     ?-  -.load.dart
       %peek                 %peek
       %poke                 %poke
@@ -650,7 +656,7 @@
   ==
 ::
 ++  handle-dart
-  |=  [here=path =dart:nexus]
+  |=  [here=rail:tarball =dart:nexus]
   ^+  this
   ?-    -.dart
       %sysc
@@ -672,45 +678,58 @@
     ::
       %node
     ::  Send load to another path
-    =/  dest=(unit path)  (path-from-road:nexus here road.dart)
-    ?~  dest
+    =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
+    ?~  dest-lane
       ~&  [%node-bad-road here road.dart]
       this
     ?-    -.load.dart
         %poke
+      ::  Poke destination must be a file
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
       ::  Poke with return address (relativize source for fiber intake)
-      =/  rel=from:fiber:nexus  (relativize-from:nexus u.dest &+here)
-      (enqu-take u.dest [&+here wire.dart] ~ %poke rel cage.load.dart)
+      =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
+      (enqu-take dest [&+here wire.dart] ~ %poke rel cage.load.dart)
       ::
         %make
-      ::  Create file/dir at dest
-      =.  this  (make u.dest make.load.dart)
+      ::  Create file/dir at dest (lane can be file or dir based on make type)
+      ?>  ?=(%& -.u.dest-lane)  ::  for now, make always targets a rail
+      =/  dest=rail:tarball  p.u.dest-lane
+      =.  this  (make dest make.load.dart)
       ::  Send %made ack back to source
       (enqu-take here (sys-give /made) ~ %made wire.dart ~)
       ::
         %cull
-      ::  Delete file at dest
-      =.  this  (cull u.dest)
+      ::  Delete file at dest (must be a file)
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      =.  this  (cull dest)
       ::  Send %gone ack back to source
       (enqu-take here (sys-give /gone) ~ %gone wire.dart ~)
       ::
         %sand
-      ::  Set weir at dest
-      (edit-weir here wire.dart u.dest weir.load.dart)
+      ::  Set weir at dest (must be a directory)
+      ?>  ?=(%| -.u.dest-lane)
+      =/  dest=fold:tarball  p.u.dest-lane
+      (edit-weir here wire.dart dest weir.load.dart)
       ::
         %peek
       ::  Peek at dest - return ball+sand subtree or single file
       ?-    kind.load.dart
           %ball
-        =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) u.dest)
-        =/  sub-sand=sand:nexus  (~(dip of sand) u.dest)
+        ::  Ball peek targets a directory
+        ?>  ?=(%| -.u.dest-lane)
+        =/  dest=fold:tarball  p.u.dest-lane
+        =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
+        =/  sub-sand=sand:nexus  (~(dip of sand) dest)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%ball^sub-ball^sub-sand)
         ::
           %file
-        ?~  u.dest
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart |+~[leaf+"cannot peek file at root"])
+        ::  File peek targets a file
+        ?>  ?=(%& -.u.dest-lane)
+        =/  dest=rail:tarball  p.u.dest-lane
         =/  content=(unit content:tarball)
-          (~(get ba:tarball ball) (snip `path`u.dest) (rear `path`u.dest))
+          (~(get ba:tarball ball) path.dest name.dest)
         ?~  content
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%file^cage.u.content)
@@ -735,9 +754,8 @@
   ==
 ::
 ++  spawn-proc
-  |=  [here=path =prod:fiber:nexus]
+  |=  [here=rail:tarball =prod:fiber:nexus]
   ^+  this
-  ?~  here  this
   ::  Generate and store born
   =/  b=@da  (make-born here)
   =.  this  (put-born here b)
@@ -753,15 +771,12 @@
   stay:(fiber:fiber:nexus ,~)
 ::
 ++  process-take
-  |=  [here=path =take:fiber:nexus]
+  |=  [here=rail:tarball =take:fiber:nexus]
   ^+  this
-  ?~  here  this  :: can't process empty path
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
   ::  Get pipe at directory, or empty map
-  =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
   ::  Get proc for this file - must exist
-  =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name)
+  =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
   ?~  prc  this
   ::  Add take to queue, store, and run
   =/  =proc:fiber:nexus  u.prc
@@ -770,16 +785,14 @@
   (process-do-next here)
 ::
 ++  process-do-next
-  |=  here=path
+  |=  here=rail:tarball
   ^+  this
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
   ::  Get proc from pool
-  =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
-  =/  =proc:fiber:nexus  (~(got by pipe) name)
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  =/  =proc:fiber:nexus  (~(got by pipe) name.here)
   ::  Get file state from ball
   =/  file-data=(unit content:tarball)
-    (~(get ba:tarball ball) dir name)
+    (~(get ba:tarball ball) path.here name.here)
   ?~  file-data  this  :: file doesn't exist
   =/  fil-state=vase  q.cage.u.file-data
   ::  Build bowl for this process (with filtered wex/sup)
@@ -793,7 +806,7 @@
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
   =/  validated=(each vase tang)
-    (validate-state dir name p.cage.u.file-data new-state %.n)
+    (validate-state path.here name.here p.cage.u.file-data new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
     =.  this  (nack-poke-takes here next.new-proc p.validated)
@@ -804,18 +817,18 @@
   ?-    -.res
       %next
     ::  Update state in ball and proc in pool
-    =.  ball  (~(put ba:tarball ball) dir name [metadata.u.file-data p.cage.u.file-data p.validated])
+    =.  ball  (~(put ba:tarball ball) here [metadata.u.file-data p.cage.u.file-data p.validated])
     ::  Touch file to update mtime/size and propagate up
-    =.  ball  (~(touch ba:tarball ball) dir name now.bowl)
+    =.  ball  (~(touch ba:tarball ball) here now.bowl)
     (store-proc here new-proc)
       %done
     ::  State was valid, now delete
     =/  err=tang  ~[leaf+"process completed"]
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
-    =.  ball  (~(touch ba:tarball ball) dir name now.bowl)
-    =.  this  (clean here %file)
-    (delete dir name)
+    =.  ball  (~(touch ba:tarball ball) here now.bowl)
+    =.  this  (clean (snoc path.here name.here) %file)
+    (delete path.here name.here)
       %fail
     ::  Process failed - don't save state, restart
     =.  this  (nack-poke-takes here next.new-proc err.res)
@@ -825,66 +838,67 @@
   ==
 ::
 ++  poke
-  |=  [=give:nexus here=path =cage]
+  |=  [=give:nexus here=rail:tarball =cage]
   ^+  this
   =/  rel-from=from:fiber:nexus  (relativize-from:nexus here from.give)
   (enqu-take here give ~ %poke rel-from cage)
 ::
 ++  make
-  |=  [here=path =make:nexus]
+  |=  [here=rail:tarball =make:nexus]
   ^+  this
   ?-  -.make
       %&
     ::  Assert nothing exists at path
-    =/  existing=ball:tarball  (~(dip ba:tarball ball) here)
+    =/  here-path=path  (snoc path.here name.here)
+    =/  existing=ball:tarball  (~(dip ba:tarball ball) here-path)
     ?:  |(?=(^ fil.existing) !=(~ dir.existing))
       ~|("path is not empty" !!)
     ::  Put new ball at path
-    =.  ball  (~(pub ba:tarball ball) here p.make)
+    =.  ball  (~(pub ba:tarball ball) here-path p.make)
     ::  Get the subtree we just put (for running on-loads)
-    =/  new-sub=ball:tarball  (~(dip ba:tarball ball) here)
+    =/  new-sub=ball:tarball  (~(dip ba:tarball ball) here-path)
     ::  Run on-loads top-down
-    =/  loaded=ball:tarball  (run-on-loads here new-sub)
+    =/  loaded=ball:tarball  (run-on-loads here-path new-sub)
     ::  Validate all cages in loaded ball
-    =/  validated=(each ball:tarball tang)  (validate-ball here loaded)
+    =/  validated=(each ball:tarball tang)  (validate-ball here-path loaded)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  sync-metadata: set mtime for all new files
     =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball p.validated now.bowl)
     ::  Put the synced subtree back
-    =.  ball  (~(pub ba:tarball ball) here synced)
+    =.  ball  (~(pub ba:tarball ball) here-path synced)
     ::  Spawn all file processes
-    (spawn-all-files here synced)
+    (spawn-all-files here-path synced)
     ::
       %|
     ::  Assert file doesn't already exist
     =/  existing-file=(unit content:tarball)
-      ?~  here  ~
-      (~(get ba:tarball ball) (snip `path`here) (rear here))
+      (~(get ba:tarball ball) path.here name.here)
     ?^  existing-file
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (runtime, no force)
     =/  validated=(each cage tang)
-      (validate-cage (snip `path`here) (rear here) p.make %.n)
+      (validate-cage path.here name.here p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Store validated cage
-    =.  ball  (~(put ba:tarball ball) (snip `path`here) (rear here) [~ p.validated])
+    =.  ball  (~(put ba:tarball ball) here [~ p.validated])
     ::  Spawn the process and start it with ~ input
     =.  this  (spawn-proc here [%make ~])
     (enqu-take here (sys-give /make) ~)
   ==
 ::
 ++  cull
-  |=  here=path
+  |=  here=rail:tarball
   ^+  this
+  =/  here-path=path  (snoc path.here name.here)
   ::  Nack all queued pokes in subtree
-  =.  this  (nack-pool here (~(dip of pool) here) ~[leaf+"culled"])
+  =.  this  (nack-pool here-path (~(dip of pool) here-path) ~[leaf+"culled"])
   ::  Clean subscriptions for subtree
-  =.  this  (clean here %tree)
+  =.  this  (clean here-path %tree)
   ::  Remove from pool and ball (NOT born - it's a high-water mark)
-  =.  pool  (~(lop of pool) here)
-  this(ball (~(lop ba:tarball ball) here))
+  =.  pool  (~(lop of pool) here-path)
+  this(ball (~(lop ba:tarball ball) here-path))
 ::
 ++  set-weir
   |=  [dest=path weir=(unit weir:nexus)]
@@ -893,23 +907,25 @@
   this(sand ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir)))
 ::
 ++  edit-weir
-  |=  [src=path =wire dest=path weir=(unit weir:nexus)]
+  |=  [src=rail:tarball =wire dest=fold:tarball weir=(unit weir:nexus)]
   ^+  this
   =.  this  (set-weir dest weir)
   ::  Send ack back to source
   (enqu-take src (sys-give /sand) ~ %sand wire ~)
 ::
 ++  make-bowl
-  |=  here=path
+  |=  here=rail:tarball
   ^-  bowl:nexus
   ::  Filter wex to only include outgoing subscriptions for this process
+  =/  here-path=path  (snoc path.here name.here)
   =/  filtered-wex=boat:gall
     %-  ~(gas by *boat:gall)
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] acked=? =path]
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-path=^path @ orig-wire=^path]  (unwrap-wire wire)
-    ?.  =(proc-path here)  ~
+    =/  [proc-rail=rail:tarball @ orig-wire=^wire]  (unwrap-wire wire)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+    ?.  =(proc-path here-path)  ~
     [~ [orig-wire ship term] acked path]
   ::  Filter sup to only include incoming subscriptions for this process
   =/  filtered-sup=bitt:gall
@@ -917,8 +933,9 @@
     %+  murn  ~(tap by sup.bowl)
     |=  [=duct =ship =path]
     ?.  ?=([%proc @ *] path)  ~
-    =/  [proc-path=^path sub=^path]  (unwrap-watch-path path)
-    ?.  =(proc-path here)  ~
+    =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path path)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+    ?.  =(proc-path here-path)  ~
     [~ duct ship sub]
   [now our eny filtered-wex filtered-sup here]:[bowl .]
 ::  Sandboxing / weir filtering
@@ -928,74 +945,69 @@
 ::  Downward movement is always free.
 ::
 ++  allowed
-  |=  [here=path =jump:nexus dest=(unit path)]
+  |=  [here=rail:tarball =jump:nexus dest=(unit lane:tarball)]
   ^-  filt:nexus
-  ?>  ?=(^ here)
-  =/  here-dir=path  (snip `path`here)
   ?~  dest
     ::  System: walk all the way up to root
     =|  =filt:nexus
     |-
     =/  next=filt:nexus
-      (next-filt:nexus filt (filter:nexus / jump here-dir (~(get of sand) here-dir)))
+      (next-filt:nexus filt (filter:nexus / jump path.here (~(get of sand) path.here)))
     ?:  ?=([~ %|] next)  next
-    ?~  here-dir  next
-    $(filt next, here-dir (snip `path`here-dir))
-  ::  File: walk up to common ancestor
-  =/  dest-dir=path  (snip `path`u.dest)
-  =/  =bend:nexus  (make-bend:nexus here-dir dest-dir)
-  =/  steps=@ud  p.bend
+    ?~  path.here  next
+    $(filt next, path.here (snip `fold:tarball`path.here))
+  ::  Destination: walk up to common ancestor
+  =/  dest-dir=fold:tarball  (fold-from-lane:tarball u.dest)
+  =/  pref=path  (prefix:tarball path.here dest-dir)
+  =/  steps=@ud  (sub (lent path.here) (lent pref))
   =|  =filt:nexus
   |-
   ?:  =(0 steps)  filt
   =/  next=filt:nexus
-    (next-filt:nexus filt (filter:nexus dest-dir jump here-dir (~(get of sand) here-dir)))
+    (next-filt:nexus filt (filter:nexus dest-dir jump path.here (~(get of sand) path.here)))
   ?:  ?=([~ %|] next)  next
-  $(filt next, here-dir (snip here-dir), steps (dec steps))
+  $(filt next, path.here (snip `fold:tarball`path.here), steps (dec steps))
 ::
 ++  get-born
-  |=  here=path
+  |=  here=rail:tarball
   ^-  (unit @da)
-  ?~  here  ~
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
-  =/  m=(unit (map @ta @da))  (~(get of born) dir)
+  =/  m=(unit (map @ta @da))  (~(get of born) path.here)
   ?~  m  ~
-  (~(get by u.m) name)
+  (~(get by u.m) name.here)
 ::
 ++  put-born
-  |=  [here=path b=@da]
+  |=  [here=rail:tarball b=@da]
   ^+  this
-  ?~  here  this
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
-  =/  m=(map @ta @da)  (fall (~(get of born) dir) ~)
-  this(born (~(put of born) dir (~(put by m) name b)))
+  =/  m=(map @ta @da)  (fall (~(get of born) path.here) ~)
+  this(born (~(put of born) path.here (~(put by m) name.here b)))
 ::
 ++  make-born
-  |=  here=path
+  |=  here=rail:tarball
   ^-  @da
   =/  last=(unit @da)  (get-born here)
   ?~  last  now.bowl
   ?:((lth u.last now.bowl) now.bowl +(u.last))
 ::
 ++  wrap-wire
-  |=  [here=path =wire]
+  |=  [here=rail:tarball =wire]
   ^+  wire
   =/  b=@da  (need (get-born here))
+  =/  here-path=path  (snoc path.here name.here)
   ;:  weld
-    /proc/(scot %ud (lent here))
-    here
+    /proc/(scot %ud (lent here-path))
+    here-path
     /(scot %da b)
     wire
   ==
 ::
 ++  unwrap-wire
   |=  =wire
-  ^-  [path @da ^wire]
+  ^-  [rail:tarball @da ^wire]
   ?>  ?=([%proc @ *] wire)
   =/  len=@ud  (slav %ud i.t.wire)
-  =/  here=path  (scag len t.t.wire)
+  =/  here-path=path  (scag len t.t.wire)
+  ?>  ?=(^ here-path)
+  =/  here=rail:tarball  [(snip `path`here-path) (rear here-path)]
   =/  rest=^wire  (slag len t.t.wire)
   ?>  ?=([@ *] rest)
   =/  b=@da  (slav %da i.rest)
@@ -1004,7 +1016,7 @@
 ++  take-arvo
   |=  [wir=wire sign=sign-arvo]
   ^+  this
-  =/  [here=path b=@da =wire]  (unwrap-wire wir)
+  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
   =/  cur=(unit @da)  (get-born here)
   ?.  ?&(?=(^ cur) =(b u.cur))  this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
@@ -1012,7 +1024,7 @@
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
-  =/  [here=path b=@da =wire]  (unwrap-wire wir)
+  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
   =/  cur=(unit @da)  (get-born here)
   ?.  ?&(?=(^ cur) =(b u.cur))  this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
@@ -1020,25 +1032,29 @@
 ::
 ++  unwrap-watch-path
   |=  pat=path
-  ^-  [path path]
+  ^-  [rail:tarball path]
   ?>  ?=([%proc @ *] pat)
   =/  len=@ud  (slav %ud i.t.pat)
-  [(scag len t.t.pat) (slag len t.t.pat)]
+  =/  here-path  (scag len t.t.pat)
+  ?>  ?=(^ here-path)
+  =/  here=rail:tarball  [(snip `(list @ta)`here-path) (rear here-path)]
+  [here (slag len t.t.pat)]
 ::
 ++  wrap-watch-path
-  |=  [here=path =path]
+  |=  [here=rail:tarball =path]
   ^+  path
-  (weld /proc/(scot %ud (lent here)) (weld here path))
+  =/  here-path=^path  (snoc path.here name.here)
+  (weld /proc/(scot %ud (lent here-path)) (weld here-path path))
 ::
 ++  take-watch
   |=  pat=path
   ^+  this
-  =/  [here=path sub=path]  (unwrap-watch-path pat)
+  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
   (enqu-take here (sys-give /watch) ~ %watch sub)
 ::
 ++  take-leave
   |=  pat=path
   ^+  this
-  =/  [here=path sub=path]  (unwrap-watch-path pat)
+  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
   (enqu-take here (sys-give /leave) ~ %leave sub)
 --

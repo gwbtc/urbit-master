@@ -63,8 +63,8 @@
       %'create-symlink'
     =/  linkname=@ta  (rash (need (get-key:kv 'linkname' args)) sym)
     =/  target=@t  (need (get-key:kv 'target' args))
-    =/  road=road:tarball  (need (parse-road:tarball target))
-    ;<  ~  bind:m  (put-road:io ball-path linkname road)
+    =/  sym=symlink:tarball  (need (parse-symlink:tarball target))
+    ;<  ~  bind:m  (put-symlink:io ball-path linkname sym)
     (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
   ::
       %'delete-file'

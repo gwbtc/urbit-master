@@ -22,7 +22,7 @@
       ==
   ^-  wain
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball state) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball state) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -30,7 +30,7 @@
     i.u.tz-wain
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball state) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
+    (~(get-cage-as ba:tarball state) [/claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat")] chat:claude)
   ?~  chat
     %-  manx-to-wain:sailbox
     ;div: Chat not found

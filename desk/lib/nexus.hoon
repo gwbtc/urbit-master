@@ -3,18 +3,13 @@
 ::
 |%
 +$  card  card:agent:gall
-+$  ball  ball:tarball
-+$  neck  neck:tarball
-+$  lane  [=path file=(unit @ta)] :: path to file or directory
-+$  rail  [=path name=@ta]        :: path to file
-+$  fold  path                    :: path to directory
-+$  bend  (pair @ud path)         :: relative path
-+$  road  (each path bend)        :: absolute or relative path
+::  Nexus-specific types
+::
 +$  prov  [src=@p sap=path]       :: external provenance
-+$  from  (each path prov)        :: absolute source
-+$  give  [=from =wire]           :: return address
++$  from  (each rail:tarball prov)  :: source: [%& rail] internal file or [%| prov] external
++$  give  [=from =wire]           :: return address (from is always a file)
 +$  scry  [=mold =path]
-+$  take  [here=path take:fiber]  :: localized input + return address
++$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a file)
 ::  SANDBOXING
 ::
 ::  Darts are conceptually emitted by processes and travel up the tree
@@ -33,9 +28,9 @@
 ::    [~ |]   filtered and blocked (veto the dart)
 ::
 +$  weir
-  $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
-      poke=(set road)  :: allowed destinations for %poke
-      peek=(set road)  :: allowed destinations for %peek
+  $:  make=(set road:tarball)  :: allowed destinations for %make, %cull, %sand
+      poke=(set road:tarball)  :: allowed destinations for %poke
+      peek=(set road:tarball)  :: allowed destinations for %peek
   ==
 +$  sand  (axal weir)   :: weir at each directory in the tree
 +$  filt  (unit ?)      :: filter result (see above)
@@ -47,12 +42,12 @@
       eny=@uvJ
       wex=boat:gall
       sup=bitt:gall
-      here=path
+      here=rail:tarball
   ==
 ::
-+$  make  (each ball cage)
++$  make  (each ball:tarball cage)
 +$  view
-  $%  [%ball =ball =sand]
+  $%  [%ball ball=ball:tarball =sand]
       [%file =cage]
       [%none ~]
   ==
@@ -69,7 +64,7 @@
 ::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card
-      [%node =wire =road =load]
+      [%node =wire road=road:tarball =load]
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
   ==
@@ -84,9 +79,13 @@
   ::  Relative source path for pokes
   ::
   ::  Fibers see only relative paths so they don't know their absolute location.
-  ::  [%& bend] = internal source (relative path)
+  ::  [%& bend] = internal source (relative path to a file)
   ::  [%| prov] = external source (ship + path)
   ::
+  ::  Fiber bends always target files (rail), not directories.
+  ::  Pokes come from files (processes), pokes go to files (processes).
+  ::
+  +$  bend  (pair @ud rail:tarball)   :: fiber-relative: steps up + target file
   +$  from  (each bend prov)
   ::
   +$  intake
@@ -289,10 +288,10 @@
 ::
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
-+$  nexi  (map neck nexus)
++$  nexi  (map neck:tarball nexus)
 ::  Eyre bindings: URL path → file path in the tree
 ::
-+$  bindings  (map path path)
++$  bindings  (map path rail:tarball)
 ::  Process instance IDs - NEVER deleted, even when files are deleted.
 ::  Acts as high-water mark so recreated files get higher IDs,
 ::  preventing stale responses from being delivered to new processes.
@@ -301,7 +300,7 @@
 ::  External action type for pokes
 ::
 +$  action
-  $:  [=wire here=path]
+  $:  [=wire here=rail:tarball]
       $%  [%make =make]
           [%cull ~]
           [%sand weir=(unit weir)]
@@ -333,88 +332,43 @@
     %&  [%& p=$:tap]
     %|  [%| p=p.mud]
   ==
-::  Sandboxing helpers
-::
-::  Strip leading prefix from path. Returns remainder if prefix matches,
-::  or ~ if prefix doesn't match. E.g. (decap /a/b /a/b/c/d) -> `/c/d
-::
-++  decap
-  |=  [base=(list @t) site=(list @t)]
-  ^-  (unit (list @t))
-  ?~  base  `site
-  ?~  site  ~
-  ?.  =(i.base i.site)  ~
-  $(base t.base, site t.site)
-::  Get common prefix of two paths
-::
-++  prefix
-  =|  p=path
-  |=  [a=path b=path]
-  ^-  path
-  ?~  a  (flop p)
-  ?~  b  (flop p)
-  ?.  =(i.a i.b)  (flop p)
-  $(a t.a, b t.b, p [i.a p])
-::  Convert a relative path to an absolute path
-::
-++  path-from-bend
-  |=  [here=path =bend]
-  ^-  (unit path)
-  =.  here  (flop here)
-  |-
-  ?:  =(0 p.bend)
-    `(weld (flop here) q.bend)
-  ?~  here  ~
-  $(here t.here, p.bend (dec p.bend))
-::  Convert an absolute or relative path to an absolute path
-::
-++  path-from-road
-  |=  [here=path =road]
-  ^-  (unit path)
-  ?-  -.road
-    %&  `p.road
-    %|  (path-from-bend here p.road)
-  ==
-::  Compute relative path from here to dest. Returns [steps-up tail-path].
-::  E.g. from /a/b/c to /a/d/e -> [2 /d/e] (go up 2, then down /d/e)
-::
-++  make-bend
-  |=  [here=path dest=path]
-  ^-  bend
-  =/  pref=path  (prefix here dest)
-  =/  here-tail=path  (need (decap pref here))
-  =/  dest-tail=path  (need (decap pref dest))
-  [(lent here-tail) dest-tail]
-::  Convert absolute from to relative from (for fiber intakes)
+::  Convert absolute from (rail) to relative from (fiber bend)
 ::
 ::  External sources pass through unchanged.
-::  Internal sources get relativized to a bend.
+::  Internal sources get relativized to a fiber bend (always targets rail).
 ::
 ++  relativize-from
-  |=  [here=path =from]
+  |=  [here=rail:tarball =from]
   ^-  from:fiber
   ?.  ?=(%& -.from)
-    from
-  &+(make-bend here p.from)
+    from  :: external passes through
+  =/  here-path=path  (snoc path.here name.here)
+  =/  src=rail:tarball  p.from
+  =/  pref=path  (prefix:tarball here-path path.src)
+  =/  here-tail=path  (need (decap:tarball pref here-path))
+  =/  src-tail=path  (need (decap:tarball pref path.src))
+  &+[(lent here-tail) [src-tail name.src]]
 ::  Check if dest is under any of the allowed path prefixes
 ::
 ++  raw-filter
   |=  [dest=path allowed=(list path)]
   ^-  ?
   ?~  allowed  |
-  ?:  ?=(^ (decap i.allowed dest))
+  ?:  ?=(^ (decap:tarball i.allowed dest))
     &
   $(allowed t.allowed)
 ::  Convert roads to absolute paths, then check if dest is allowed
 ::
 ++  filter-roads
-  |=  [here=path dest=path roads=(list road)]
+  |=  [here=fold:tarball dest=path roads=(list road:tarball)]
   ^-  ?
-  (raw-filter dest (murn roads (cury path-from-road here)))
+  =/  lanes=(list lane:tarball)  (murn roads (cury lane-from-road:tarball [%| here]))
+  =/  paths=(list path)  (turn lanes path-from-lane:tarball)
+  (raw-filter dest paths)
 ::  Check a single weir: is this jump to dest allowed from here?
 ::
 ++  filter
-  |=  [dest=path =jump here=path weir=(unit weir)]
+  |=  [dest=path =jump here=fold:tarball weir=(unit weir)]
   ^-  filt
   ?~  weir  ~                       :: no weir = no filter (permissive)
   ?:  ?=(%sysc jump)
@@ -449,8 +403,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  state=ball
-    *ball
+    |~  state=ball:tarball
+    *ball:tarball
   :: all files have an associated running process
   :: all running processes should be able to recover proper
   ::   operation based on state alone, even when restarted.

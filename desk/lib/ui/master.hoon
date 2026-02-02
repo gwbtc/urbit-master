@@ -47,7 +47,7 @@
   ?+    event  !!
       [~ %'/test/counter']
     ::  Read counter from ball
-    =/  counter=@ud  (~(got-cage-as ba:tarball state) /state 'counter.ud' @ud)
+    =/  counter=@ud  (~(got-cage-as ba:tarball state) [/state 'counter.ud'] @ud)
     ~&  >  "Returning counter value: {<counter>}"
     %-  manx-to-wain:sailbox
     ;div: Count: {(scow %ud counter)}

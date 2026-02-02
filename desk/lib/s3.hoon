@@ -476,12 +476,12 @@
   ;<  =bowl:gall  bind:m  get-bowl:io
   ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
   ::  Get file content
-  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) ball-path filename)
+  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) [ball-path filename])
   ?~  content-data
     ~&  >>>  "File not found: {<ball-path>}/{<filename>}"
     (pure:m ~)
   =/  cag=cage  cage.u.content-data
-  ?:  =(%road p.cag)
+  ?:  =(%symlink p.cag)
     ~&  >>>  "Cannot upload symlink: {<ball-path>}/{<filename>}"
     (pure:m ~)
   ::  Convert cage to mime
@@ -554,12 +554,12 @@
       (path-to-s3-key relative-path)
     (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key relative-path))}")
   ::  Get file content as mime
-  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) file-path filename)
+  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) [file-path filename])
   ?~  content-data
     ~&  >  "Skipping missing file: {<file-path>}/{<filename>}"
     $(files-to-upload t.files-to-upload)
   =/  cag=cage  cage.u.content-data
-  ?:  =(%road p.cag)
+  ?:  =(%symlink p.cag)
     ~&  >  "Skipping symlink: {<file-path>}/{<filename>}"
     $(files-to-upload t.files-to-upload)
   ::  Convert cage to mime

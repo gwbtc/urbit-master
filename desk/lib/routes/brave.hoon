@@ -9,7 +9,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Get existing creds from ball
   =/  existing=(unit json)
-    (~(get-cage-as ba:tarball ball) /config/creds 'brave-search.json' json)
+    (~(get-cage-as ba:tarball ball) [/config/creds 'brave-search.json'] json)
   ::  Use existing value if not provided
   =/  api-key=@t
     ?~  existing

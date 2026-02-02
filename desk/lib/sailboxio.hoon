@@ -909,7 +909,7 @@
     :~  ['mtime' (da-oct:tarball now)]
     ==
   =/  content=content:tarball  [meta c]
-  (replace (~(put ba:tarball b) pax name content))
+  (replace (~(put ba:tarball b) [pax name] content))
 ::  +mkd: make a directory in ball with timestamp
 ::
 ++  mkd
@@ -939,11 +939,11 @@
         ['size' (scot %ud p.q.mime)]
     ==
   =/  content=content:tarball  [meta [%mime !>(mime)]]
-  (replace (~(put ba:tarball b) pax name content))
-::  +put-road: put a symlink into ball with timestamp
+  (replace (~(put ba:tarball b) [pax name] content))
+::  +put-symlink: put a symlink into ball with timestamp
 ::
-++  put-road
-  |=  [pax=path name=@ta =road:tarball]
+++  put-symlink
+  |=  [pax=path name=@ta =symlink:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  b=ball:tarball  bind:m  get-state
@@ -953,8 +953,8 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  =/  content=content:tarball  [meta (road-to-cage:tarball road)]
-  (replace (~(put ba:tarball b) pax name content))
+  =/  content=content:tarball  [meta (symlink-to-cage:tarball symlink)]
+  (replace (~(put ba:tarball b) [pax name] content))
 ::  +del: delete a file or symlink from ball
 ::
 ++  del
@@ -962,7 +962,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =ball:tarball  bind:m  get-state
-  (replace (~(del ba:tarball ball) pax name))
+  (replace (~(del ba:tarball ball) [pax name]))
 ::  +lop: delete a directory from ball
 ::
 ++  lop

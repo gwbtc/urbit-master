@@ -353,7 +353,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) [/config 'timezone.txt'] wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -489,7 +489,7 @@
     ==
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball) /config/creds 'telegram.json' json)
+    (~(get-cage-as ba:tarball ball) [/config/creds 'telegram.json'] json)
   ?~  jon
     (pure:m [%error 'Telegram credentials not configured'])
   =/  bot-token=@t  (~(dog jo:json-utils u.jon) /bot-token so:dejs:format)
@@ -598,7 +598,7 @@
   ::  Update chat name in ball
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball ball) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") chat:claude)
+    (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat")] chat:claude)
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
@@ -637,7 +637,7 @@
   ::  Get Brave Search API key from state
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball) /config/creds 'brave-search.json' json)
+    (~(get-cage-as ba:tarball ball) [/config/creds 'brave-search.json'] json)
   ?~  jon
     (pure:m [%error 'Brave Search credentials not configured'])
   =/  api-key=@t  (~(dog jo:json-utils u.jon) /api-key so:dejs:format)
@@ -807,7 +807,7 @@
   ;<  pid=@ta  bind:m  get-pid:io
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball) [/processes/commits (crip "{(trip pid)}.json")] json)
   =/  sent=?  (~(dog jo:json-utils jon) /sent bo:dejs:format)
   ?:  sent
     (pure:m ~)
@@ -826,7 +826,7 @@
   =/  ball-0=ball:tarball  state
   ::  Read JSON from ball
   =/  jon=json
-    (~(got-cage-as ba:tarball ball-0) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball-0) [/processes/commits (crip "{(trip pid)}.json")] json)
   =/  logs=(list json)  (~(dog jo:json-utils jon) /logs (ar:dejs:format same:dejs:format))
   ?+  in  [~ state %skip |]
       ~  [~ state %wait |]
@@ -854,7 +854,7 @@
       %-  ~(gas by *(map @t @t))
       :~  ['mtime' (da-oct:tarball now.bowl)]
       ==
-    =/  new-ball=ball:tarball  (~(put ba:tarball ball-0) /processes/commits (crip "{(trip pid)}.json") [meta [%json !>(updated-jon)]])
+    =/  new-ball=ball:tarball  (~(put ba:tarball ball-0) [/processes/commits (crip "{(trip pid)}.json")] [meta [%json !>(updated-jon)]])
     =.  ball-0  new-ball
     ::  Get updated log count
     =/  new-logs=(list json)  (~(dog jo:json-utils updated-jon) /logs (ar:dejs:format same:dejs:format))
@@ -888,7 +888,7 @@
   ::  Read final result from JSON
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball) [/processes/commits (crip "{(trip pid)}.json")] json)
   =/  initial-version=cass:clay  (parse-initial-version jon)
   =/  log-texts=(list @t)  (~(dug jo:json-utils jon) /logs (ar:dejs:format so:dejs:format) ~)
   ;<  final-version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
@@ -1005,7 +1005,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   =/  loop-list=(list [@ud loop:open-loops])
     ?+  state-filter  ~(list-open lo:open-loops loops)
       %open    ~(list-open lo:open-loops loops)
@@ -1083,7 +1083,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops  loops
   ::  Update text if provided
@@ -1145,7 +1145,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
     =/  existing=(unit loops:open-loops)
-      (~(get-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+      (~(get-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
     ?^  existing  u.existing
     [0 ~ ~]
   ;<  =bowl:gall  bind:m  get-bowl:io
@@ -1171,7 +1171,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops
     (~(batch-close lo:open-loops loops) ids now.bowl)
@@ -1195,7 +1195,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops
     (~(batch-reopen lo:open-loops loops) ids now.bowl)
@@ -1219,7 +1219,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   =/  updated-loops=loops:open-loops
     (~(batch-delete lo:open-loops loops) ids)
   ;<  ~  bind:m
@@ -1245,7 +1245,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops
     (~(batch-update-labels lo:open-loops loops) ids labels now.bowl)
@@ -1272,7 +1272,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops
     (~(batch-add-labels lo:open-loops loops) ids labels now.bowl)
@@ -1299,7 +1299,7 @@
   =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  =loops:open-loops
-    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    (~(got-cage-as ba:tarball ball) [pax full-filename] loops:open-loops)
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  updated-loops=loops:open-loops
     (~(batch-remove-labels lo:open-loops loops) ids labels now.bowl)

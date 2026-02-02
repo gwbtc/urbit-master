@@ -42,11 +42,11 @@
     =/  base-name=@ta  (rear ball-path)
     ::  Append extension to filename
     =/  filename=@ta  (crip "{(trip base-name)}.{(trip u.ext)}")
-    =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
+    =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) [parent filename])
     ?~  content-data
       [/text/plain (as-octs:mimes:html 'file not found')]
     =/  cag=cage  cage.u.content-data
-    ?:  =(%road p.cag)
+    ?:  =(%symlink p.cag)
       [/text/plain (as-octs:mimes:html 'symlink')]
     ?:  =(%mime p.cag)
       !<(mime q.cag)
@@ -62,11 +62,11 @@
     [/text/html (manx-to-octs:server (ball-browser ball ball-path bowl conversions %.y))]
   =/  parent=path  (snip `path`ball-path)
   =/  filename=@ta  (rear ball-path)
-  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
+  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) [parent filename])
   ?~  content-data
     [/text/plain (as-octs:mimes:html 'file not found')]
   =/  cag=cage  cage.u.content-data
-  ?:  =(%road p.cag)
+  ?:  =(%symlink p.cag)
     [/text/plain (as-octs:mimes:html 'symlink')]
   ?:  =(%mime p.cag)
     !<(mime q.cag)
@@ -230,7 +230,7 @@
           %+  turn  files
           |=  filename=@ta
           ^-  manx
-          =/  content-data=content:tarball  (~(got ba:tarball g) pax filename)
+          =/  content-data=content:tarball  (~(got ba:tarball g) [pax filename])
           ::  Extract modified date from metadata
           =/  mtime=(unit @t)  (~(get by metadata.content-data) 'mtime')
           =/  modified-display=tape
@@ -244,10 +244,10 @@
             ?~  pax  ""
             (trip (spat pax))
           =/  cag=cage  cage.content-data
-          ?:  =(%road p.cag)
-            =/  road  !<(road:tarball q.cag)
-            =/  target-display=tape  (trip (encode-road:tarball road))
-            =/  resolved-path=path  (resolve-road:tarball road pax)
+          ?:  =(%symlink p.cag)
+            =/  sym  !<(symlink:tarball q.cag)
+            =/  target-display=tape  (trip (encode-symlink:tarball sym))
+            =/  resolved-path=path  (resolve-symlink:tarball sym pax)
             =/  target-url=tape  "/master/ball{(trip (spat resolved-path))}"
             ;tr
               ;td
