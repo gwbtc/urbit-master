@@ -8,7 +8,6 @@
 +$  versioned-state
   $%  state-0
   ==
-++  veb  &
 +$  card  card:agent:gall
 +$  state-0
   $:  %0
@@ -128,7 +127,7 @@
     ::
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give u.here handle-http-request+!>([lin req]))
+      abet:(poke:hc give u.here handle-http-request+!>([eyre-id req]))
     [cards this]
   ==
 ::
@@ -233,7 +232,6 @@
 ++  abet
   |-
   ?:  =(~ takes)
-    ~?  >  veb  "done-abet!"
     [(flop cards) state]
   =^  [here=path =take:fiber:nexus]  takes  ~(get to takes)
   $(this (process-take here take))
@@ -382,15 +380,12 @@
   =/  name=@ta  (rear here)
   =/  =pipe:nexus  (~(put by (fall (~(get of pool) dir) ~)) name proc)
   this(pool (~(put of pool) dir pipe))
-::
 ::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
-  |=  here=path
+  |=  [dir=path name=@ta]
   ^+  this
-  =/  dir=path  (snip `path`here)
-  =/  name=@ta  (rear here)
-  =.  ball  (~(lop ba:tarball ball) here)
+  =.  ball  (~(del ba:tarball ball) dir name)
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   this(pool (~(put of pool) dir pipe))
 ::  Send ack/nack back to poke source
@@ -597,9 +592,10 @@
   ^-  (unit spool:fiber:nexus)
   ::  Must have at least one element in path (the filename)
   ?~  here  ~
+  =/  dir=path  (snip `path`here)
+  =/  name=@ta  (rear here)
   ::  Get the file from the ball - must exist
-  =/  file-data=(unit content:tarball)
-    (~(get ba:tarball ball) (snip `path`here) (rear here))
+  =/  file-data=(unit content:tarball)  (~(get ba:tarball ball) dir name)
   ?~  file-data  ~
   ::  Extract mark from the cage
   =/  =mark  p.cage.u.file-data
@@ -609,10 +605,10 @@
   ::  Build the nexus from the neck
   =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
   ?~  nex  ~
-  ::  Calculate the subpath relative to the nexus
-  =/  subpath=path  (slag (lent p.u.nex-info) `path`here)
-  ::  Call on-file to get the spool (initializer)
-  `(on-file:u.nex subpath mark)
+  ::  Calculate the subpath (directory relative to nexus)
+  =/  subpath=path  (slag (lent p.u.nex-info) dir)
+  ::  Call on-file with subpath, name, and mark
+  `(on-file:u.nex subpath name mark)
 ::
 ++  process-dart
   |=  [here=path =dart:nexus]
@@ -687,11 +683,15 @@
       ::
         %make
       ::  Create file/dir at dest
-      (make u.dest make.load.dart)
+      =.  this  (make u.dest make.load.dart)
+      ::  Send %made ack back to source
+      (enqu-take here (sys-give /made) ~ %made wire.dart ~)
       ::
         %cull
       ::  Delete file at dest
-      (cull u.dest)
+      =.  this  (cull u.dest)
+      ::  Send %gone ack back to source
+      (enqu-take here (sys-give /gone) ~ %gone wire.dart ~)
       ::
         %sand
       ::  Set weir at dest
@@ -761,9 +761,7 @@
   =/  =pipe:nexus  (fall (~(get of pool) dir) ~)
   ::  Get proc for this file - must exist
   =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name)
-  ?~  prc
-    ~?  veb  "no process at {(spud here)}"
-    this
+  ?~  prc  this
   ::  Add take to queue, store, and run
   =/  =proc:fiber:nexus  u.prc
   =.  proc  proc(next (~(put to next.proc) take))
@@ -786,10 +784,10 @@
   ::  Build bowl for this process (with filtered wex/sup)
   =/  =bowl:nexus  (make-bowl here)
   ::  Run the evaluator
-  =/  [dartz=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=_proc res=result:eval:fiber:nexus]
+  =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=_proc res=result:eval:fiber:nexus]
     (take:eval:fiber:nexus bowl fil-state proc)
   ::  Process darts (emit cards or enqueue takes)
-  =.  this  (process-darts here dartz)
+  =.  this  (process-darts here darts)
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
@@ -816,7 +814,7 @@
     =.  this  (nack-poke-takes here skip.new-proc err)
     =.  ball  (~(touch ba:tarball ball) dir name now.bowl)
     =.  this  (clean here %file)
-    (delete here)
+    (delete dir name)
       %fail
     ::  Process failed - don't save state, restart
     =.  this  (nack-poke-takes here next.new-proc err.res)
@@ -1006,9 +1004,7 @@
   ^+  this
   =/  [here=path b=@da =wire]  (unwrap-wire wir)
   =/  cur=(unit @da)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b u.cur))
-    ~?  veb  "stale arvo response for {(spud here)}"
-    this
+  ?.  ?&(?=(^ cur) =(b u.cur))  this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
@@ -1016,9 +1012,7 @@
   ^+  this
   =/  [here=path b=@da =wire]  (unwrap-wire wir)
   =/  cur=(unit @da)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b u.cur))
-    ~?  veb  "stale agent response for {(spud here)}"
-    this
+  ?.  ?&(?=(^ cur) =(b u.cur))  this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
 ::  Unwrap incoming watch/leave paths
 ::

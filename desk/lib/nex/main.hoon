@@ -1,8 +1,9 @@
-/+  nexus, tarball, fiberio
+/+  nexus, tarball, fiberio, server, nex-server
 |%
 ++  default-nexi
   %-  ~(gas by *nexi:nexus)
   :~  [%root root]
+      [%server server-nexus:nex-server]
   ==
 ::
 ++  root
@@ -11,23 +12,25 @@
   ++  on-load
     |~  =ball:nexus
     ^-  ball:nexus
-    (~(put ba:tarball ball) / %main [~ %sig !>(~)])
+    ::  Create /main file
+    =.  ball  (~(put ba:tarball ball) / %main [~ %sig !>(~)])
+    ::  Create /server directory with neck=%server
+    (~(put of ball) /server [~ `%server ~])
   ::
   ++  on-file
-    |=  [=path =mark]
+    |=  [=path name=@ta =mark]
     ^-  spool:fiber:nexus
     |=  =prod:fiber:nexus
     =/  m  (fiber:fiber:nexus ,~)
     ^-  process:fiber:nexus
-    ?+    path  !!
-        [%main ~]
+    ?+    [path name]  !!
+        [~ %main]
       ?:  ?=(%rise -.prod)
         %-  (slog leaf+"%root /main: failed, staying inert" tang.prod)
         stay:m
-      ;<  ~  bind:m  (eyre-connect:fiberio /mister /main)
-      |-
-      ;<  =cage  bind:m  take-poke:fiberio
-      $
+      ::  Bind eyre to /server/main
+      ;<  ~  bind:m  (eyre-connect:fiberio /mister /server/main)
+      stay:m
     ==
   --
 --

@@ -5,13 +5,13 @@
 +$  card  card:agent:gall
 +$  ball  ball:tarball
 +$  neck  neck:tarball
-+$  bend  (pair @ud path)        :: relative path
-+$  road  (each path bend)       :: absolute or relative path
-+$  prov  [src=@p sap=path]      :: external provenance
-+$  from  (each path prov)       :: absolute source
-+$  give  [=from =wire]          :: return address
++$  bend  (pair @ud path)         :: relative path
++$  road  (each path bend)        :: absolute or relative path
++$  prov  [src=@p sap=path]       :: external provenance
++$  from  (each path prov)        :: absolute source
++$  give  [=from =wire]           :: return address
 +$  scry  [=mold =path]
-+$  take  [here=path take:fiber] :: localized input + return address
++$  take  [here=path take:fiber]  :: localized input + return address
 ::  SANDBOXING
 ::
 ::  Darts are conceptually emitted by processes and travel up the tree
@@ -192,7 +192,11 @@
       =^  =^take  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced
       =/  res=(each output tang)
-        (hoss |.((process.proc state in.take)))
+        :: TODO: jet +hoss? 
+        ::       should use hoss
+        ::       but double compute and double slogs sucks
+        ::
+        (mule |.((process.proc state in.take)))
       ?:  ?=(%| -.res)
         =/  =tang  [leaf+"crash" p.res]
         :-  darts :: no output darts on failure
@@ -295,15 +299,29 @@
       ==
   ==
 +$  ack  (unit tang)
+::
+++  deaf
+  |=  tap=(trap)
+  ^-  (each * (list tank))
+  =/  ton  (mock [tap %9 2 %0 1] |=((pair) ~))
+  ?-  -.ton
+    %0  [%& p.ton]
+  ::
+    %1  =/  sof=(unit path)  ((soft path) p.ton)
+        [%| ?~(sof leaf+"deaf.hunk" (smyt u.sof)) ~]
+  ::
+    %2  [%| p.ton]
+  ==
 ::  Scry-free mule: like +mule but blocks .^ calls
+::  FSCK: Runs the code twice, including slogs, etc.
+::        +mule doesn't do that because it's jetted.
 ::
 ++  hoss
   |*  tap=(trap)
-  =/  ton=toon  (mock [tap %9 2 %0 1] |=((pair) ~))
-  ?-  -.ton
-    %0  [%& p=$:tap]
-    %1  [%| ~[leaf+"blocked on scry"]]
-    %2  [%| p.ton]
+  =/  mud  (deaf tap)
+  ?-  -.mud
+    %&  [%& p=$:tap]
+    %|  [%| p=p.mud]
   ==
 ::  Sandboxing helpers
 ::
@@ -418,7 +436,7 @@
   ::   this is not guaranteed and is a responsibility of the programmer.
   ::
   ++  on-file
-    |~  [path mark]
-    *spool:fiber :: define spool (initializer) for file
+    |~  [path @ta mark]
+    *spool:fiber :: define spool (initializer) for file at path/name
   --
 --
