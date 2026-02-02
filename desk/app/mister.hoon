@@ -420,7 +420,7 @@
   |=  [here=path =took:eval:fiber:nexus]
   ^+  this
   ?.  ?=([~ %poke *] in.take.took)  this
-  (give-poke-ack here from.u.in.take.took wire.give.take.took err.took)
+  (give-poke-ack here from.give.take.took wire.give.take.took err.took)
 ::
 ++  give-poke-signs
   |=  [here=path done=(list took:eval:fiber:nexus)]
@@ -678,8 +678,9 @@
       this
     ?-    -.load.dart
         %poke
-      ::  Poke with return address
-      (enqu-take u.dest [&+here wire.dart] ~ %poke &+here cage.load.dart)
+      ::  Poke with return address (relativize source for fiber intake)
+      =/  rel=from:fiber:nexus  (relativize-from:nexus u.dest &+here)
+      (enqu-take u.dest [&+here wire.dart] ~ %poke rel cage.load.dart)
       ::
         %make
       ::  Create file/dir at dest
@@ -826,7 +827,8 @@
 ++  poke
   |=  [=give:nexus here=path =cage]
   ^+  this
-  (enqu-take here give ~ %poke from.give cage)
+  =/  rel-from=from:fiber:nexus  (relativize-from:nexus here from.give)
+  (enqu-take here give ~ %poke rel-from cage)
 ::
 ++  make
   |=  [here=path =make:nexus]

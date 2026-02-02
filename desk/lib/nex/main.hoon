@@ -3,7 +3,8 @@
 ++  default-nexi
   %-  ~(gas by *nexi:nexus)
   :~  [%root root]
-      [%server server-nexus:nex-server]
+      [%server main:nex-server]
+      [%requests requests:nex-server]
   ==
 ::
 ++  root

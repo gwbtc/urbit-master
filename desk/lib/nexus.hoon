@@ -5,6 +5,9 @@
 +$  card  card:agent:gall
 +$  ball  ball:tarball
 +$  neck  neck:tarball
++$  lane  [=path file=(unit @ta)] :: path to file or directory
++$  rail  [=path name=@ta]        :: path to file
++$  fold  path                    :: path to directory
 +$  bend  (pair @ud path)         :: relative path
 +$  road  (each path bend)        :: absolute or relative path
 +$  prov  [src=@p sap=path]       :: external provenance
@@ -78,9 +81,16 @@
         next=(qeu take)          :: queue of held inputs
         skip=(qeu take)          :: queue of skipped inputs
     ==
+  ::  Relative source path for pokes
+  ::
+  ::  Fibers see only relative paths so they don't know their absolute location.
+  ::  [%& bend] = internal source (relative path)
+  ::  [%| prov] = external source (ship + path)
+  ::
+  +$  from  (each bend prov)
   ::
   +$  intake
-    $%  [%poke =from =cage] :: command for a running process
+    $%  [%poke =from =cage] :: command for a running process (from is relative)
         [%peek =wire =seen] :: local read result
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to cull
@@ -375,6 +385,17 @@
   =/  here-tail=path  (need (decap pref here))
   =/  dest-tail=path  (need (decap pref dest))
   [(lent here-tail) dest-tail]
+::  Convert absolute from to relative from (for fiber intakes)
+::
+::  External sources pass through unchanged.
+::  Internal sources get relativized to a bend.
+::
+++  relativize-from
+  |=  [here=path =from]
+  ^-  from:fiber
+  ?.  ?=(%& -.from)
+    from
+  &+(make-bend here p.from)
 ::  Check if dest is under any of the allowed path prefixes
 ::
 ++  raw-filter

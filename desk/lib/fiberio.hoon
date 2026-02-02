@@ -130,6 +130,27 @@
       [~ %poke * *]
     [%done cage.u.in]
   ==
+::  Take a poke and return both its source and payload
+::
+::  Returns [from cage] where:
+::    from: %.y bend for internal (relative), %.n prov for external
+::    cage: the poke payload
+::
+::  The from is relative to the current file's location.
+::  Use this when you need to verify the poke source for security.
+::
+++  take-poke-from
+  =/  m  (fiber ,[from:fiber:nexus cage])
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    [%done [from cage]:u.in]
+  ==
 ::
 ++  take-watch
   =/  m  (fiber ,path)

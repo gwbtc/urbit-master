@@ -1,8 +1,7 @@
-::  server nexus: HTTP request handling
+::  server/main nexus: HTTP gateway
 ::
 /+  nexus, tarball, fiberio, server
 |%
-++  veb  |
 +$  action
   $%  [%header eyre-id=@ta =response-header:http]
       [%data eyre-id=@ta data=(unit octs)]
@@ -10,15 +9,16 @@
       [%response eyre-id=@ta =simple-payload:http]
   ==
 ::
-++  server-nexus
+++  main
   ^-  nexus:nexus
   |%
   ++  on-load
     |~  =ball:nexus
     ^-  ball:nexus
-    ::  Create /main and /requests directory
+    ::  Create /main file
     =.  ball  (~(put ba:tarball ball) / %main [~ %sig !>(~)])
-    (~(put of ball) /requests [~ ~ ~])
+    ::  Create /requests directory with neck=%requests
+    (~(put of ball) /requests [~ `%requests ~])
   ::
   ++  on-file
     |=  [=path name=@ta =mark]
@@ -26,85 +26,106 @@
     |=  =prod:fiber:nexus
     =/  m  (fiber:fiber:nexus ,~)
     ^-  process:fiber:nexus
-    ?+    [path name]
-      ~?  veb  "%server on-file: unhandled {(spud path)}/{(trip name)}"
+    ?.  ?=([~ %main] [path name])
       stay:m
-        ::  /main: HTTP gateway
+    ::  /main: HTTP gateway
+    ?:  ?=(%rise -.prod)
+      %-  (slog leaf+"%server /main: failed, staying inert" tang.prod)
+      stay:m
+    |-
+    ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:fiberio
+    ?+    p.cage  $
         ::
-        [~ %main]
-      ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%server /main: failed, staying inert" tang.prod)
-        stay:m
-      |-
-      ;<  =cage  bind:m  take-poke:fiberio
-      ?+    p.cage  $
-          ::  Incoming HTTP request: create request file
-          ::
-          %handle-http-request
-        ~?  veb  "%server /main: got handle-http-request"
-        =/  [eyre-id=@ta req=inbound-request:eyre]
-          !<([eyre-id=@ta inbound-request:eyre] q.cage)
-        ::  Create request file at /requests/[eyre-id]
-        =/  dest=(list @ta)  [%requests eyre-id ~]
-        ~?  veb  "%server /main: creating request at /requests/{(trip eyre-id)}"
-        ;<  ~  bind:m  (node-make:fiberio /make [%| 1 dest] |+[%http-request !>(req)])
-        ~?  veb  "%server /main: request file created"
-        $
-          ::  Response from request file: send to eyre
-          ::
-          %server-action
-        =/  act  !<(action q.cage)
-        ?-    -.act
-            %header
-          ~?  veb  "%server /main: header -> {(trip eyre-id.act)}"
-          ;<  ~  bind:m
-            %-  send-cards:fiberio
-            :~  :^  %give  %fact  ~[/http-response/[eyre-id.act]]
-                http-response-header+!>(response-header.act)
-            ==
-          $
-            %data
-          ~?  veb  "%server /main: data -> {(trip eyre-id.act)}"
-          ;<  ~  bind:m
-            %-  send-cards:fiberio
-            :~  [%give %fact ~[/http-response/[eyre-id.act]] http-response-data+!>(data.act)]
-            ==
-          $
-            %kick
-          ~?  veb  "%server /main: kick -> {(trip eyre-id.act)}"
-          ;<  ~  bind:m
-            %-  send-cards:fiberio
-            :~  [%give %kick ~[/http-response/[eyre-id.act]] ~]
-            ==
-          $
-            %response
-          ~?  veb  "%server /main: response -> {(trip eyre-id.act)}"
-          ;<  ~  bind:m
-            %-  send-cards:fiberio
-            (give-simple-payload:app:server eyre-id.act simple-payload.act)
-          $
+        ::  Incoming HTTP request from eyre: create request file
+        ::
+        %handle-http-request
+      =/  [eyre-id=@ta req=inbound-request:eyre]
+        !<([eyre-id=@ta inbound-request:eyre] q.cage)
+      ::  Create request file at /requests/[eyre-id]
+      =/  dest=(list @ta)  [%requests eyre-id ~]
+      ;<  ~  bind:m  (node-make:fiberio /make [%| 1 dest] |+[%http-request !>(req)])
+      $
+        ::
+        ::  Response from request file: send to eyre
+        ::
+        ::  Security: verify the poke comes from the matching request file.
+        ::  Only /requests/[eyre-id] may send responses for that eyre-id.
+        ::
+        %server-action
+      =/  act  !<(action q.cage)
+      =/  eyre-id=@ta
+        ?-  -.act
+          %header    eyre-id.act
+          %data      eyre-id.act
+          %kick      eyre-id.act
+          %response  eyre-id.act
         ==
+      ::  Validate source: must be internal from /requests/[eyre-id]
+      ::
+      ::  From /server/main's perspective, /server/requests/[eyre-id] is:
+      ::    [1 /requests/[eyre-id]] - go up 1, then down /requests/[eyre-id]
+      ::
+      ::  Validate: must be internal from [1 /requests/[eyre-id]]
+      ::
+      ?>  ?=([%& %1 %requests @ ~] from)
+      ?>  =(i.t.q.p.from eyre-id)
+      ?-    -.act
+          %header
+        ;<  ~  bind:m
+          %-  send-cards:fiberio
+          :~  :^  %give  %fact  ~[/http-response/[eyre-id.act]]
+              http-response-header+!>(response-header.act)
+          ==
+        $
+          %data
+        ;<  ~  bind:m
+          %-  send-cards:fiberio
+          :~  [%give %fact ~[/http-response/[eyre-id.act]] http-response-data+!>(data.act)]
+          ==
+        $
+          %kick
+        ;<  ~  bind:m
+          %-  send-cards:fiberio
+          :~  [%give %kick ~[/http-response/[eyre-id.act]] ~]
+          ==
+        $
+          %response
+        ;<  ~  bind:m
+          %-  send-cards:fiberio
+          (give-simple-payload:app:server eyre-id.act simple-payload.act)
+        $
       ==
-        ::  /requests/*: individual request handlers
-        ::
-        [[%requests ~] @]
-      ~?  veb  "%server /requests/{(trip name)}: starting"
-      ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%server /requests/{(trip name)}: failed" tang.prod)
-        stay:m
-      ::  Get request state (eyre-id is the filename)
-      =/  eyre-id=@ta  name
-      ;<  req=inbound-request:eyre  bind:m
-        (get-state-as:fiberio ,inbound-request:eyre)
-      ::  Build response
-      =/  payload=simple-payload:http
-        [[200 ~] `(as-octs:mimes:html 'Hello from request file!')]
-      ::  Poke /main with response
-      ~?  veb  "%server /requests/{(trip name)}: responding"
-      ;<  ~  bind:m  (node-poke:fiberio /respond [%| 2 /main] server-action+!>([%response eyre-id payload]))
-      ~?  veb  "%server /requests/{(trip name)}: done"
-      ::  Done
-      (pure:m ~)
     ==
+  --
+++  requests
+  ^-  nexus:nexus
+  |%
+  ++  on-load
+    |~  =ball:nexus
+    ball
+  ::
+  ++  on-file
+    |=  [=path name=@ta =mark]
+    ^-  spool:fiber:nexus
+    |=  =prod:fiber:nexus
+    =/  m  (fiber:fiber:nexus ,~)
+    ^-  process:fiber:nexus
+    ?.  ?=([~ @] [path name])
+      stay:m
+    ::  Individual request handler
+    ?:  ?=(%rise -.prod)
+      %-  (slog leaf+"%requests/{(trip name)}: failed" tang.prod)
+      stay:m
+    ::  Get request state (eyre-id is the filename)
+    =/  eyre-id=@ta  name
+    ;<  req=inbound-request:eyre  bind:m
+      (get-state-as:fiberio ,inbound-request:eyre)
+    ::  Build response
+    =/  payload=simple-payload:http
+      [[200 ~] `(as-octs:mimes:html 'Hello from request file!!!')]
+    ::  Poke /main with response
+    ;<  ~  bind:m  (node-poke:fiberio /respond [%| 2 /main] server-action+!>([%response eyre-id payload]))
+    ::  Done
+    (pure:m ~)
   --
 --
