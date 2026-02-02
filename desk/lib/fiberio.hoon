@@ -516,7 +516,7 @@
 ::  Eyre binding helpers
 ::
 ++  eyre-connect
-  |=  [url=path dest=path]
+  |=  [url=path dest=rail:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (poke-our %mister connect+!>([url dest]))

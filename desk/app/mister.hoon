@@ -610,10 +610,8 @@
   ::  Build the nexus from the neck
   =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
   ?~  nex  ~
-  ::  Calculate the subpath (directory relative to nexus)
-  =/  subpath=path  (slag (lent p.u.nex-info) path.here)
-  ::  Call on-file with subpath, name, and mark
-  `(on-file:u.nex subpath name.here mark)
+  ::  Call on-file with rail relative to nexus location
+  `(on-file:u.nex (relativize-rail:tarball p.u.nex-info here) mark)
 ::
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
@@ -957,7 +955,7 @@
     ?~  path.here  next
     $(filt next, path.here (snip `fold:tarball`path.here))
   ::  Destination: walk up to common ancestor
-  =/  dest-dir=fold:tarball  (fold-from-lane:tarball u.dest)
+  =/  dest-dir=fold:tarball  ?-(-.u.dest %& path.p.u.dest, %| p.u.dest)
   =/  pref=path  (prefix:tarball path.here dest-dir)
   =/  steps=@ud  (sub (lent path.here) (lent pref))
   =|  =filt:nexus

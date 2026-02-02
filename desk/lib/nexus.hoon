@@ -5,9 +5,9 @@
 +$  card  card:agent:gall
 ::  Nexus-specific types
 ::
-+$  prov  [src=@p sap=path]       :: external provenance
++$  prov  [src=@p sap=path]         :: external provenance
 +$  from  (each rail:tarball prov)  :: source: [%& rail] internal file or [%| prov] external
-+$  give  [=from =wire]           :: return address (from is always a file)
++$  give  [=from =wire]             :: return address (from is always a file)
 +$  scry  [=mold =path]
 +$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a file)
 ::  SANDBOXING
@@ -342,10 +342,9 @@
   ^-  from:fiber
   ?.  ?=(%& -.from)
     from  :: external passes through
-  =/  here-path=path  (snoc path.here name.here)
   =/  src=rail:tarball  p.from
-  =/  pref=path  (prefix:tarball here-path path.src)
-  =/  here-tail=path  (need (decap:tarball pref here-path))
+  =/  pref=path  (prefix:tarball path.here path.src)
+  =/  here-tail=path  (need (decap:tarball pref path.here))
   =/  src-tail=path  (need (decap:tarball pref path.src))
   &+[(lent here-tail) [src-tail name.src]]
 ::  Check if dest is under any of the allowed path prefixes
@@ -357,14 +356,21 @@
   ?:  ?=(^ (decap:tarball i.allowed dest))
     &
   $(allowed t.allowed)
-::  Convert roads to absolute paths, then check if dest is allowed
+::  Convert roads to absolute lanes, then check if dest is allowed.
+::  Rails (files) require exact match; folds (dirs) allow prefix match.
 ::
 ++  filter-roads
   |=  [here=fold:tarball dest=path roads=(list road:tarball)]
   ^-  ?
   =/  lanes=(list lane:tarball)  (murn roads (cury lane-from-road:tarball [%| here]))
-  =/  paths=(list path)  (turn lanes path-from-lane:tarball)
-  (raw-filter dest paths)
+  |-
+  ?~  lanes  |
+  ?:  ?-  -.i.lanes
+        %&  =(dest (rail-to-path:tarball p.i.lanes))  :: exact match for files
+        %|  ?=(^ (decap:tarball p.i.lanes dest))      :: prefix match for dirs
+      ==
+    &
+  $(lanes t.lanes)
 ::  Check a single weir: is this jump to dest allowed from here?
 ::
 ++  filter
@@ -411,7 +417,7 @@
   ::   this is not guaranteed and is a responsibility of the programmer.
   ::
   ++  on-file
-    |~  [path @ta mark]
-    *spool:fiber :: define spool (initializer) for file at path/name
+    |~  [rail:tarball mark]
+    *spool:fiber :: define spool (initializer) for file at rail
   --
 --

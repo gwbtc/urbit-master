@@ -19,18 +19,18 @@
     (~(put of ball) /server [~ `%server ~])
   ::
   ++  on-file
-    |=  [=path name=@ta =mark]
+    |=  [=rail:tarball =mark]
     ^-  spool:fiber:nexus
     |=  =prod:fiber:nexus
     =/  m  (fiber:fiber:nexus ,~)
     ^-  process:fiber:nexus
-    ?+    [path name]  !!
+    ?+    rail  stay:m
         [~ %main]
       ?:  ?=(%rise -.prod)
         %-  (slog leaf+"%root /main: failed, staying inert" tang.prod)
         stay:m
       ::  Bind eyre to /server/main
-      ;<  ~  bind:m  (eyre-connect:fiberio /mister /server/main)
+      ;<  ~  bind:m  (eyre-connect:fiberio /mister [/server %main])
       stay:m
     ==
   --

@@ -70,28 +70,32 @@
   |=  =rail
   ^-  path
   (snoc [path name]:rail)
-::  Get the full path from a lane (dir path for fold, dir+name for rail)
+::  Compute a rail relative to a base fold
+::  E.g. /a/b [/a/b/c %file] -> [/c %file]
 ::
-++  path-from-lane
-  |=  =lane
-  ^-  path
-  ?-(-.lane %& (rail-to-path p.lane), %| p.lane)
-::  Get the directory path from a lane
-::
-++  fold-from-lane
-  |=  =lane
-  ^-  path
-  ?-(-.lane %& path.p.lane, %| p.lane)
+++  relativize-rail
+  |=  [base=fold =rail]
+  ^-  ^rail
+  [(need (decap base path.rail)) name.rail]
 ::  Resolve a bend relative to a location to get an absolute lane.
 ::
 ++  lane-from-bend
   |=  [loc=lane =bend]
   ^-  (unit lane)
+  ::  Get directory of current location
+  =/  dir=path  ?-(-.loc %& path.p.loc, %| p.loc)
+  ::  Walk up n steps
+  =.  dir  (flop dir)
+  |-
   ?:  =(0 p.bend)
-    `q.bend
-  =/  loc-path=path  (fold-from-lane loc)
-  ?~  loc-path  ~
-  $(loc [%| (snip `path`loc-path)], p.bend (dec p.bend))
+    ::  Prepend base to relative destination
+    :-  ~
+    ?-  -.q.bend
+      %&  [%& (weld (flop dir) path.p.q.bend) name.p.q.bend]
+      %|  [%| (weld (flop dir) p.q.bend)]
+    ==
+  ?~  dir  ~
+  $(dir t.dir, p.bend (dec p.bend))
 ::  Convert a road (absolute or relative) to an absolute lane
 ::  `here` is a lane: [%& rail] for file context, [%| fold] for directory context.
 ::
@@ -100,15 +104,13 @@
   ^-  (unit lane)
   ?-(-.road %& `p.road, %| (lane-from-bend here p.road))
 ::  Compute relative bend from here to dest lane.
-::  E.g. from /a/b/c to file /a/d/e/foo -> [2 [%& /d/e %foo]]
 ::
 ++  make-bend
   |=  [here=rail dest=lane]
   ^-  bend
-  =/  here-path=path  (snoc path.here name.here)
-  =/  dest-dir=path  (fold-from-lane dest)
-  =/  pref=path  (prefix here-path dest-dir)
-  =/  here-tail=path  (need (decap pref here-path))
+  =/  dest-dir=path  ?-(-.dest %& path.p.dest, %| p.dest)
+  =/  pref=path  (prefix path.here dest-dir)
+  =/  here-tail=path  (need (decap pref path.here))
   =/  dest-tail=path  (need (decap pref dest-dir))
   :-  (lent here-tail)
   ?-(-.dest %& [%& dest-tail name.p.dest], %| [%| dest-tail])

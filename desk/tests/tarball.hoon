@@ -1963,4 +1963,261 @@
     !>  `time2-text
   !>  mtime
 ::
+::  ==========================================
+::  Path helper function tests
+::  ==========================================
+::
+::  +rail-from-path tests
+::
+++  test-rail-from-path-single
+  ::  Single element path -> rail with empty dir
+  %+  expect-eq
+    !>  `rail:tarball`[/ %foo]
+  !>  (rail-from-path:tarball /foo)
+::
+++  test-rail-from-path-multi
+  ::  Multi-element path -> rail with dir and name
+  %+  expect-eq
+    !>  `rail:tarball`[/a/b %c]
+  !>  (rail-from-path:tarball /a/b/c)
+::
+++  test-rail-from-path-deep
+  ::  Deep path
+  %+  expect-eq
+    !>  `rail:tarball`[/a/b/c/d %e]
+  !>  (rail-from-path:tarball /a/b/c/d/e)
+::
+::  +rail-to-path tests
+::
+++  test-rail-to-path-root
+  ::  File at root
+  %+  expect-eq
+    !>  /foo
+  !>  (rail-to-path:tarball [/ %foo])
+::
+++  test-rail-to-path-nested
+  ::  Nested file
+  %+  expect-eq
+    !>  /a/b/c
+  !>  (rail-to-path:tarball [/a/b %c])
+::
+++  test-rail-roundtrip
+  ::  rail-to-path and rail-from-path are inverses
+  =/  pax=path  /a/b/c/d
+  %+  expect-eq
+    !>  pax
+  !>  (rail-to-path:tarball (rail-from-path:tarball pax))
+::
+::  +relativize-rail tests
+::
+++  test-relativize-rail-simple
+  ::  Relativize rail to its parent directory
+  %+  expect-eq
+    !>  `rail:tarball`[/c %file]
+  !>  (relativize-rail:tarball /a/b [/a/b/c %file])
+::
+++  test-relativize-rail-root-base
+  ::  Base at root
+  %+  expect-eq
+    !>  `rail:tarball`[/a/b %file]
+  !>  (relativize-rail:tarball / [/a/b %file])
+::
+++  test-relativize-rail-same-dir
+  ::  Base equals rail directory
+  %+  expect-eq
+    !>  `rail:tarball`[/ %file]
+  !>  (relativize-rail:tarball /a/b [/a/b %file])
+::
+::  +lane-from-bend tests
+::
+++  test-lane-from-bend-zero-steps-file
+  ::  Zero steps to file - prepends location path
+  =/  loc=lane:tarball  [%| /a/b]
+  =/  =bend:tarball  [0 [%& [/c %file]]]
+  %+  expect-eq
+    !>  `[%& [/a/b/c %file]]
+  !>  (lane-from-bend:tarball loc bend)
+::
+++  test-lane-from-bend-zero-steps-dir
+  ::  Zero steps to dir - prepends location path
+  =/  loc=lane:tarball  [%| /a/b]
+  =/  =bend:tarball  [0 [%| /c/d]]
+  %+  expect-eq
+    !>  `[%| /a/b/c/d]
+  !>  (lane-from-bend:tarball loc bend)
+::
+++  test-lane-from-bend-one-step
+  ::  Go up one step then resolve
+  =/  loc=lane:tarball  [%| /a/b/c]
+  =/  =bend:tarball  [1 [%& [/d %file]]]
+  %+  expect-eq
+    !>  `[%& [/a/b/d %file]]
+  !>  (lane-from-bend:tarball loc bend)
+::
+++  test-lane-from-bend-two-steps
+  ::  Go up two steps
+  =/  loc=lane:tarball  [%| /a/b/c]
+  =/  =bend:tarball  [2 [%& [/x %file]]]
+  %+  expect-eq
+    !>  `[%& [/a/x %file]]
+  !>  (lane-from-bend:tarball loc bend)
+::
+++  test-lane-from-bend-exceeds-depth
+  ::  Steps exceed path depth - returns ~
+  =/  loc=lane:tarball  [%| /a/b]
+  =/  =bend:tarball  [5 [%& [/c %file]]]
+  %+  expect-eq
+    !>  ~
+  !>  (lane-from-bend:tarball loc bend)
+::
+++  test-lane-from-bend-from-file-loc
+  ::  Location is a file (uses directory part)
+  =/  loc=lane:tarball  [%& [/a/b %existing]]
+  =/  =bend:tarball  [1 [%& [/c %file]]]
+  %+  expect-eq
+    !>  `[%& [/a/c %file]]
+  !>  (lane-from-bend:tarball loc bend)
+::
+::  +lane-from-road tests
+::
+++  test-lane-from-road-absolute
+  ::  Absolute road (lane) passes through
+  =/  here=lane:tarball  [%| /anywhere]
+  =/  =road:tarball  [%& [%& [/a/b %c]]]
+  %+  expect-eq
+    !>  `[%& [/a/b %c]]
+  !>  (lane-from-road:tarball here road)
+::
+++  test-lane-from-road-relative
+  ::  Relative road (bend) gets resolved
+  =/  here=lane:tarball  [%| /a/b]
+  =/  =road:tarball  [%| [1 [%& [/c %file]]]]
+  %+  expect-eq
+    !>  `[%& [/a/c %file]]
+  !>  (lane-from-road:tarball here road)
+::
+::  +make-bend tests
+::
+++  test-make-bend-same-dir
+  ::  File to sibling file in same dir - 0 steps (same directory)
+  =/  here=rail:tarball  [/a/b %src]
+  =/  dest=lane:tarball  [%& [/a/b %dest]]
+  %+  expect-eq
+    !>  `bend:tarball`[0 [%& / %dest]]
+  !>  (make-bend:tarball here dest)
+::
+++  test-make-bend-going-up
+  ::  File to file in grandparent directory - 2 steps up
+  =/  here=rail:tarball  [/a/b/c %src]
+  =/  dest=lane:tarball  [%& [/a %dest]]
+  %+  expect-eq
+    !>  `bend:tarball`[2 [%& / %dest]]
+  !>  (make-bend:tarball here dest)
+::
+++  test-make-bend-going-down
+  ::  File to file in child directory - 0 steps (dest is under here's dir)
+  =/  here=rail:tarball  [/a %src]
+  =/  dest=lane:tarball  [%& [/a/b/c %dest]]
+  %+  expect-eq
+    !>  `bend:tarball`[0 [%& /b/c %dest]]
+  !>  (make-bend:tarball here dest)
+::
+++  test-make-bend-to-directory
+  ::  File to directory - 1 step up to common ancestor /a
+  =/  here=rail:tarball  [/a/b %src]
+  =/  dest=lane:tarball  [%| /a/c/d]
+  %+  expect-eq
+    !>  `bend:tarball`[1 [%| /c/d]]
+  !>  (make-bend:tarball here dest)
+::
+++  test-make-bend-roundtrip
+  ::  make-bend + lane-from-bend should return original dest
+  =/  here=rail:tarball  [/a/b %src]
+  =/  dest=lane:tarball  [%& [/a/c/d %file]]
+  =/  =bend:tarball  (make-bend:tarball here dest)
+  =/  here-lane=lane:tarball  [%& here]
+  %+  expect-eq
+    !>  `dest
+  !>  (lane-from-bend:tarball here-lane bend)
+::
+::  +make-bend-rail tests
+::
+++  test-make-bend-rail-basic
+  ::  Convenience wrapper works
+  =/  here=rail:tarball  [/a/b %src]
+  =/  dest=rail:tarball  [/a/c %dest]
+  %+  expect-eq
+    !>  (make-bend:tarball here [%& dest])
+  !>  (make-bend-rail:tarball here dest)
+::
+::  +prefix tests
+::
+++  test-prefix-common
+  ::  Paths with common prefix
+  %+  expect-eq
+    !>  /a/b
+  !>  (prefix:tarball /a/b/c /a/b/d)
+::
+++  test-prefix-none
+  ::  No common prefix
+  %+  expect-eq
+    !>  /
+  !>  (prefix:tarball /a/b /c/d)
+::
+++  test-prefix-one-empty
+  ::  One path is empty
+  %+  expect-eq
+    !>  /
+  !>  (prefix:tarball / /a/b)
+::
+++  test-prefix-both-empty
+  ::  Both paths empty
+  %+  expect-eq
+    !>  /
+  !>  (prefix:tarball / /)
+::
+++  test-prefix-full-match
+  ::  One path is prefix of other
+  %+  expect-eq
+    !>  /a/b
+  !>  (prefix:tarball /a/b /a/b/c/d)
+::
+++  test-prefix-identical
+  ::  Identical paths
+  %+  expect-eq
+    !>  /a/b/c
+  !>  (prefix:tarball /a/b/c /a/b/c)
+::
+::  +decap tests
+::
+++  test-decap-valid-prefix
+  ::  Remove valid prefix
+  %+  expect-eq
+    !>  `/c/d
+  !>  (decap:tarball /a/b /a/b/c/d)
+::
+++  test-decap-no-prefix
+  ::  Prefix doesn't match
+  %+  expect-eq
+    !>  ~
+  !>  (decap:tarball /a/b /c/d/e)
+::
+++  test-decap-empty-prefix
+  ::  Empty prefix returns full path
+  %+  expect-eq
+    !>  `/a/b/c
+  !>  (decap:tarball / /a/b/c)
+::
+++  test-decap-exact-match
+  ::  Prefix equals path
+  %+  expect-eq
+    !>  `/
+  !>  (decap:tarball /a/b /a/b)
+::
+++  test-decap-prefix-longer
+  ::  Prefix longer than path
+  %+  expect-eq
+    !>  ~
+  !>  (decap:tarball /a/b/c /a/b)
+::
 --
