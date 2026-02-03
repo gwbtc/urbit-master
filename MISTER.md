@@ -40,7 +40,7 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
 - `pool` - running processes: `(axal pipe)` where pipe is `(map @ta proc:fiber)`
 - `nexi` - compiled nexus definitions: `(map neck nexus)`
 - `sand` - sandboxing filters: `(axal weir)`
-- `born` - process instance IDs: `(axal (map @ta @da))` - map from filename to birth timestamp
+- `born` - version tracking: `(axal [=cass:clay bags=(map @ta sack)])` where `sack = [proc=cass:clay file=cass:clay]`
 
 ### Nexus
 ```hoon
@@ -183,14 +183,23 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] `++reload` - orchestrates full reload on agent load/init
 - [x] `++nack-pool` - nack pokes in old proc queues before rebuild
 - [x] `++run-on-loads` - top-down recursive nexus on-load execution
-- [x] `++spawn-all-files` - bottom-up walk spawning processes with `[%load ~]`
+- [x] `++spawn-all-files` - recursive walk spawning processes with `[%load ~]`
+- [x] `++load-ball-changes` - spawn processes then diff-balls for version bumps
+- [x] `++cull-ball-changes` - diff-balls against empty ball for deletion bumps
 - [x] `++sync-metadata` (lib/tarball) - preserve mtime for unchanged files, update for changed
 
-### Process Instance Tracking
-- [x] `born=(axal (map @ta @da))` in state - unique instance ID per file
-- [x] `++make-born` - generate monotonic instance ID
-- [x] Instance ID included in wrapped wires
+### Version Tracking (++bo door in lib/nexus.hoon)
+- [x] `born=(axal [=cass:clay bags=(map @ta sack)])` - version tree (high-water mark, never shrinks)
+- [x] `sack=[proc=cass:clay file=cass:clay]` - per-file version info
+- [x] `proc.cass` bumped on process spawn/restart (stale response detection)
+- [x] `file.cass` bumped on content change (subscription notifications)
+- [x] Directory `cass` propagates up from file changes to root
+- [x] `++bo` door: `get`, `put`, `init`, `bump-proc`, `bump-file`, `bump-dir`, `diff-balls`
+- [x] `++diff-balls` - unified change detection: new/changed/deleted files + empty dir edge cases
+- [x] `bumped=(set lane:tarball)` tracks what changed for subscription notifications
+- [x] Instance ID (`proc.cass`) included in wrapped wires
 - [x] `++take-arvo` / `++take-agent` - check instance ID, discard stale responses
+- [x] Comprehensive tests in tests/nexus.hoon (40+ test cases)
 
 ### Dart Handling
 - [x] `++process-dart` / `++process-darts`
@@ -293,12 +302,11 @@ Process-to-process subscriptions for tree changes.
 :: intake (incoming to process)
 [%bond =wire err=(unit tang)]  :: subscription established/failed
 [%fell =wire]                  :: subscription canceled (weir change, deletion, etc)
-[%news =wire sub=path rev=@ud =view]  :: state notification
+[%news =wire what=(set lane:tarball) =view]  :: state notification with changed lanes
 ```
 
-The `rev` is a monotonic revision counter per file (like `born` but for state).
-Mister guarantees monotonic delivery (only sends if `rev > sent`), so subscribers
-don't need `rev` for ordering. We include it anyway for display/caching use.
+The `what` set contains all lanes (files and directories) that changed.
+Subscribers receive the full set of changes in one notification.
 
 The `view` type (already exists):
 ```hoon
@@ -321,17 +329,14 @@ The `view` type (already exists):
 +$  subs  ???  :: TBD - needs efficient lookup both ways
 ```
 
-The `sent` field tracks the last rev delivered to this subscriber.
-Only send if `rev > sent`, then update `sent := rev`.
+The `sent` field tracks the last `file.cass` delivered to this subscriber.
+Only send if `file.cass > sent`, then update `sent := file.cass`.
 
-**Revisions** - monotonic counter per file for ordering updates:
-```hoon
-+$  revs  (axal (map @ta @ud))  :: like born, but for state versions
-```
-
-Increment on every state change. Mister tracks `sent=@ud` per subscription
-and only delivers if `rev > sent`, dropping stale updates. Subscribers
-don't need to handle ordering - mister guarantees monotonic delivery.
+**Revisions** - version tracking via `born` (already implemented):
+- `file.cass` in each `sack` serves as the revision counter
+- Bumped on every content change via `++bump-file`
+- Directory `cass` propagates up, enabling subtree subscriptions
+- `bumped=(set lane:tarball)` from `++diff-balls` identifies what changed
 
 #### Flows
 
@@ -386,20 +391,20 @@ don't need to handle ordering - mister guarantees monotonic delivery.
   - Send one diff with `sub=/bar/baz view=[%file cage]`?
   - Or send multiple diffs bubbling up (bar's parent changed too)?
   - Probably just the leaf change with relative path
-- Empty directories: need to track dir creation/deletion, not just files
 - Should subscriptions survive across the subscription target's restart?
 
 #### Implementation Order
 
-1. [ ] Add types to nexus.hoon
-2. [ ] Add subscription state to mister
-3. [ ] Handle `%keep` dart - check permission, store, send `%bond`
-4. [ ] Handle `%drop` dart - remove, send `%fell`
-5. [ ] Notify on file change in `++process-do-next`
-6. [ ] Notify on file create/delete in `++make` / `++cull`
-7. [ ] Cancel subscriptions when weir changes in `++set-weir`
-8. [ ] Clean up subscriptions when process dies
-9. [ ] Handle empty directories
+1. [x] Add types to nexus.hoon - `%news` intake with `what=(set lane:tarball)`
+2. [x] Version tracking infrastructure - `++bo` door with `bumped` set
+3. [x] Handle empty directories - `++diff-balls` detects empty dir appear/disappear
+4. [ ] Add subscription state to mister - index by target and subscriber
+5. [ ] Handle `%keep` dart - check permission, store, send `%bond`
+6. [ ] Handle `%drop` dart - remove, send `%fell`
+7. [ ] Wire `bumped` set to `%news` notifications in `++load-ball-changes` / `++cull-ball-changes`
+8. [ ] Notify on file change in `++process-do-next` / `++save-file`
+9. [ ] Cancel subscriptions when weir changes in `++set-weir`
+10. [ ] Clean up subscriptions when process dies
 
 ## Mark Validation Refactoring (COMPLETE)
 
