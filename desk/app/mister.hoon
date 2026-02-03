@@ -417,6 +417,8 @@
 ++  delete
   |=  [dir=path name=@ta]
   ^+  this
+  ::  Bump file aeon (content going from something to nothing)
+  =.  this  (bump-file [dir name])
   =.  ball  (~(del ba:tarball ball) dir name)
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   this(pool (~(put of pool) dir pipe))
@@ -551,7 +553,10 @@
 ::  Spawn processes for all files in ball
 ::
 ++  spawn-all-files
-  |=  [here=fold:tarball sub=ball:tarball]
+  |=  $:  here=fold:tarball
+          sub=ball:tarball
+          old=ball:tarball          :: comparison ball (use *ball for "all new")
+      ==
   ^+  this
   ::  Spawn processes for files in this directory's contents
   =.  this
@@ -559,16 +564,55 @@
     =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.sub)
     |-
     ?~  files  this
-    =/  file-rail=rail:tarball  [here -.i.files]
+    =/  file-name=@ta  -.i.files
+    =/  file-content=content:tarball  +.i.files
+    =/  file-rail=rail:tarball  [here file-name]
+    ::  Spawn process (creates/updates born)
     =.  this  (spawn-proc file-rail [%load ~])
+    ::  Bump file aeon if content changed from old
+    =/  old-content=(unit content:tarball)
+      ?~  fil.old  ~
+      (~(get by contents.u.fil.old) file-name)
+    =/  changed=?
+      ?~  old-content  %.y                              :: new file
+      !=(cage.u.old-content cage.file-content)          :: compare cages
+    =?  this  changed  (bump-file file-rail)
     =.  this  (enqu-take file-rail (sys-give /load) ~)
     $(files t.files)
-  ::  Recurse into subdirectories
+  ::  Bump aeon for files deleted from old (exist in old, not in new)
+  =.  this
+    ?~  fil.old  this
+    =/  new-names=(set @ta)
+      ?~(fil.sub ~ ~(key by contents.u.fil.sub))
+    =/  old-files=(list @ta)  ~(tap in ~(key by contents.u.fil.old))
+    |-
+    ?~  old-files  this
+    ?.  (~(has in new-names) i.old-files)
+      ::  File was deleted - bump its aeon
+      =.  this  (bump-file [here i.old-files])
+      $(old-files t.old-files)
+    $(old-files t.old-files)
+  ::  Recurse into subdirectories (in new ball)
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  =.  this
+    |-
+    ?~  kids  this
+    =/  kid-name=@ta  -.i.kids
+    =/  kid-old=ball:tarball
+      (fall (~(get by dir.old) kid-name) *ball:tarball)
+    =.  this  ^$(here (snoc here kid-name), sub +.i.kids, old kid-old)
+    $(kids t.kids)
+  ::  Bump files in deleted directories (exist in old but not in new)
+  =/  new-dirs=(set @ta)  ~(key by dir.sub)
+  =/  old-kids=(list [@ta ball:tarball])  ~(tap by dir.old)
   |-
-  ?~  kids  this
-  =.  this  ^$(here (snoc here -.i.kids), sub +.i.kids)
-  $(kids t.kids)
+  ?~  old-kids  this
+  =/  kid-name=@ta  -.i.old-kids
+  ?.  (~(has in new-dirs) kid-name)
+    ::  Directory was deleted - bump all files in it
+    =.  this  (bump-all-files (snoc here kid-name) +.i.old-kids)
+    $(old-kids t.old-kids)
+  $(old-kids t.old-kids)
 ::
 ++  reload
   |=  $:  old-pool=pool:nexus
@@ -585,10 +629,11 @@
   =.  sand  old-sand
   =.  born  old-born
   =.  bindings  old-bindings
+  ::  Capture ball before modifications (for change detection)
+  =/  pre-ball=ball:tarball  ball
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
   ::  Run nexus on-loads top-down (may modify ball and sand)
-  =/  pre-ball=ball:tarball  ball
   =^  sand  ball  (run-on-loads / sand ball)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
   =/  validated=(each ball:tarball tang)  (validate-ball / ball)
@@ -597,8 +642,10 @@
   =.  ball  p.validated
   ::  Sync metadata: preserve old mtime where unchanged, update where changed
   =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
-  ::  Spawn all file processes
-  (spawn-all-files / ball)
+  ::  Spawn all file processes (compare to pre-ball for file aeon bumps)
+  =.  this  (spawn-all-files / ball pre-ball)
+  ::  Bump leaf directory changes (empty dirs created/deleted)
+  (bump-leaf-dir-changes / pre-ball ball)
 :: TODO: handle outgoing keens
 ::
 ::  Clean up subscriptions for a file (%file) or subtree (%tree)
@@ -714,7 +761,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      %peek                       %peek
+      ?(%peek %keep %drop)        %peek  :: read operations (TODO: %subs filtering)
       %poke                       %poke
       ?(%make %cull %sand %load)  %make  :: all modify tree structure
     ==
@@ -812,6 +859,16 @@
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file cage.u.content)
       ==
+      ::
+        %keep
+      ::  TODO: Subscribe to changes at dest
+      ~&  [%keep-stub here u.dest-lane wire.dart]
+      (enqu-take here (sys-give /bond) ~ %bond wire.dart `~[leaf+"subscriptions not implemented"])
+      ::
+        %drop
+      ::  TODO: Unsubscribe from dest
+      ~&  [%drop-stub here u.dest-lane wire.dart]
+      (enqu-take here (sys-give /fell) ~ %fell wire.dart)
     ==
     ::
       %scry
@@ -834,9 +891,8 @@
 ++  spawn-proc
   |=  [here=rail:tarball =prod:fiber:nexus]
   ^+  this
-  ::  Generate and store born
-  =/  b=@da  (make-born here)
-  =.  this  (put-born here b)
+  ::  Bump proc cass (process restart/spawn)
+  =.  this  (bump-proc here)
   ::  Build and store proc - use default spool if no nexus
   =/  =spool:fiber:nexus
     (fall (build-spool here) default-spool)
@@ -894,8 +950,8 @@
   ::  Validation passed - handle result normally
   ?-    -.res
       %next
-    ::  Update state in ball and proc in pool
-    =.  ball  (~(put ba:tarball ball) here [metadata.u.file-data p.cage.u.file-data p.validated])
+    ::  Save state (bumps aeon only if content changed)
+    =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
     ::  Touch file to update mtime/size and propagate up
     =.  ball  (~(touch ba:tarball ball) here now.bowl)
     (store-proc here new-proc)
@@ -949,8 +1005,10 @@
     ::  Put the final sand and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
     =.  ball  (~(pub ba:tarball ball) dest-path synced)
-    ::  Spawn all file processes
-    (spawn-all-files dest-path synced)
+    ::  Spawn all file processes (empty old = all files are new)
+    =.  this  (spawn-all-files dest-path synced *ball:tarball)
+    ::  Bump leaf directory changes (empty dirs created)
+    (bump-leaf-dir-changes dest-path *ball:tarball synced)
     ::
       %&
     ::  Make file - payload must be cage
@@ -966,10 +1024,10 @@
       (validate-cage path.dest-rail name.dest-rail p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
-    ::  Store validated cage
-    =.  ball  (~(put ba:tarball ball) dest-rail [~ p.validated])
-    ::  Spawn the process and start it with ~ input
+    ::  Spawn process (ensures born exists, bumps proc aeon)
     =.  this  (spawn-proc dest-rail [%make ~])
+    ::  Save initial state (bumps file aeon since old content is ~)
+    =.  this  (save-file dest-rail [~ p.validated])
     (enqu-take dest-rail (sys-give /make) ~)
   ==
 ::
@@ -980,6 +1038,11 @@
       %|
     ::  Cull directory - delete entire subtree
     =/  dest-path=fold:tarball  p.dest
+    =/  sub=ball:tarball  (~(dip ba:tarball ball) dest-path)
+    ::  Bump aeon for all files in subtree (content → nothing)
+    =.  this  (bump-all-files dest-path sub)
+    ::  Bump leaf directory changes (empty dirs deleted)
+    =.  this  (bump-leaf-dir-changes dest-path sub *ball:tarball)
     ::  Nack all queued pokes in subtree
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
     ::  Clean subscriptions for subtree
@@ -991,6 +1054,8 @@
       %&
     ::  Cull file - delete single file
     =/  dest-rail=rail:tarball  p.dest
+    ::  Bump file aeon (content → nothing)
+    =.  this  (bump-file dest-rail)
     =/  dest-path=path  (rail-to-path:tarball dest-rail)
     ::  Nack queued pokes for this file
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
@@ -1082,35 +1147,168 @@
     next
   $(filt next, path.here (snip `fold:tarball`path.here))
 ::
+::  Get full born record for a file
+::
 ++  get-born
   |=  here=rail:tarball
-  ^-  (unit @da)
-  =/  m=(unit (map @ta @da))  (~(get of born) path.here)
-  ?~  m  ~
-  (~(get by u.m) name.here)
+  ^-  (unit sack:nexus)
+  =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+    (~(get of born) path.here)
+  ?~  node  ~
+  (~(get by bags.u.node) name.here)
 ::
 ++  put-born
-  |=  [here=rail:tarball b=@da]
+  |=  [here=rail:tarball =sack:nexus]
   ^+  this
-  =/  m=(map @ta @da)  (fall (~(get of born) path.here) ~)
-  this(born (~(put of born) path.here (~(put by m) name.here b)))
+  =/  node=[=cass:clay bags=(map @ta sack:nexus)]
+    (fall (~(get of born) path.here) [[0 now.bowl] ~])
+  this(born (~(put of born) path.here node(bags (~(put by bags.node) name.here sack))))
 ::
-++  make-born
+::  Get directory cass
+::
+++  get-dir-cass
+  |=  dir=fold:tarball
+  ^-  (unit cass:clay)
+  =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+    (~(get of born) dir)
+  ?~  node  ~
+  `cass.u.node
+::
+::  Bump directory cass and propagate up to root
+::
+++  bump-dir
+  |=  dir=fold:tarball
+  ^+  this
+  =/  node=[=cass:clay bags=(map @ta sack:nexus)]
+    (fall (~(get of born) dir) [[0 now.bowl] ~])
+  =/  new-cass=cass:clay  (next-cass `cass.node)
+  =.  born  (~(put of born) dir node(cass new-cass))
+  ::  Propagate up to root
+  ?~  dir  this
+  $(dir (snip `fold:tarball`dir))
+::
+::  Generate next cass (increment ud, update da)
+::
+++  next-cass
+  |=  last=(unit cass:clay)
+  ^-  cass:clay
+  ?~  last  [1 now.bowl]
+  =/  nex-da=@da
+    ?:((lth da.u.last now.bowl) now.bowl +(da.u.last))
+  [+(ud.u.last) nex-da]
+::
+::  Bump proc cass (on process spawn/restart)
+::
+++  bump-proc
   |=  here=rail:tarball
-  ^-  @da
-  =/  last=(unit @da)  (get-born here)
-  ?~  last  now.bowl
-  ?:((lth u.last now.bowl) now.bowl +(u.last))
+  ^+  this
+  =/  old=(unit sack:nexus)  (get-born here)
+  =/  new-proc=cass:clay  (next-cass ?~(old ~ `proc.u.old))
+  =/  new-file=cass:clay  ?~(old [0 now.bowl] file.u.old)
+  (put-born here [new-proc new-file])
+::
+::  Bump file cass and propagate directory cass up to root.
+::  TODO: notify subscribers here
+::
+++  bump-file
+  |=  here=rail:tarball
+  ^+  this
+  =/  old=(unit sack:nexus)  (get-born here)
+  ?~  old  !!  :: should never bump file without existing born
+  =.  this  (put-born here [proc.u.old (next-cass `file.u.old)])
+  ::  Bump directory cass up to root
+  (bump-dir path.here)
+::
+::  Bump aeon for all files in a ball subtree
+::
+++  bump-all-files
+  |=  [here=fold:tarball sub=ball:tarball]
+  ^+  this
+  ::  Bump files in this directory
+  =.  this
+    ?~  fil.sub  this
+    =/  files=(list @ta)  ~(tap in ~(key by contents.u.fil.sub))
+    |-
+    ?~  files  this
+    =.  this  (bump-file [here i.files])
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  |-
+  ?~  kids  this
+  =.  this  ^$(here (snoc here -.i.kids), sub +.i.kids)
+  $(kids t.kids)
+::
+::  Check if a ball node is a leaf directory (exists but no files, no subdirs)
+::
+++  is-leaf-dir
+  |=  =ball:tarball
+  ^-  ?
+  ?&  ?=(^ fil.ball)                   :: has a lump (exists as directory)
+      =(~ contents.u.fil.ball)         :: no files
+      =(~ dir.ball)                    :: no subdirs
+  ==
+::
+::  Check if a directory exists in a ball (has lump or has children)
+::
+++  dir-exists
+  |=  =ball:tarball
+  ^-  ?
+  |(?=(^ fil.ball) !=(~ dir.ball))
+::
+::  Bump leaf directory changes between old and new balls.
+::  Bumps directories that were created or deleted AS LEAVES.
+::  Directories that transition leaf<->non-leaf are handled by file bumps.
+::
+++  bump-leaf-dir-changes
+  |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
+  ^+  this
+  ::  Check this directory
+  =/  old-exists=?  (dir-exists old)
+  =/  new-exists=?  (dir-exists new)
+  =/  old-is-leaf=?  (is-leaf-dir old)
+  =/  new-is-leaf=?  (is-leaf-dir new)
+  ::  Bump if created as leaf or deleted as leaf
+  =?  this  &(new-is-leaf !old-exists)  (bump-dir here)  :: created as leaf
+  =?  this  &(old-is-leaf !new-exists)  (bump-dir here)  :: deleted as leaf
+  ::  Recurse into all subdirectories that appear in either ball
+  =/  all-kids=(set @ta)
+    (~(uni in ~(key by dir.old)) ~(key by dir.new))
+  =/  kids=(list @ta)  ~(tap in all-kids)
+  |-
+  ?~  kids  this
+  =/  kid-old=ball:tarball  (fall (~(get by dir.old) i.kids) *ball:tarball)
+  =/  kid-new=ball:tarball  (fall (~(get by dir.new) i.kids) *ball:tarball)
+  =.  this  ^$(here (snoc here i.kids), old kid-old, new kid-new)
+  $(kids t.kids)
+::
+::  Save file state and bump ONLY if content actually changed.
+::  This is the ONLY correct way to update file state.
+::  Invariant: file aeon changes iff file content changes.
+::
+++  save-file
+  |=  [here=rail:tarball new-content=content:tarball]
+  ^+  this
+  =/  old-content=(unit content:tarball)
+    (~(get ba:tarball ball) path.here name.here)
+  ::  Determine if state changed (compare cages)
+  =/  changed=?
+    ?~  old-content  %.y
+    !=(cage.u.old-content cage.new-content)
+  ::  Save to ball
+  =.  ball  (~(put ba:tarball ball) here new-content)
+  ::  Bump aeon only if changed
+  ?.(changed this (bump-file here))
 ::
 ++  wrap-wire
   |=  [here=rail:tarball =wire]
   ^+  wire
-  =/  b=@da  (need (get-born here))
+  =/  =sack:nexus  (need (get-born here))
   =/  here-path=path  (snoc path.here name.here)
   ;:  weld
     /proc/(scot %ud (lent here-path))
     here-path
-    /(scot %da b)
+    /(scot %da da.proc.sack)
     wire
   ==
 ::
@@ -1131,16 +1329,16 @@
   |=  [wir=wire sign=sign-arvo]
   ^+  this
   =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit @da)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b u.cur))  this
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
   =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit @da)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b u.cur))  this
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
 ::  Unwrap incoming watch/leave paths
 ::

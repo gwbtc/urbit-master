@@ -61,6 +61,8 @@
       [%sand weir=(unit weir)]
       [%load ~]  :: trigger on-load for a nexus (folds only)
       [%peek ~]
+      [%keep ~]  :: subscribe to changes at dest (file or ball per road)
+      [%drop ~]  :: unsubscribe from dest
   ==
 ::
 +$  dart
@@ -97,6 +99,9 @@
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
+        [%bond =wire err=(unit tang)] :: subscription established/failed
+        [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
+        [%news =wire suffix=lane:tarball rev=@ud =view] :: state notification (suffix is relative to subscription target)
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
@@ -294,11 +299,17 @@
 ::  Eyre bindings: URL path → file path in the tree
 ::
 +$  bindings  (map path rail:tarball)
-::  Process instance IDs - NEVER deleted, even when files are deleted.
-::  Acts as high-water mark so recreated files get higher IDs,
-::  preventing stale responses from being delivered to new processes.
+::  High-water marks per file - NEVER deleted, even when files are deleted.
+::  Prevents stale responses and enables subscription ordering.
 ::
-+$  born  (axal (map @ta @da))
+::  proc: incremented on process restart, for stale response detection
+::  file: incremented on state change, for subscription notifications
+::
++$  sack  [proc=cass:clay file=cass:clay]
++$  born  (axal [=cass:clay bags=(map @ta sack)])
+::  TODO: Subscriptions (%keep/%drop/%bond/%fell/%news)
+::  - Add subscription state types here
+::  - Hook into born.file updates for notifications
 ::  External action type for pokes
 ::
 +$  action
