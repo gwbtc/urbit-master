@@ -251,6 +251,26 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 
 ## Not Yet Implemented
 
+### Name Uniqueness (Unix Semantics)
+
+Files and directories cannot share a name at the same level. In Unix, `/foo` can't be both a file and a directory.
+
+**Enforcement points in tarball:**
+- [ ] `++put` - creating/updating a file: check no directory exists with same name
+- [ ] Directory creation (implicit via path): check no file exists with same name
+- [ ] `++put` with subtree (`%&` case): recursive check at every level
+- [ ] Rename operations (if we add them): check target name is unique
+
+**Ball validator:**
+- [ ] `++validate-names` - walk entire ball, verify no collisions at any level
+- [ ] Call on load to catch corrupted state
+- [ ] Call on `%make` with subtree before merge
+
+**Implementation:**
+- At each `axal` node, the keys in `dir` (subdirectories) and keys in `contents` of `fil` (files) must be disjoint sets
+- `?<((~(has in ~(key by dir.node)) name) ...)` before file insert
+- `?<((~(has in ~(key by contents.fil.node)) name) ...)` before dir insert
+
 ### Cleanup
 - [ ] Handle outgoing keens
 
