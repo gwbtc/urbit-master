@@ -11,12 +11,13 @@
   ^-  nexus:nexus
   |%
   ++  on-load
-    |=  =ball:tarball
-    ^-  ball:tarball
+    |=  [=sand:nexus =ball:tarball]
+    ^-  [sand:nexus ball:tarball]
     ::  Create /main file
     =.  ball  (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
     ::  Create /server directory with neck=%server
-    (~(put of ball) /server [~ `%server ~])
+    =.  ball  (~(put of ball) /server [~ `%server ~])
+    [sand ball]
   ::
   ++  on-file
     |=  [=rail:tarball =mark]

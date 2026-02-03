@@ -278,10 +278,10 @@
   (take-pack wire)
 ::
 ++  node-peek
-  |=  [=wire =road:tarball kind=?(%ball %file)]
+  |=  [=wire =road:tarball]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %peek kind)
+  ;<  ~  bind:m  (send-dart %node wire road %peek ~)
   (take-peek wire)
 ::
 ++  node-cull

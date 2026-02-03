@@ -45,9 +45,9 @@
       here=rail:tarball
   ==
 ::
-+$  make  (each ball:tarball cage)
++$  make  (each [=sand =ball:tarball] cage)
 +$  view
-  $%  [%ball ball=ball:tarball =sand]
+  $%  [%ball =sand ball=ball:tarball]
       [%file =cage]
       [%none ~]
   ==
@@ -59,7 +59,8 @@
       [%make =make]
       [%cull ~]
       [%sand weir=(unit weir)]
-      [%peek kind=?(%ball %file)]
+      :: [%load ~] :: TODO; trigger a reload of the ball (folds only)
+      [%peek ~]
   ==
 ::
 +$  dart
@@ -300,7 +301,7 @@
 ::  External action type for pokes
 ::
 +$  action
-  $:  [=wire here=rail:tarball]
+  $:  [=wire dest=lane:tarball]
       $%  [%make =make]
           [%cull ~]
           [%sand weir=(unit weir)]
@@ -347,43 +348,55 @@
   =/  here-tail=path  (need (decap:tarball pref path.here))
   =/  src-tail=path  (need (decap:tarball pref path.src))
   &+[(lent here-tail) [src-tail name.src]]
-::  Check if dest is under any of the allowed path prefixes
+::  Check if dest lane is permitted by an allowed lane.
 ::
 ++  raw-filter
-  |=  [dest=path allowed=(list path)]
+  |=  [dest=lane:tarball allow=lane:tarball]
   ^-  ?
-  ?~  allowed  |
-  ?:  ?=(^ (decap:tarball i.allowed dest))
-    &
-  $(allowed t.allowed)
+  ?-    -.dest
+      ::  Destination is a file
+      %&
+    ?-  -.allow
+      ::  Allowed lane is a file: must be the exact same file
+      %&  =(p.dest p.allow)
+      ::  Allowed lane is a dir: file must be somewhere under that dir
+      %|  ?=(^ (decap:tarball p.allow path.p.dest))
+    ==
+      ::  Destination is a directory
+      %|
+    ?-  -.allow
+      ::  Allowed lane is a file: a file rule can't permit directory operations
+      %&  |
+      ::  Allowed lane is a dir: dest dir must be under (or equal to) allowed dir
+      %|  ?=(^ (decap:tarball p.allow p.dest))
+    ==
+  ==
 ::  Convert roads to absolute lanes, then check if dest is allowed.
-::  Rails (files) require exact match; folds (dirs) allow prefix match.
+::  `fold` is the directory whose weir we're checking
 ::
 ++  filter-roads
-  |=  [here=fold:tarball dest=path roads=(list road:tarball)]
+  |=  [=fold:tarball dest=lane:tarball roads=(list road:tarball)]
   ^-  ?
-  =/  lanes=(list lane:tarball)  (murn roads (cury lane-from-road:tarball [%| here]))
+  ::  Convert relative roads to absolute lanes (murn filters out invalid roads)
+  =/  lanes=(list lane:tarball)  (murn roads (cury lane-from-road:tarball [%| fold]))
   |-
   ?~  lanes  |
-  ?:  ?-  -.i.lanes
-        %&  =(dest (rail-to-path:tarball p.i.lanes))  :: exact match for files
-        %|  ?=(^ (decap:tarball p.i.lanes dest))      :: prefix match for dirs
-      ==
-    &
+  ?:  (raw-filter dest i.lanes)  &
   $(lanes t.lanes)
 ::  Check a single weir: is this jump to dest allowed from here?
+::  `fold` is the directory whose weir we're checking
 ::
 ++  filter
-  |=  [dest=path =jump here=fold:tarball weir=(unit weir)]
+  |=  [=jump =fold:tarball dest=lane:tarball weir=(unit weir)]
   ^-  filt
   ?~  weir  ~                       :: no weir = no filter (permissive)
   ?:  ?=(%sysc jump)
     [~ |]                           :: weirs always block syscalls
   :-  ~
   ?-  jump
-    %make  (filter-roads here dest ~(tap in make.u.weir))
-    %poke  (filter-roads here dest ~(tap in poke.u.weir))
-    %peek  (filter-roads here dest ~(tap in peek.u.weir))
+    %make  (filter-roads fold dest ~(tap in make.u.weir))
+    %poke  (filter-roads fold dest ~(tap in poke.u.weir))
+    %peek  (filter-roads fold dest ~(tap in peek.u.weir))
   ==
 ::  Combine two filter results. Veto wins; otherwise allow+clam wins.
 ::
@@ -409,8 +422,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  state=ball:tarball
-    *ball:tarball
+    |~  [sand ball:tarball]
+    [*sand *ball:tarball]
   :: all files have an associated running process
   :: all running processes should be able to recover proper
   ::   operation based on state alone, even when restarted.

@@ -68,28 +68,32 @@
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
-      :: anyone can poke; process handles gatekeeping
+      ::  Anyone can poke; process handles gatekeeping
+      ::  Poke destination must be a file
+      ?>  ?=(%& -.dest.action)
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
-        abet:(poke:hc give [here cage]:action)
+        abet:(poke:hc give [p.dest.action cage.action])
       [cards this]
       ::
         %make
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(make:hc [here make]:action)
+        abet:(make:hc [dest make]:action)
       [cards this]
       ::
         %cull
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(cull:hc here.action)
+        abet:(cull:hc dest.action)
       [cards this]
       ::
         %sand
       ?>  =(src our):bowl
+      ::  Sand destination must be a directory
+      ?>  ?=(%| -.dest.action)
       =^  cards  state
-        abet:(set-weir:hc [path.here weir]:action)
+        abet:(set-weir:hc [p.dest.action weir.action])
       [cards this]
     ==
     ::  Eyre binding: bind URL path to file path
@@ -242,6 +246,14 @@
     [(flop cards) state]
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   $(this (process-take here take))
+::  Put subtree into sand at path
+::
+++  put-sub-sand
+  |=  [snd=sand:nexus pax=path sub=sand:nexus]
+  ^-  sand:nexus
+  ?~  pax  sub
+  =/  kid  (~(gut by dir.snd) i.pax *sand:nexus)
+  snd(dir (~(put by dir.snd) i.pax $(snd kid, pax t.pax)))
 ::
 ++  emit-card
   |=  =card
@@ -405,7 +417,7 @@
   ::  Sanitize error if internal poke without peek permission
   =/  err=(unit tang)
     ?.  ?=(%& -.from)  err  :: external pokes see full error
-    ?:  ?=([~ %|] (allowed p.from %peek `[%& here]))
+    ?:  ?=([~ %|] (allowed %peek p.from `[%& here]))
       ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
     err
   ?-    -.from
@@ -465,22 +477,39 @@
 ::  Run nexus on-loads top-down recursively
 ::
 ++  run-on-loads
-  |=  [here=fold:tarball sub=ball:tarball]
-  ^-  ball:tarball
+  |=  [here=fold:tarball sub-sand=sand:nexus sub-ball=ball:tarball]
+  ^-  [sand:nexus ball:tarball]
   ::  Check if this node has a nexus
   =/  nex=(unit nexus:nexus)
-    ?~  fil.sub  ~
-    ?~  neck.u.fil.sub  ~
-    (~(get by nexi) u.neck.u.fil.sub)
+    ?~  fil.sub-ball  ~
+    ?~  neck.u.fil.sub-ball  ~
+    (~(get by nexi) u.neck.u.fil.sub-ball)
   ::  Run on-load if nexus exists
-  =?  sub  ?=(^ nex)
-    (on-load:u.nex sub)
-  ::  Recurse into subdirectories
-  %=  sub
-    dir  %-  ~(urn by dir.sub)
-         |=  [name=@ta kid=ball:tarball]
-         ^$(here (snoc here name), sub kid)
+  ::
+  ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
+  ::  A nexus cannot control its own sandboxing - that would defeat the purpose.
+  ::  Sandboxing is always imposed from above. The nexus can only set weirs
+  ::  for its children (in dir.sand), never for itself (in fil.sand).
+  ::
+  =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  =/  res=[sand:nexus ball:tarball]
+    ?~  nex  [sub-sand sub-ball]
+    (on-load:u.nex sub-sand sub-ball)
+  =:  sub-sand  -.res(fil parent-weir)
+      sub-ball  +.res
   ==
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub-ball)
+  |-
+  ?~  kids  [sub-sand sub-ball]
+  =/  kid-name=@ta  -.i.kids
+  =/  kid-ball=ball:tarball  +.i.kids
+  =/  kid-sand=sand:nexus  (~(dip of sub-sand) /[kid-name])
+  =/  [new-kid-sand=sand:nexus new-kid-ball=ball:tarball]
+    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-ball kid-ball)
+  =.  sub-sand  (put-sub-sand sub-sand /[kid-name] new-kid-sand)
+  =.  dir.sub-ball  (~(put by dir.sub-ball) kid-name new-kid-ball)
+  $(kids t.kids)
 ::  Spawn processes for all files in ball
 ::
 ++  spawn-all-files
@@ -520,9 +549,9 @@
   =.  bindings  old-bindings
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
-  ::  Run nexus on-loads top-down (may modify ball)
+  ::  Run nexus on-loads top-down (may modify ball and sand)
   =/  pre-ball=ball:tarball  ball
-  =.  ball  (run-on-loads / ball)
+  =^  sand  ball  (run-on-loads / sand ball)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
   =/  validated=(each ball:tarball tang)  (validate-ball / ball)
   ?:  ?=(%| -.validated)
@@ -617,7 +646,7 @@
   |=  [here=rail:tarball =dart:nexus]
   ^+  this
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
-  =/  =filt:nexus  (allowed here jump dest)
+  =/  =filt:nexus  (allowed jump here dest)
   ?+    filt  (handle-dart here dart)
       [~ %|]
     ::  Vetoed - send %veto intake back to source
@@ -690,18 +719,14 @@
       (enqu-take dest [&+here wire.dart] ~ %poke rel cage.load.dart)
       ::
         %make
-      ::  Create file/dir at dest (lane can be file or dir based on make type)
-      ?>  ?=(%& -.u.dest-lane)  ::  for now, make always targets a rail
-      =/  dest=rail:tarball  p.u.dest-lane
-      =.  this  (make dest make.load.dart)
+      ::  Create file or directory - destination type must match payload type
+      =.  this  (make u.dest-lane make.load.dart)
       ::  Send %made ack back to source
       (enqu-take here (sys-give /made) ~ %made wire.dart ~)
       ::
         %cull
-      ::  Delete file at dest (must be a file)
-      ?>  ?=(%& -.u.dest-lane)
-      =/  dest=rail:tarball  p.u.dest-lane
-      =.  this  (cull dest)
+      ::  Delete file or directory at dest
+      =.  this  (cull u.dest-lane)
       ::  Send %gone ack back to source
       (enqu-take here (sys-give /gone) ~ %gone wire.dart ~)
       ::
@@ -712,25 +737,21 @@
       (edit-weir here wire.dart dest weir.load.dart)
       ::
         %peek
-      ::  Peek at dest - return ball+sand subtree or single file
-      ?-    kind.load.dart
-          %ball
-        ::  Ball peek targets a directory
-        ?>  ?=(%| -.u.dest-lane)
+      ::  Peek at dest - directory returns ball+sand, file returns cage
+      ?-    -.u.dest-lane
+          %|
         =/  dest=fold:tarball  p.u.dest-lane
         =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
         =/  sub-sand=sand:nexus  (~(dip of sand) dest)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%ball^sub-ball^sub-sand)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-ball)
         ::
-          %file
-        ::  File peek targets a file
-        ?>  ?=(%& -.u.dest-lane)
+          %&
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content=(unit content:tarball)
           (~(get ba:tarball ball) path.dest name.dest)
         ?~  content
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+%file^cage.u.content)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file cage.u.content)
       ==
     ==
     ::
@@ -842,61 +863,84 @@
   (enqu-take here give ~ %poke rel-from cage)
 ::
 ++  make
-  |=  [here=rail:tarball =make:nexus]
+  |=  [dest=lane:tarball =make:nexus]
   ^+  this
-  ?-  -.make
-      %&
+  ?-    -.dest
+      %|
+    ::  Make directory - payload must be [sand ball]
+    ?>  ?=(%& -.make)
+    =/  dest-path=fold:tarball  p.dest
+    =/  new-sand=sand:nexus  sand.p.make
+    =/  new-ball=ball:tarball  ball.p.make
     ::  Assert nothing exists at path
-    =/  here-path=path  (snoc path.here name.here)
-    =/  existing=ball:tarball  (~(dip ba:tarball ball) here-path)
+    =/  existing=ball:tarball  (~(dip ba:tarball ball) dest-path)
     ?:  |(?=(^ fil.existing) !=(~ dir.existing))
       ~|("path is not empty" !!)
-    ::  Put new ball at path
-    =.  ball  (~(pub ba:tarball ball) here-path p.make)
-    ::  Get the subtree we just put (for running on-loads)
-    =/  new-sub=ball:tarball  (~(dip ba:tarball ball) here-path)
-    ::  Run on-loads top-down
-    =/  loaded=ball:tarball  (run-on-loads here-path new-sub)
+    ::  Put new sand and ball at path
+    =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
+    ::  Run on-loads top-down (may modify sand and ball)
+    =^  new-sand  new-ball  (run-on-loads dest-path new-sand new-ball)
     ::  Validate all cages in loaded ball
-    =/  validated=(each ball:tarball tang)  (validate-ball here-path loaded)
+    =/  validated=(each ball:tarball tang)  (validate-ball dest-path new-ball)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  sync-metadata: set mtime for all new files
     =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball p.validated now.bowl)
-    ::  Put the synced subtree back
-    =.  ball  (~(pub ba:tarball ball) here-path synced)
+    ::  Put the final sand and ball back
+    =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  ball  (~(pub ba:tarball ball) dest-path synced)
     ::  Spawn all file processes
-    (spawn-all-files here-path synced)
+    (spawn-all-files dest-path synced)
     ::
-      %|
+      %&
+    ::  Make file - payload must be cage
+    ?>  ?=(%| -.make)
+    =/  dest-rail=rail:tarball  p.dest
     ::  Assert file doesn't already exist
     =/  existing-file=(unit content:tarball)
-      (~(get ba:tarball ball) path.here name.here)
+      (~(get ba:tarball ball) path.dest-rail name.dest-rail)
     ?^  existing-file
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (runtime, no force)
     =/  validated=(each cage tang)
-      (validate-cage path.here name.here p.make %.n)
+      (validate-cage path.dest-rail name.dest-rail p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Store validated cage
-    =.  ball  (~(put ba:tarball ball) here [~ p.validated])
+    =.  ball  (~(put ba:tarball ball) dest-rail [~ p.validated])
     ::  Spawn the process and start it with ~ input
-    =.  this  (spawn-proc here [%make ~])
-    (enqu-take here (sys-give /make) ~)
+    =.  this  (spawn-proc dest-rail [%make ~])
+    (enqu-take dest-rail (sys-give /make) ~)
   ==
 ::
 ++  cull
-  |=  here=rail:tarball
+  |=  dest=lane:tarball
   ^+  this
-  =/  here-path=path  (snoc path.here name.here)
-  ::  Nack all queued pokes in subtree
-  =.  this  (nack-pool here-path (~(dip of pool) here-path) ~[leaf+"culled"])
-  ::  Clean subscriptions for subtree
-  =.  this  (clean here-path %tree)
-  ::  Remove from pool and ball (NOT born - it's a high-water mark)
-  =.  pool  (~(lop of pool) here-path)
-  this(ball (~(lop ba:tarball ball) here-path))
+  ?-    -.dest
+      %|
+    ::  Cull directory - delete entire subtree
+    =/  dest-path=fold:tarball  p.dest
+    ::  Nack all queued pokes in subtree
+    =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
+    ::  Clean subscriptions for subtree
+    =.  this  (clean dest-path %tree)
+    ::  Remove from pool and ball (NOT born - it's a high-water mark)
+    =.  pool  (~(lop of pool) dest-path)
+    this(ball (~(lop ba:tarball ball) dest-path))
+    ::
+      %&
+    ::  Cull file - delete single file
+    =/  dest-rail=rail:tarball  p.dest
+    =/  dest-path=path  (rail-to-path:tarball dest-rail)
+    ::  Nack queued pokes for this file
+    =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
+    ::  Clean subscriptions for this file only
+    =.  this  (clean dest-path %file)
+    ::  Remove from pool and ball
+    =.  pool  (~(lop of pool) dest-path)
+    this(ball (~(lop ba:tarball ball) dest-path))
+  ==
 ::
 ++  set-weir
   |=  [dest=path weir=(unit weir:nexus)]
@@ -938,33 +982,53 @@
   [now our eny filtered-wex filtered-sup here]:[bowl .]
 ::  Sandboxing / weir filtering
 ::
-::  System destination (~): walk up through ALL weirs to root
-::  File destination ([~ path]): walk up to common ancestor only
-::  Downward movement is always free.
+::  The "governor" is the nearest directory strictly ABOVE both source
+::  and destination - the neutral authority that rules over both.
+::  We walk up from here TO the governor, checking weirs at each step,
+::  but don't check the governor's weir (we reach it, not pass through).
+::  Downward movement from the governor to dest is always free.
+::
+::  For syscalls (dest=~), there is no governor - walk all the way up.
+::
+++  nearest-governor
+  |=  [here=rail:tarball dest=(unit lane:tarball)]
+  ^-  (unit fold:tarball)
+  ?~  dest  ~  :: syscall - no governor
+  ?-    -.u.dest
+      ::  File destination: governor is just the common prefix.
+      %&
+    [~ (prefix:tarball path.here path.p.u.dest)]
+      ::  Directory destination: governor must be strictly above both.
+      ::
+      %|
+    =/  pref=fold:tarball  (prefix:tarball path.here p.u.dest)
+    ?:  &(!=(pref path.here) !=(pref p.u.dest))
+      [~ pref]
+    ?~  pref
+      [~ ~]
+    [~ (snip `fold:tarball`pref)]
+  ==
 ::
 ++  allowed
-  |=  [here=rail:tarball =jump:nexus dest=(unit lane:tarball)]
+  |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
   ^-  filt:nexus
-  ?~  dest
-    ::  System: walk all the way up to root
-    =|  =filt:nexus
-    |-
-    =/  next=filt:nexus
-      (next-filt:nexus filt (filter:nexus / jump path.here (~(get of sand) path.here)))
-    ?:  ?=([~ %|] next)  next
-    ?~  path.here  next
-    $(filt next, path.here (snip `fold:tarball`path.here))
-  ::  Destination: walk up to common ancestor
-  =/  dest-dir=fold:tarball  ?-(-.u.dest %& path.p.u.dest, %| p.u.dest)
-  =/  pref=path  (prefix:tarball path.here dest-dir)
-  =/  steps=@ud  (sub (lent path.here) (lent pref))
+  =/  gov=(unit fold:tarball)  (nearest-governor here dest)
+  ::  For syscalls, use root as dummy dest (syscalls get blocked by any weir anyway)
+  =/  dest-lane=lane:tarball  (fall dest [%| /])
   =|  =filt:nexus
   |-
-  ?:  =(0 steps)  filt
+  ::  Reached governor - stop (don't check its weir)
+  ?:  &(?=(^ gov) =(path.here u.gov))
+    filt
+  ::  Check weir at current location
   =/  next=filt:nexus
-    (next-filt:nexus filt (filter:nexus dest-dir jump path.here (~(get of sand) path.here)))
-  ?:  ?=([~ %|] next)  next
-  $(filt next, path.here (snip `fold:tarball`path.here), steps (dec steps))
+    (next-filt:nexus filt (filter:nexus jump path.here dest-lane (~(get of sand) path.here)))
+  ?:  ?=([~ %|] next)
+    [~ |]
+  ::  Reached root - stop (handles syscalls which have no governor)
+  ?~  path.here
+    next
+  $(filt next, path.here (snip `fold:tarball`path.here))
 ::
 ++  get-born
   |=  here=rail:tarball
