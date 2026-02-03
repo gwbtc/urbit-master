@@ -321,6 +321,25 @@
       [%done ~]
     [%fail %sand-failed u.err.u.in]
   ==
+::
+++  node-load
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %load ~)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %load * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %load-failed u.err.u.in]
+  ==
 ::  Scry helper
 ::
 ++  do-scry

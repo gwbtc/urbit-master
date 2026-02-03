@@ -95,6 +95,14 @@
       =^  cards  state
         abet:(set-weir:hc [p.dest.action weir.action])
       [cards this]
+      ::
+        %load
+      ?>  =(src our):bowl
+      ::  Load destination must be a directory
+      ?>  ?=(%| -.dest.action)
+      =^  cards  state
+        abet:(reload-nexus:hc p.dest.action)
+      [cards this]
     ==
     ::  Eyre binding: bind URL path to file path
     ::
@@ -510,6 +518,29 @@
   =.  sub-sand  (put-sub-sand sub-sand /[kid-name] new-kid-sand)
   =.  dir.sub-ball  (~(put by dir.sub-ball) kid-name new-kid-ball)
   $(kids t.kids)
+::  Reload a single nexus at dest (re-run on-load)
+::
+++  reload-nexus
+  |=  dest=fold:tarball
+  ^+  this
+  ::  Get the nexus for this directory
+  =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
+  =/  nex=(unit nexus:nexus)
+    ?~  fil.sub-ball  ~
+    ?~  neck.u.fil.sub-ball  ~
+    (~(get by nexi) u.neck.u.fil.sub-ball)
+  ?~  nex
+    ~|("no nexus at destination" !!)
+  ::  Get current sand subtree (preserve parent weir)
+  =/  sub-sand=sand:nexus  (~(dip of sand) dest)
+  =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  ::  Run on-load
+  =/  res=[sand:nexus ball:tarball]  (on-load:u.nex sub-sand sub-ball)
+  =/  new-sand=sand:nexus  -.res(fil parent-weir)
+  =/  new-ball=ball:tarball  +.res
+  ::  Put results back
+  =.  sand  (put-sub-sand sand dest new-sand)
+  this(ball (~(pub ba:tarball ball) dest new-ball))
 ::  Spawn processes for all files in ball
 ::
 ++  spawn-all-files
@@ -676,9 +707,9 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      %peek                 %peek
-      %poke                 %poke
-      ?(%make %cull %sand)  %make  :: all modify tree structure
+      %peek                       %peek
+      %poke                       %poke
+      ?(%make %cull %sand %load)  %make  :: all modify tree structure
     ==
   ==
 ::
@@ -720,21 +751,39 @@
       ::
         %make
       ::  Create file or directory - destination type must match payload type
-      =.  this  (make u.dest-lane make.load.dart)
-      ::  Send %made ack back to source
-      (enqu-take here (sys-give /made) ~ %made wire.dart ~)
+      =/  res=(each _this tang)  (mule |.((make u.dest-lane make.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
+        %|  (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
+      ==
       ::
         %cull
       ::  Delete file or directory at dest
-      =.  this  (cull u.dest-lane)
-      ::  Send %gone ack back to source
-      (enqu-take here (sys-give /gone) ~ %gone wire.dart ~)
+      =/  res=(each _this tang)  (mule |.((cull u.dest-lane)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /gone) ~ %gone wire.dart ~)
+        %|  (enqu-take here (sys-give /gone) ~ %gone wire.dart `p.res)
+      ==
       ::
         %sand
       ::  Set weir at dest (must be a directory)
       ?>  ?=(%| -.u.dest-lane)
       =/  dest=fold:tarball  p.u.dest-lane
-      (edit-weir here wire.dart dest weir.load.dart)
+      =/  res=(each _this tang)  (mule |.((set-weir dest weir.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /sand) ~ %sand wire.dart ~)
+        %|  (enqu-take here (sys-give /sand) ~ %sand wire.dart `p.res)
+      ==
+      ::
+        %load
+      ::  Reload nexus at dest (must be a directory with a nexus)
+      ?>  ?=(%| -.u.dest-lane)
+      =/  dest=fold:tarball  p.u.dest-lane
+      =/  res=(each _this tang)  (mule |.((reload-nexus dest)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /load) ~ %load wire.dart ~)
+        %|  (enqu-take here (sys-give /load) ~ %load wire.dart `p.res)
+      ==
       ::
         %peek
       ::  Peek at dest - directory returns ball+sand, file returns cage
@@ -947,13 +996,6 @@
   ^+  this
   ?>  ?=(^ dest)  :: root should always have system access
   this(sand ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir)))
-::
-++  edit-weir
-  |=  [src=rail:tarball =wire dest=fold:tarball weir=(unit weir:nexus)]
-  ^+  this
-  =.  this  (set-weir dest weir)
-  ::  Send ack back to source
-  (enqu-take src (sys-give /sand) ~ %sand wire ~)
 ::
 ++  make-bowl
   |=  here=rail:tarball

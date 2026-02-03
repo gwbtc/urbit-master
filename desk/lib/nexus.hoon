@@ -59,7 +59,7 @@
       [%make =make]
       [%cull ~]
       [%sand weir=(unit weir)]
-      :: [%load ~] :: TODO; trigger a reload of the ball (folds only)
+      [%load ~]  :: trigger on-load for a nexus (folds only)
       [%peek ~]
   ==
 ::
@@ -96,6 +96,7 @@
         [%gone =wire err=(unit tang)] :: response to cull
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
+        [%load =wire err=(unit tang)] :: response to load
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
@@ -305,6 +306,7 @@
       $%  [%make =make]
           [%cull ~]
           [%sand weir=(unit weir)]
+          [%load ~]
           [%poke =cage]
       ==
   ==
