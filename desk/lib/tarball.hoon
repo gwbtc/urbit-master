@@ -780,6 +780,8 @@
     |=  =fold
     ^-  (unit ball)
     |-
+    ?~  fil.b
+      ~  :: no lump -> not a real directory
     ?~  fold
       [~ b]
     ?~  kid=(~(get by dir.b) i.fold)

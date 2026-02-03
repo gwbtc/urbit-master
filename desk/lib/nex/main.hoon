@@ -17,6 +17,14 @@
     =.  ball  (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
     ::  Create /server directory with neck=%server
     =.  ball  (~(put of ball) /server [~ `%server ~])
+    ::  Create /public directory - entry point for external pokes
+    ::  Blocking weir [~ ~ ~] until explicitly configured
+    =.  ball  (~(put of ball) /public [~ ~ ~])
+    =.  sand  (~(put of sand) /public [~ ~ ~])
+    ::  Create /peers directory - entry point for per-ship external pokes
+    ::  Blocking weir [~ ~ ~] until explicitly configured
+    =.  ball  (~(put of ball) /peers [~ ~ ~])
+    =.  sand  (~(put of sand) /peers [~ ~ ~])
     [sand ball]
   ::
   ++  on-file

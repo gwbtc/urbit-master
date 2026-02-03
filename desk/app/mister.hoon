@@ -68,9 +68,16 @@
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
-      ::  Anyone can poke; process handles gatekeeping
       ::  Poke destination must be a file
       ?>  ?=(%& -.dest.action)
+      ::  External pokes can only enter at /public/* or /peers/~src/*
+      ::  This gates WHERE external ships "exist" in the tree
+      ?>  ?|  =(src our):bowl
+              ?=([%public ^] path.p.dest.action)
+              ?&  ?=([%peers @ ^] path.p.dest.action)
+                  =(i.t.path.p.dest.action (scot %p src.bowl))
+              ==
+          ==
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
         abet:(poke:hc give [p.dest.action cage.action])
@@ -787,12 +794,15 @@
       ::
         %peek
       ::  Peek at dest - directory returns ball+sand, file returns cage
+      ::  Returns %none if directory doesn't exist or has no lump
       ?-    -.u.dest-lane
           %|
         =/  dest=fold:tarball  p.u.dest-lane
-        =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
+        =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) dest)
+        ?~  sub-ball
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  sub-sand=sand:nexus  (~(dip of sand) dest)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-ball)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand u.sub-ball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
