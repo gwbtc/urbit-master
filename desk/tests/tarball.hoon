@@ -2220,4 +2220,126 @@
     !>  ~
   !>  (decap:tarball /a/b/c /a/b)
 ::
+::  +validate-names tests
+::
+++  test-validate-names-empty-ball
+  ::  Empty ball is valid
+  %-  expect
+  !>  ~(validate-names ba:tarball *ball:tarball)
+::
+++  test-validate-names-files-only
+  ::  Ball with only files is valid
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =.  b  (~(put ba:tarball b) [/ %foo] c)
+  =.  b  (~(put ba:tarball b) [/ %bar] c)
+  %-  expect
+  !>  ~(validate-names ba:tarball b)
+::
+++  test-validate-names-dirs-only
+  ::  Ball with only directories is valid
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =.  b  (~(put ba:tarball b) [/foo %test] c)
+  =.  b  (~(put ba:tarball b) [/bar %test] c)
+  %-  expect
+  !>  ~(validate-names ba:tarball b)
+::
+++  test-validate-names-no-collision
+  ::  Ball with files and dirs, no name collision
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =.  b  (~(put ba:tarball b) [/ %file1] c)
+  =.  b  (~(put ba:tarball b) [/dir1 %nested] c)
+  %-  expect
+  !>  ~(validate-names ba:tarball b)
+::
+++  test-validate-names-nested-no-collision
+  ::  Deeply nested structure with no collisions
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  =.  b  (~(put ba:tarball b) [/a/b/c %file] c)
+  =.  b  (~(put ba:tarball b) [/a/b %other] c)
+  =.  b  (~(put ba:tarball b) [/a %root] c)
+  %-  expect
+  !>  ~(validate-names ba:tarball b)
+::
+++  test-put-file-collides-with-dir
+  ::  Putting a file with same name as existing dir should crash
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  First create a directory named 'foo' by putting a file inside it
+  =.  b  (~(put ba:tarball b) [/foo %nested] c)
+  ::  Now try to put a file named 'foo' at root - should crash
+  %-  expect-fail
+  |.((~(put ba:tarball b) [/ %foo] c))
+::
+++  test-put-creates-dir-collides-with-file
+  ::  Creating dir path that collides with existing file should crash
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  First create a file named 'foo' at root
+  =.  b  (~(put ba:tarball b) [/ %foo] c)
+  ::  Now try to create /foo/bar - 'foo' would need to be a dir, should crash
+  %-  expect-fail
+  |.((~(put ba:tarball b) [/foo %bar] c))
+::
+++  test-mkd-collides-with-file
+  ::  Creating directory with same name as existing file should crash
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  First create a file named 'foo' at root
+  =.  b  (~(put ba:tarball b) [/ %foo] c)
+  ::  Now try to mkdir /foo - should crash
+  %-  expect-fail
+  |.((~(mkd ba:tarball b) [/foo ~ ~]))
+::
+++  test-nested-put-collision
+  ::  Collision deeper in the tree
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  Create /a/b/foo as a directory
+  =.  b  (~(put ba:tarball b) [/a/b/foo %nested] c)
+  ::  Try to create /a/b/foo as a file - should crash
+  %-  expect-fail
+  |.((~(put ba:tarball b) [/a/b %foo] c))
+::
+++  test-valid-sibling-names
+  ::  File and dir can have same name at different levels
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  'foo' as file at root
+  =.  b  (~(put ba:tarball b) [/ %foo] c)
+  ::  'foo' as directory under /bar (different parent)
+  =.  b  (~(put ba:tarball b) [/bar/foo %nested] c)
+  %-  expect
+  !>  ~(validate-names ba:tarball b)
+::
+++  test-pub-rejects-invalid-subtree
+  ::  pub should reject a subtree with internal name collisions
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  Manually construct a bad ball with 'foo' as both file and dir
+  ::  (bypassing put which would crash)
+  =/  bad-ball=ball:tarball
+    :_  (my [%foo *ball:tarball] ~)  :: dir has 'foo'
+    `[~ ~ (my [%foo c] ~)]           :: fil.contents has 'foo'
+  ::  pub should crash when given this bad ball
+  %-  expect-fail
+  |.((~(pub ba:tarball b) / bad-ball))
+::
+++  test-pub-rejects-nested-invalid-subtree
+  ::  pub should reject subtree with collision deep in tree
+  =/  b=ball:tarball  *ball:tarball
+  =/  c=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
+  ::  Create a valid outer ball with an invalid nested ball
+  =/  bad-nested=ball:tarball
+    :_  (my [%bar *ball:tarball] ~)  :: dir has 'bar'
+    `[~ ~ (my [%bar c] ~)]           :: fil.contents has 'bar'
+  =/  bad-ball=ball:tarball
+    :_  (my [%child bad-nested] ~)   :: nest bad ball under /child
+    `[~ ~ ~]                         :: root is valid
+  %-  expect-fail
+  |.((~(pub ba:tarball b) / bad-ball))
+::
 --

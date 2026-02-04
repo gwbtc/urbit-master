@@ -549,13 +549,22 @@
     (~(get by contents.u.nod) name.rail)
   ::  Put a content item at rail (directory path + filename).
   ::  Ensures all directories along the path have lumps.
+  ::  Crashes if name collides with existing directory.
   ::
   ++  put
     |=  [=rail c=content]
     ^-  ball
     ?~  path.rail
+      ::  at target dir: file name must not collide with subdir name
+      ~|  [%name-collision %file-vs-dir name.rail]
+      ?<  (~(has by dir.b) name.rail)
       =/  lmp=lump  (fall fil.b [~ ~ ~])
       b(fil `lmp(contents (~(put by contents.lmp) name.rail c)))
+    ::  creating subdir: name must not collide with file name
+    ~|  [%name-collision %dir-vs-file i.path.rail]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.path.rail)
+        ==
     =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
@@ -755,16 +764,29 @@
     ^-  ball
     ?~  pax
       b(fil `[met nec ~])
+    ::  creating subdir: name must not collide with file name
+    ~|  [%name-collision %dir-vs-file i.pax]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.pax)
+        ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
     b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax met nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
+  ::  Crashes if path collides with existing file.
   ::
   ++  pub
     |=  [pax=path sub=ball]
     ^-  ball
-    ?~  pax  sub
+    ?~  pax
+      ?>  ~(validate-names ba sub)
+      sub
+    ::  creating subdir: name must not collide with file name
+    ~|  [%name-collision %dir-vs-file i.pax]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.pax)
+        ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
     b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
@@ -780,13 +802,25 @@
     |=  =fold
     ^-  (unit ball)
     |-
-    ?~  fil.b
-      ~  :: no lump -> not a real directory
     ?~  fold
       [~ b]
     ?~  kid=(~(get by dir.b) i.fold)
       ~
     $(b u.kid, fold t.fold)
+  ::  Validate name uniqueness: no file and directory share a name
+  ::  Walks entire ball, crashes on first collision found
+  ::
+  ++  validate-names
+    ^-  ?
+    |-
+    =/  files=(set @ta)  ?~(fil.b ~ ~(key by contents.u.fil.b))
+    =/  dirs=(set @ta)  ~(key by dir.b)
+    ?^  (~(int in files) dirs)  %.n
+    =/  kids=(list ball)  ~(val by dir.b)
+    |-
+    ?~  kids  %.y
+    ?.  ^$(b i.kids)  %.n
+    $(kids t.kids)
   --
 ::  Tarball encoding utilities
 ::

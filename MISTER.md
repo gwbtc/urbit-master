@@ -281,27 +281,27 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] Audit on `set-weir`, `reload`, and `reload-nexus`
 - [x] Subscriptions persist through target deletion (watcher gets `%news` with `[%none ~]`)
 
-## Not Yet Implemented
-
-### Name Uniqueness (Unix Semantics)
+### Name Uniqueness (Unix Semantics) - COMPLETE
 
 Files and directories cannot share a name at the same level. In Unix, `/foo` can't be both a file and a directory.
 
-**Enforcement points in tarball:**
-- [ ] `++put` - creating/updating a file: check no directory exists with same name
-- [ ] Directory creation (implicit via path): check no file exists with same name
-- [ ] `++put` with subtree (`%&` case): recursive check at every level
-- [ ] Rename operations (if we add them): check target name is unique
+**Enforcement in lib/tarball.hoon:**
+- [x] `++put` - crashes if file name collides with existing directory
+- [x] `++put` - crashes if creating directory path that collides with existing file
+- [x] `++pub` - crashes if inserting subtree with internal name collisions
+- [x] `++mkd` - crashes if directory name collides with existing file
+- [x] `++validate-names` - walks entire ball, returns `%.n` on any collision
 
-**Ball validator:**
-- [ ] `++validate-names` - walk entire ball, verify no collisions at any level
-- [ ] Call on load to catch corrupted state
-- [ ] Call on `%make` with subtree before merge
+**Enforcement in app/mister.hoon:**
+- [x] On reload: `?>  ~(validate-names ba:tarball ball)` after `validate-ball`
+- [x] On `%make` subtree: `?>  ~(validate-names ba:tarball validated)` before final pub
 
 **Implementation:**
-- At each `axal` node, the keys in `dir` (subdirectories) and keys in `contents` of `fil` (files) must be disjoint sets
-- `?<((~(has in ~(key by dir.node)) name) ...)` before file insert
-- `?<((~(has in ~(key by contents.fil.node)) name) ...)` before dir insert
+- Set intersection check: `?^  (~(int in files) dirs)  %.n`
+- Recursive walk via `^$(b i.kids)` to check all levels
+- 13 tests covering collision prevention and detection
+
+## Not Yet Implemented
 
 ### Cleanup
 - [ ] Handle outgoing keens

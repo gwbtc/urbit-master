@@ -584,6 +584,8 @@
   =^  sand  ball  (run-on-loads / sand ball)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
   =.  ball  ~|(%validate-ball-reload (validate-ball ball))
+  ::  Validate name uniqueness (no file/dir collisions)
+  ?>  ~(validate-names ba:tarball ball)
   ::  Sync metadata: preserve old mtime where unchanged, update where changed
   =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
   ::  Re-check all subscriptions against potentially changed weirs
