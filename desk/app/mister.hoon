@@ -289,125 +289,101 @@
   |=  =wire
   ^-  give:nexus
   [|+[our.bowl /gall/mister] wire]
-::  Validate a cage, checking nest or scrying for dais
-::  Returns validated cage or error tang
+::  Validate a vase according to a mark, checking nest or scrying for dais
+::  Pure vase validation given a dais
 ::
-::  NOTE: The returned vase type is always exactly as specific as the
-::  mark demands - no more, no less. This is achieved two ways:
-::    1. Via ++vale: returns a fresh vase with the mark's canonical type
-::    2. Via nest optimization: inherits type from previously validated cage
-::  This prevents type inflation (overly specific runtime types) and type
-::  deflation (vases typed as * when they should be the mark's type).
+::  Assumes old vase was part of a chain of +validate-vase uses where the
+::  original was clammed
+::  Nest optimization: if old vase exists and types nest, reuse old type.
+::  Otherwise run vale to get canonical type from dais.
 ::
-::  force=%.n: use nest optimization if same mark + types nest (for incremental
-::    updates like fiber state changes where we can skip dais scries)
-::  force=%.y: always scry for dais (for bulk validation via validate-ball)
+::  force=%.y skips nest optimization (for reload when types may have changed)
 ::
-++  validate-cage
-  |=  [pax=path name=@ta new-cage=cage force=?]
-  ^-  (each cage tang)
-  ::  Skip validation for %temp mark - ephemeral
-  ?:  =(%temp p.new-cage)
-    &+new-cage
-  ::  Reject empty mime files
-  ?:  ?&  =(%mime p.new-cage)
-          =(0 p.q:!<(mime q.new-cage))
-      ==
-    |+~[leaf+"empty file at {(spud (snoc pax name))}"]
-  ::  Check if there's existing content at this location
-  =/  old=(unit content:tarball)  (~(get ba:tarball ball) pax name)
-  ::  Same-mark update with nesting types: canonicalize without dais
-  ::  Skip this optimization if force=%.y (on-load when type of $type may have changed)
-  ::  Result vase type comes from old cage (already validated to mark's type)
+++  validate-vase
+  |=  [=dais:clay old=(unit vase) new=vase force=?]
+  ^-  (each vase tang)
   ?:  ?&  !force
           ?=(^ old)
-          =(p.cage.u.old p.new-cage)
-          (~(nest ut p.q.cage.u.old) | p.q.new-cage)
+          (~(nest ut p.u.old) | p.new)
       ==
-    &+[p.new-cage p.q.cage.u.old q.q.new-cage]
-  ::  Need dais - scry for it
-  =/  dais-path=path
-    /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.new-cage]
-  =/  dais-result=(each dais:clay tang)
-    (mule |.(.^(dais:clay %cb dais-path)))
-  ?:  ?=(%| -.dais-result)
-    |+[leaf+"no dais for mark {<p.new-cage>}" p.dais-result]
-  ::  Validate using vale - passes noun, returns vase with mark's canonical type
+    &+[p.u.old q.new]
   =/  vale-result=(each vase tang)
-    (mule |.((vale:p.dais-result q.q.new-cage)))
+    (mule |.((vale:dais q.new)))
   ?:  ?=(%| -.vale-result)
-    |+[leaf+"validation failed for {<p.new-cage>}" p.vale-result]
-  &+[p.new-cage p.vale-result]
-::  Validate process state after evaluation
+    |+[leaf+"vale failed" p.vale-result]
+  &+p.vale-result
+::  Validate file content: handles %temp, empty-mime, scries for dais
 ::
-++  validate-state
-  |=  [pax=path name=@ta =mark new-state=vase force=?]
+++  validate-file
+  |=  [=mark old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
-  =/  res=(each cage tang)  (validate-cage pax name [mark new-state] force)
-  ?:  ?=(%| -.res)  res
-  &+q.p.res
+  ::  Skip validation for %temp mark - ephemeral
+  ?:  =(%temp mark)
+    &+new
+  ::  Reject empty mime files
+  ?:  ?&  =(%mime mark)
+          =(0 p.q:!<(mime new))
+      ==
+    |+~[leaf+"empty mime file"]
+  ::  Scry for dais (crashes if mark doesn't exist)
+  =/  =dais:clay
+    .^(dais:clay %cb /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[mark])
+  (validate-vase dais old new force)
 ::  Clam a cage at sandbox boundary
-::  Like validate-cage but always forces (no nest optimization) and
-::  doesn't need path context. Used when data crosses a weir filter.
+::  Used when data crosses a weir filter from untrusted source.
+::  Always forces full validation (no nest optimization).
 ::
 ++  clam-cage
   |=  =cage
   ^-  (each ^cage tang)
-  ::  Reject %temp mark - no dais, can't validate untrusted data
+  ::  Reject %temp mark - can't validate from untrusted source
   ?:  =(%temp p.cage)
     |+~[leaf+"clam: cannot validate %temp mark from untrusted source"]
-  ::  Get dais for the mark
-  =/  dais-path=path
-    /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage]
-  =/  dais-result=(each dais:clay tang)
-    (mule |.(.^(dais:clay %cb dais-path)))
-  ?:  ?=(%| -.dais-result)
-    |+[leaf+"clam: no dais for mark {<p.cage>}" p.dais-result]
-  ::  Validate using vale - returns vase with mark's canonical type
-  =/  vale-result=(each vase tang)
-    (mule |.((vale:p.dais-result q.q.cage)))
-  ?:  ?=(%| -.vale-result)
-    |+[leaf+"clam: validation failed for {<p.cage>}" p.vale-result]
-  &+[p.cage p.vale-result]
-::  Validate all cages in a ball subtree
-::  Returns validated ball or first error
+  =/  result=(each vase tang)
+    (validate-file p.cage ~ q.cage %.y)
+  ?:  ?=(%| -.result)
+    result
+  &+[p.cage p.result]
+::  Validate all cages in a ball subtree, crash on failure
 ::
-::  Always forces full dais validation (no nest optimization). This is correct
-::  because validate-ball is only called when installing a fresh subtree:
-::    - reload: type of $type may have changed, must re-validate
-::    - make subtree: files don't exist in ball yet, optimization wouldn't help
-::  For incremental updates where nest optimization matters, use validate-cage.
+::  Always forces full dais validation (no nest optimization) because
+::  validate-ball is only called when installing a fresh subtree where
+::  the nest optimization wouldn't help anyway.
 ::
 ++  validate-ball
-  |=  [here=fold:tarball sub=ball:tarball]
-  ^-  (each ball:tarball tang)
-  ::  Validate files at this level
-  =/  validated-contents=(each (map @ta content:tarball) tang)
-    ?~  fil.sub  &+~
-    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.sub)
+  |=  =ball:tarball
+  ^-  ball:tarball
+  ::  validate files at this level
+  ::  for each file, run validate-file and crash if it fails
+  ::  rebuild contents map with validated vases
+  ::
+  =/  validated-contents=(map @ta content:tarball)
+    ?~  fil.ball  ~
+    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.ball)
     =|  out=(map @ta content:tarball)
     |-
-    ?~  files  &+out
+    ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
-    =/  res=(each cage tang)  (validate-cage here name cage.content %.y)
-    ?:  ?=(%| -.res)  res
-    $(files t.files, out (~(put by out) name content(cage p.res)))
-  ?:  ?=(%| -.validated-contents)
-    validated-contents
-  ::  Recurse into subdirectories
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
-  =|  validated-dir=(map @ta ball:tarball)
-  |-
-  ?~  kids
-    ::  Build validated ball - update fil contents if fil exists
-    :-  %&
-    :_  validated-dir
-    ?~  fil.sub  ~
-    `u.fil.sub(contents p.validated-contents)
-  =/  [name=@ta kid=ball:tarball]  i.kids
-  =/  res=(each ball:tarball tang)  ^$(here (snoc here name), sub kid)
-  ?:  ?=(%| -.res)  res
-  $(kids t.kids, validated-dir (~(put by validated-dir) name p.res))
+    =/  res=(each vase tang)
+      (validate-file p.cage.content ~ q.cage.content %.y)
+    ?.  ?=(%& -.res)  ~|(p.res !!)
+    $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
+  ::  recurse into subdirectories
+  ::  validate each child ball and rebuild dir map
+  ::
+  =/  validated-dir=(map @ta ball:tarball)
+    =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
+    =|  out=(map @ta ball:tarball)
+    |-
+    ?~  kids  out
+    =/  [name=@ta kid=ball:tarball]  i.kids
+    $(kids t.kids, out (~(put by out) name ^$(ball kid)))
+  ::  build validated ball
+  ::  preserve fil metadata, swap in validated contents
+  ::
+  :_  validated-dir
+  ?~  fil.ball  ~
+  `u.fil.ball(contents validated-contents)
 ::
 ++  store-proc
   |=  [here=rail:tarball =proc:fiber:nexus]
@@ -510,7 +486,7 @@
   ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
   ::  A nexus cannot control its own sandboxing - that would defeat the purpose.
   ::  Sandboxing is always imposed from above. The nexus can only set weirs
-  ::  for its children (in dir.sand), never for itself (in fil.sand).
+  ::  for its children, never for itself.
   ::
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   =/  res=[sand:nexus ball:tarball]
@@ -607,10 +583,7 @@
   ::  Run nexus on-loads top-down (may modify ball and sand)
   =^  sand  ball  (run-on-loads / sand ball)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
-  =/  validated=(each ball:tarball tang)  (validate-ball / ball)
-  ?:  ?=(%| -.validated)
-    ~|("validation failed on reload" (mean p.validated))
-  =.  ball  p.validated
+  =.  ball  ~|(%validate-ball-reload (validate-ball ball))
   ::  Sync metadata: preserve old mtime where unchanged, update where changed
   =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
   ::  Re-check all subscriptions against potentially changed weirs
@@ -1048,7 +1021,7 @@
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
   =/  validated=(each vase tang)
-    (validate-state path.here name.here p.cage.u.file-data new-state %.n)
+    (validate-file p.cage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
     =.  this  (nack-poke-takes here next.new-proc p.validated)
@@ -1105,11 +1078,9 @@
     ::  Run on-loads top-down (may modify sand and ball)
     =^  new-sand  new-ball  (run-on-loads dest-path new-sand new-ball)
     ::  Validate all cages in loaded ball
-    =/  validated=(each ball:tarball tang)  (validate-ball dest-path new-ball)
-    ?:  ?=(%| -.validated)
-      ~|("make failed: validation error" (mean p.validated))
+    =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
     ::  sync-metadata: set mtime for all new files
-    =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball p.validated now.bowl)
+    =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball validated now.bowl)
     ::  Put the final sand and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
     =.  ball  (~(pub ba:tarball ball) dest-path synced)
@@ -1125,15 +1096,15 @@
       (~(get ba:tarball ball) path.dest-rail name.dest-rail)
     ?^  existing-file
       ~|("file already exists at path" !!)
-    ::  Validate the cage before storing (runtime, no force)
-    =/  validated=(each cage tang)
-      (validate-cage path.dest-rail name.dest-rail p.make %.n)
+    ::  Validate the cage before storing (new file, no old content)
+    =/  validated=(each vase tang)
+      (validate-file p.p.make ~ q.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Spawn process (ensures born exists, bumps proc aeon)
     =.  this  (spawn-proc dest-rail [%make ~])
     ::  Save initial state (bumps file aeon since old content is ~)
-    =.  this  (save-file dest-rail [~ p.validated])
+    =.  this  (save-file dest-rail [~ p.p.make p.validated])
     (enqu-take dest-rail (sys-give /make) ~)
   ==
 ::
