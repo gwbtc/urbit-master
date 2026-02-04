@@ -379,208 +379,73 @@ Dual-indexed for fast lookup both ways:
 | Reload | `++reload` | `audit-weir /` |
 | Nexus reload | `++reload-nexus` | `audit-weir dest` |
 
-## Mark Validation Refactoring (COMPLETE)
+## Mark Validation (COMPLETE)
 
-Moving dais/mark validation from lib/tarball.hoon to app/mister.hoon.
+Validation lives in app/mister.hoon, not lib/tarball.hoon. Tarball is a pure data structure; mister is the runtime that can scry for daises.
 
-### Why Move?
-- Tarball should be a pure data structure (just store cages)
-- Mister is the runtime that can scry for daises
-- Mister knows the context (poke vs make, permissions)
-- Validation is runtime policy, not data structure concern
-
-### What Stays in Tarball
-- `conversions=(map mars:clay tube:clay)` - for mime↔cage I/O
-- `mime-to-cage` / `cage-to-mime` - tube conversions for tar format
-- `from-parts` - multipart upload parsing (but without dais validation)
-
-### What Moves to Mister
-- `d=(map mark dais:clay)` - remove from `++ba` door
-- `++das` - remove
-- `++validate-cage` / `++validate-ball` - reimplement in mister with scry
-- `++put` in tarball becomes dumb storage (no validation)
-
-### Validation Logic (from tarball, to replicate)
-```hoon
-1. %temp mark → skip validation entirely (ephemeral)
-2. Same mark + types nest → canonicalize (old type, new value) - no dais
-3. Otherwise → scry for dais, call vale
-```
-
-### Where Validation Happens in Mister
-
-**`++process-do-next`** - after evaluator returns:
-- Validate `new-state` before handling result
-- If validation fails → treat as `%fail`, restart with `[%rise tang]`
-- Applies to `%next`, `%done`, and implicitly `%fail` (no save)
-
-**`++make`** - creating files:
-- `%|` (single file): validate cage before storing
-- `%&` (subtree): validate all cages in ball before storing
-
-**`++run-on-loads`** - nexus modifies ball:
-- Validate all cages in returned ball
-- If validation fails → crash loudly, don't boot
-
-### Error Handling by Context
-- **External input (poke/make)** → nack with validation error
-- **Process state output** → treat as crash, restart with `%rise`
-- **Load-time (nexus)** → crash, don't boot (programmer error)
-
-### Code Already Added to app/mister.hoon
-
-Located after `++sys-give`, before `++store-proc`:
+### Validation Stack
 
 ```hoon
-::  Validate a cage, checking nest or scrying for dais
-::  Returns validated cage or error tang
-::
-++  validate-cage
-  |=  [pax=path name=@ta new-cage=cage]
-  ^-  (each cage tang)
-  ::  Skip validation for %temp mark - ephemeral
-  ?:  =(%temp p.new-cage)
-    &+new-cage
-  ::  Check if there's existing content at this location
-  =/  old=(unit content:tarball)  (~(get ba:tarball ball) pax name)
-  ::  Same-mark update with nesting types: canonicalize without dais
-  ?:  ?&  ?=(^ old)
-          =(p.cage.u.old p.new-cage)
-          (~(nest ut p.q.cage.u.old) | p.q.new-cage)
-      ==
-    &+[p.new-cage p.q.cage.u.old q.q.new-cage]
-  ::  Need dais - scry for it
-  =/  dais-path=path
-    /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.new-cage]
-  =/  dais-result=(each dais:clay tang)
-    (mule |.(.^(dais:clay %cb dais-path)))
-  ?:  ?=(%| -.dais-result)
-    |+[leaf+"no dais for mark {<p.new-cage>}" p.dais-result]
-  ::  Validate using vale
-  =/  vale-result=(each vase tang)
-    (mule |.((vale:p.dais-result q.q.new-cage)))
-  ?:  ?=(%| -.vale-result)
-    |+[leaf+"validation failed for {<p.new-cage>}" p.vale-result]
-  &+[p.new-cage p.vale-result]
-::  Validate process state after evaluation
-::
-++  validate-state
-  |=  [pax=path name=@ta =mark new-state=vase]
+++  validate-vase   :: pure - takes dais, handles nest optimization
+  |=  [=dais:clay old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
-  =/  res=(each cage tang)  (validate-cage pax name [mark new-state])
-  ?:  ?=(%| -.res)  res
-  &+q.p.res
+
+++  validate-file   :: impure - scries for dais, handles %temp/empty-mime
+  |=  [=mark old=(unit vase) new=vase force=?]
+  ^-  (each vase tang)
+
+++  clam-cage       :: trust boundary - rejects %temp, delegates to validate-file
+  |=  =cage
+  ^-  (each cage tang)
+
+++  validate-ball   :: whole tree - takes ball, returns ball, crashes on failure
+  |=  =ball:tarball
+  ^-  ball:tarball
 ```
 
-### Next: Integrate into ++process-do-next
+### Separation of Concerns
 
-Current code (around line 617-640):
+| Function | Responsibility |
+|----------|----------------|
+| `validate-vase` | Pure: nest check or vale. No scrying, no mark knowledge. |
+| `validate-file` | Impure: scries for dais, handles %temp (allow) and empty-mime (reject). |
+| `clam-cage` | Trust boundary: rejects %temp from untrusted sources, delegates rest. |
+| `validate-ball` | Bulk: validate whole tree, crash on failure (precondition check). |
+
+### Nest Optimization
+
+If `old` vase exists and types nest, reuse old type without scrying for dais:
 ```hoon
-::  Handle result
-?-    -.res
-    %next
-  ::  Update state in ball and proc in pool
-  =.  ball  (~(put ba:tarball ball) dir name [metadata.u.file-data p.cage.u.file-data new-state])
-  (store-proc here new-proc)
-  ::
-    %done
-  ::  Nack any remaining queued pokes...
-  ...
-    %fail
-  ::  Nack queued pokes and restart...
-  ...
-==
+?:  ?&  !force
+        ?=(^ old)
+        (~(nest ut p.u.old) | p.new)
+    ==
+  &+[p.u.old q.new]
 ```
 
-Should become:
-```hoon
-::  Validate new state before handling result
-=/  validated=(each vase tang)
-  (validate-state dir name p.cage.u.file-data new-state)
-?:  ?=(%| -.validated)
-  ::  Validation failed - treat as crash
-  =.  this  (nack-poke-takes next.new-proc p.validated)
-  =.  this  (nack-poke-takes skip.new-proc p.validated)
-  =.  this  (spawn-proc here [%rise p.validated])
-  (enqu-take here (sys-give /rise) ~)
-::  Validation passed - handle result normally
-?-    -.res
-    %next
-  =.  ball  (~(put ba:tarball ball) dir name [metadata.u.file-data p.cage.u.file-data p.validated])
-  (store-proc here new-proc)
-    %done
-  ::  State was valid, now delete
-  =/  err=tang  ~[leaf+"process completed"]
-  =.  this  (nack-poke-takes next.new-proc err)
-  =.  this  (nack-poke-takes skip.new-proc err)
-  =.  this  (clean here %file)
-  (delete here)
-    %fail
-  ::  Process failed - don't save state, restart
-  =.  this  (nack-poke-takes next.new-proc err.res)
-  =.  this  (nack-poke-takes skip.new-proc err.res)
-  =.  this  (spawn-proc here [%rise err.res])
-  (enqu-take here (sys-give /rise) ~)
-==
-```
+### Force Flag
 
-### Next: Integrate into ++make
+- `force=%.n` (runtime): Nest optimization enabled. Type of `$type` hasn't changed.
+- `force=%.y` (load time): Skip nest optimization. Mark files may have changed.
 
-For `%|` (single file) case around line 669-682:
-```hoon
-::  Current:
-=/  ba  (~(das ba:tarball ball) ~)
-=.  ball  (put:ba (snip `path`here) (rear here) [~ p.make])
+### Where Validation Happens
 
-::  Should become:
-=/  validated=(each cage tang)
-  (validate-cage (snip `path`here) (rear here) p.make)
-?:  ?=(%| -.validated)
-  ~|("make failed: validation error" (mean p.validated))
-=.  ball  (~(put ba:tarball ball) (snip `path`here) (rear here) [~ p.validated])
-```
+| Context | Function | Force | On Failure |
+|---------|----------|-------|------------|
+| Process state after eval | `validate-file` | `%.n` | Treat as crash, restart with `%rise` |
+| `%make` single file | `validate-file` | `%.n` | Crash with error |
+| `%make` subtree | `validate-ball` | `%.y` | Crash with error |
+| Reload after on-loads | `validate-ball` | `%.y` | Crash with error |
+| Poke crossing weir | `clam-cage` | `%.y` | Veto with error |
 
-For `%&` (subtree) case - need `++validate-ball` helper to validate all cages in a ball:
-```hoon
-++  validate-ball
-  |=  [here=path sub=ball:tarball]
-  ^-  (each ball:tarball tang)
-  ::  Validate all files in contents at this level
-  ::  Recurse into subdirectories
-  ::  Return validated ball or first error
-  ...
-```
+### Error Handling
 
-### What to Remove from lib/tarball.hoon After
+- Dotket scry (missing mark): crashes - can't catch with mule
+- Vale failure (bad data): returns tang - mule catches hoon-level errors
+- `validate-ball`: crashes on any failure (precondition, not graceful)
+- `clam-cage`: returns error tang (trust boundary, graceful rejection)
 
-1. Remove `d=(map mark dais:clay)` from `++ba` door (line ~460)
-2. Remove `++das` arm (lines ~465-468)
-3. Remove `++validate-cage` arm (lines ~495-519)
-4. Remove `++validate-ball` arm (lines ~666-678)
-5. Simplify `++put` to just store without validation (lines ~480-494)
-6. Update `from-parts` to not take dais-map parameter
-
-### Implementation Status
-- [x] Added `++validate-cage` helper (scries for dais)
-- [x] Added `++validate-state` helper (for process state)
-- [x] Add `++validate-ball` helper for subtree validation
-- [x] Added `force=?` flag to skip nest optimization on load
-- [x] Integrate into `++process-do-next` (force=%.n, runtime)
-- [x] Integrate into `++make` (`%|` case, force=%.n)
-- [x] Integrate into `++make` (`%&` case, force=%.n)
-- [x] Single force-validation pass in `++reload` after on-loads complete
-- [x] Clear `%temp` cages on reload
-- [x] Reject empty mime files
-- [x] Remove dais logic from lib/tarball.hoon
-- [x] Update `from-parts` signature
-- [x] Update callers (routes/ball, sailboxio, tools)
-- [ ] Test
-
-### Force Flag Rationale
-- **Runtime** (`force=%.n`): The type of `$type` for each mark hasn't changed since agent loaded. Nest optimization is safe - if same mark and types nest, canonicalize without dais.
-- **Load time** (`force=%.y`): Mark `.hoon` files may have been updated, so the type of `$type` may have changed. Must re-clam everything through current dais to pick up new type definitions.
-
-### Future Work
+## Future Work
 - [ ] Sailbox integration - incorporate SSE and HTTP logic from sailbox
 
   Now that `%keep` is implemented, Sailbox's `++make-sse-event` can be wired to
