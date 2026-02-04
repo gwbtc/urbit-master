@@ -18,6 +18,7 @@
       =sand:nexus
       =born:nexus
       =bindings:nexus
+      =subs:nexus
   ==
 --
 ::
@@ -38,7 +39,7 @@
   ::  Create empty ball with %root nexus at root
   =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
-    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *bindings:nexus)
+    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *bindings:nexus *subs:nexus)
   [cards this]
 ::
 ++  on-save
@@ -57,7 +58,7 @@
       =/  lmp=lump:tarball  (fall fil.ball.old [~ ~ ~])
       ball.old(fil `lmp(neck `%root))
     =^  cards  state
-      abet:(reload:hc pool.old new-ball sand.old born.old bindings.old)
+      abet:(reload:hc pool.old new-ball sand.old born.old bindings.old subs.old)
     [cards this]
   ==
 ::
@@ -420,6 +421,8 @@
   ^+  this
   ::  Bump file aeon (content going from something to nothing)
   =.  this  (bump-file [dir name])
+  ::  Clean up outgoing subscriptions from this file
+  =.  this  (sub-wipe [dir name])
   =.  ball  (~(del ba:tarball ball) dir name)
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   this(pool (~(put of pool) dir pipe))
@@ -550,7 +553,9 @@
   =/  new-ball=ball:tarball  +.res
   ::  Put results back
   =.  sand  (put-sub-sand sand dest new-sand)
-  this(ball (~(pub ba:tarball ball) dest new-ball))
+  =.  ball  (~(pub ba:tarball ball) dest new-ball)
+  ::  Re-check subscriptions against potentially changed weirs in subtree
+  (audit-weir dest)
 ::  Spawn processes for files in new ball, bump if content changed from old
 ::
 ++  spawn-new-files
@@ -584,6 +589,7 @@
           old-sand=sand:nexus
           old-born=born:nexus
           old-bindings=bindings:nexus
+          old-subs=subs:nexus
       ==
   ^+  this
   ::  Nack pokes in old proc queues
@@ -593,6 +599,7 @@
   =.  sand  old-sand
   =.  born  old-born
   =.  bindings  old-bindings
+  =.  subs  old-subs
   ::  Capture ball before modifications (for change detection)
   =/  pre-ball=ball:tarball  ball
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
@@ -606,6 +613,8 @@
   =.  ball  p.validated
   ::  Sync metadata: preserve old mtime where unchanged, update where changed
   =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
+  ::  Re-check all subscriptions against potentially changed weirs
+  =.  this  (audit-weir /)
   ::  Spawn processes and sync all changes
   (load-ball-changes / pre-ball ball)
 :: TODO: handle outgoing keens
@@ -646,6 +655,142 @@
       ==
     ~
   [~ %give %kick ~[pat] ~]
+::  =subs: Subscription management
+::
+::  Add subscription: watcher subscribes to target with wire
+::
+++  sub-put
+  |=  [target=lane:tarball watcher=rail:tarball =wire]
+  ^+  this
+  ::  Add to forward index: target → (watcher → wire)
+  =/  watchers=(map rail:tarball ^wire)
+    (fall (~(get by fwd.subs) target) ~)
+  =.  fwd.subs  (~(put by fwd.subs) target (~(put by watchers) watcher wire))
+  ::  Add to reverse index: watcher → targets
+  =.  rev.subs  (~(put ju rev.subs) watcher target)
+  this
+::  Remove subscription: watcher unsubscribes from target
+::
+++  sub-del
+  |=  [target=lane:tarball watcher=rail:tarball]
+  ^+  this
+  ::  Remove from forward index
+  =/  watchers=(map rail:tarball wire)
+    (fall (~(get by fwd.subs) target) ~)
+  =.  watchers  (~(del by watchers) watcher)
+  =.  fwd.subs  ?~(watchers (~(del by fwd.subs) target) (~(put by fwd.subs) target watchers))
+  ::  Remove from reverse index
+  =.  rev.subs  (~(del ju rev.subs) watcher target)
+  this
+::  Remove all subscriptions from a watcher (for cleanup on death)
+::
+++  sub-wipe
+  |=  watcher=rail:tarball
+  ^+  this
+  =/  targets=(set lane:tarball)  (~(get ju rev.subs) watcher)
+  =.  this
+    %-  ~(rep in targets)
+    |=  [target=lane:tarball acc=_this]
+    (sub-del:acc target watcher)
+  this
+::  Send %news to all subscribers watching changed lanes
+::
+++  notify
+  |=  changed=(set lane:tarball)
+  ^+  this
+  ?:  =(~ changed)  this
+  ::  For each watched lane, find subscribers and send news
+  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball wire)])
+    ~(tap by fwd.subs)
+  |-
+  ?~  watched  this
+  =/  [target=lane:tarball watchers=(map rail:tarball wire)]  i.watched
+  ::  Find all changed lanes that are inside this target (or equal to target)
+  =/  relevant=(set lane:tarball)
+    %-  ~(gas in *(set lane:tarball))
+    %+  murn  ~(tap in changed)
+    |=  chg=lane:tarball
+    ^-  (unit lane:tarball)
+    ?-    -.target
+        ::  File target: only exact match counts
+        %&
+      ?.  &(?=(%& -.chg) =(p.chg p.target))  ~
+      `chg
+        ::  Dir target: changed lane must be under target dir
+        %|
+      ?-  -.chg
+        ::  Changed file: file's dir must be under target dir
+        %&  ?~((decap:tarball p.target path.p.chg) ~ `chg)
+        ::  Changed dir: must be under or equal to target dir
+        %|  ?~((decap:tarball p.target p.chg) ~ `chg)
+      ==
+    ==
+  ::  Skip if nothing relevant changed
+  ?:  =(~ relevant)  $(watched t.watched)
+  ::  Build relative what set (strip target prefix from relevant lanes)
+  =/  what=(set lane:tarball)
+    ?-    -.target
+        ::  File target: what is always empty (nothing inside a file)
+        %&  ~
+        ::  Dir target: relativize each relevant lane
+        %|
+      %-  ~(gas in *(set lane:tarball))
+      %+  turn  ~(tap in relevant)
+      |=  chg=lane:tarball
+      ^-  lane:tarball
+      ?-  -.chg
+        %&  &+[(need (decap:tarball p.target path.p.chg)) name.p.chg]
+        %|  |+(need (decap:tarball p.target p.chg))
+      ==
+    ==
+  ::  Get current view of target
+  =/  =view:nexus
+    ?-    -.target
+        %&
+      =/  content=(unit content:tarball)
+        (~(get ba:tarball ball) path.p.target name.p.target)
+      ?~  content  [%none ~]
+      [%file cage.u.content]
+        %|
+      =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
+      ?~  sub-ball  [%none ~]
+      [%ball (~(dip of sand) p.target) u.sub-ball]
+    ==
+  ::  Send to each watcher
+  =.  this
+    %-  ~(rep by watchers)
+    |=  [[watcher=rail:tarball =wire] acc=_this]
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire what view)
+  $(watched t.watched)
+::  Fell a single subscription: remove from indices, send %fell to watcher
+::
+++  fell-sub
+  |=  [target=lane:tarball watcher=rail:tarball]
+  ^+  this
+  =/  =wire  (~(got by (~(got by fwd.subs) target)) watcher)
+  =.  this  (sub-del target watcher)
+  (enqu-take watcher (sys-give /fell) ~ %fell wire)
+::  Re-check subscriptions after weir change: fell any that are now blocked
+::
+++  audit-weir
+  |=  base=path
+  ^+  this
+  ::  Find watchers whose path is under (or equal to) the changed weir
+  =/  affected=(list rail:tarball)
+    %+  murn  ~(tap in ~(key by rev.subs))
+    |=  watcher=rail:tarball
+    ?~((decap:tarball base path.watcher) ~ `watcher)
+  |-
+  ?~  affected  this
+  =/  watcher=rail:tarball  i.affected
+  =/  targets=(list lane:tarball)  ~(tap in (~(get ju rev.subs) watcher))
+  =.  this
+    |-
+    ?~  targets  this
+    =/  =filt:nexus  (allowed %peek watcher `i.targets)
+    =?  this  ?=([~ %|] filt)  (fell-sub i.targets watcher)
+    $(targets t.targets)
+  $(affected t.affected)
 ::
 ++  process-darts
   |=  [here=rail:tarball darts=(list dart:nexus)]
@@ -823,13 +968,13 @@
       ==
       ::
         %keep
-      ::  TODO: Subscribe to changes at dest
-      ~&  [%keep-stub here u.dest-lane wire.dart]
-      (enqu-take here (sys-give /bond) ~ %bond wire.dart `~[leaf+"subscriptions not implemented"])
+      ::  Subscribe to changes at dest (uses peek permission)
+      =.  this  (sub-put u.dest-lane here wire.dart)
+      (enqu-take here (sys-give /bond) ~ %bond wire.dart ~)
       ::
         %drop
-      ::  TODO: Unsubscribe from dest
-      ~&  [%drop-stub here u.dest-lane wire.dart]
+      ::  Unsubscribe from dest
+      =.  this  (sub-del u.dest-lane here)
       (enqu-take here (sys-give /fell) ~ %fell wire.dart)
     ==
     ::
@@ -1004,7 +1149,7 @@
     =.  this  (cull-ball-changes dest-path sub)
     ::  Nack all queued pokes in subtree
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
-    ::  Clean subscriptions for subtree
+    ::  Clean gall subscriptions for subtree
     =.  this  (clean dest-path %tree)
     ::  Remove from pool and ball (NOT born - it's a high-water mark)
     =.  pool  (~(lop of pool) dest-path)
@@ -1026,7 +1171,9 @@
   |=  [dest=path weir=(unit weir:nexus)]
   ^+  this
   ?>  ?=(^ dest)  :: root should always have system access
-  this(sand ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir)))
+  =.  sand  ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir))
+  ::  Re-check subscriptions from watchers under this weir
+  (audit-weir dest)
 ::
 ++  make-bowl
   |=  here=rail:tarball
@@ -1132,15 +1279,19 @@
 ++  bump-file
   |=  here=rail:tarball
   ^+  this
-  =/  [new-born=born:nexus *]  (~(bump-file bo:nexus now.bowl [born ball]) here)
-  this(born new-born)
+  =/  [new-born=born:nexus changed=(set lane:tarball)]
+    (~(bump-file bo:nexus now.bowl [born ball]) here)
+  =.  born  new-born
+  (notify changed)
 ::  Diff two balls and bump all changes (new, changed, deleted files and empty dirs).
 ::
 ++  diff-balls
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
-  =/  [new-born=born:nexus *]  (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
-  this(born new-born)
+  =/  [new-born=born:nexus changed=(set lane:tarball)]
+    (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
+  =.  born  new-born
+  (notify changed)
 ::  Spawn processes and sync all changes when a ball is created/reloaded.
 ::  Handles spawning files and bumping all changes (new, changed, deleted files, empty dirs).
 ::

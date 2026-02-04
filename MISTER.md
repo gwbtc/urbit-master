@@ -33,6 +33,8 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
       =pool:nexus
       =sand:nexus
       =born:nexus
+      =bindings:nexus
+      =subs:nexus
   ==
 ```
 
@@ -41,6 +43,8 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
 - `nexi` - compiled nexus definitions: `(map neck nexus)`
 - `sand` - sandboxing filters: `(axal weir)`
 - `born` - version tracking: `(axal [=cass:clay bags=(map @ta sack)])` where `sack = [proc=cass:clay file=cass:clay]`
+- `bindings` - eyre URL bindings: `(map path rail:tarball)`
+- `subs` - internal subscriptions: `[fwd=(map lane (map rail wire)) rev=(jug rail lane)]`
 
 ### Nexus
 ```hoon
@@ -100,6 +104,9 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
       [%pack =wire err=(unit tang)]    :: response to %poke (ack/nack)
       [%sand =wire err=(unit tang)]    :: response to %sand
       [%load =wire err=(unit tang)]    :: response to %load (nexus reload)
+      [%bond =wire err=(unit tang)]    :: subscription established/failed
+      [%fell =wire]                    :: subscription canceled (weir change)
+      [%news =wire what=(set lane) =view]  :: change notification
       [%veto =dart]                    :: dart was sandboxed
       [%scry =wire =vase]              :: scry result
       [%bowl =wire =bowl]              :: bowl result
@@ -129,6 +136,8 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
       [%sand weir=(unit weir)]
       [%load ~]              :: trigger nexus on-load (hot-reload)
       [%peek ~]
+      [%keep ~]              :: subscribe to changes at dest
+      [%drop ~]              :: unsubscribe from dest
   ==
 ```
 
@@ -258,6 +267,20 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] Cancel wex entries when process dies (%done)
 - [x] Kick sup entries when process dies (%done)
 
+### Internal Subscriptions
+- [x] `subs` state with dual indices: `fwd` (target→watchers) and `rev` (watcher→targets)
+- [x] `%keep` dart → `sub-put`, check peek permission, send `%bond`
+- [x] `%drop` dart → `sub-del`, send `%fell`
+- [x] `++notify` - send `%news` to watchers when lanes change
+- [x] `bumped` set from `++bo` wired through `bump-file` and `diff-balls` to `notify`
+- [x] `what` contains relative paths of changed descendants
+- [x] `view` contains current state of watched location
+- [x] `++sub-wipe` - clean up outgoing subscriptions when watcher dies
+- [x] `++fell-sub` - forcibly end subscription + send `%fell`
+- [x] `++audit-weir` - re-check subscriptions after weir change
+- [x] Audit on `set-weir`, `reload`, and `reload-nexus`
+- [x] Subscriptions persist through target deletion (watcher gets `%news` with `[%none ~]`)
+
 ## Not Yet Implemented
 
 ### Name Uniqueness (Unix Semantics)
@@ -288,123 +311,73 @@ Files and directories cannot share a name at the same level. In Unix, `/foo` can
 - [ ] Keen tracking - track outgoing `%keen` per-process, `%yawn` on death/crash
 - [ ] Versioning - may need custom scheme if historical versions need different permissions (coops apply to all versions)
 
-### Internal Subscriptions (%keep)
+### Internal Subscriptions (%keep) - COMPLETE
 
-Process-to-process subscriptions for tree changes.
+Process subscribes to tree locations, receives `%news` when content changes.
 
 #### Types
 
 ```hoon
 :: load (outgoing dart payload)
-[%keep kind=?(%ball %file)]   :: subscribe to changes at dest
-[%drop ~]                      :: unsubscribe from dest
+[%keep ~]   :: subscribe to changes at dest (file or directory)
+[%drop ~]   :: unsubscribe from dest
 
 :: intake (incoming to process)
 [%bond =wire err=(unit tang)]  :: subscription established/failed
-[%fell =wire]                  :: subscription canceled (weir change, deletion, etc)
-[%news =wire what=(set lane:tarball) =view]  :: state notification with changed lanes
-```
-
-The `what` set contains all lanes (files and directories) that changed.
-Subscribers receive the full set of changes in one notification.
-
-The `view` type (already exists):
-```hoon
-+$  view
-  $%  [%ball =ball =sand]
-      [%file =cage]
-      [%none ~]              :: deleted / doesn't exist
-  ==
+[%fell =wire]                  :: subscription canceled (weir change only)
+[%news =wire what=(set lane:tarball) =view]  :: change notification
 ```
 
 #### State
 
-**Subscriptions** - need to track who's subscribed to what:
-- Index by target path (for sending updates when file changes)
-- Index by subscriber path (for cleanup when process dies)
-- Probably need both - a jug or double-indexed structure
-
 ```hoon
-+$  bind  [subscriber=path =wire kind=?(%ball %file) sent=@ud]
-+$  subs  ???  :: TBD - needs efficient lookup both ways
++$  subs
+  $:  fwd=(map lane:tarball (map rail:tarball wire))  :: target → watchers
+      rev=(jug rail:tarball lane:tarball)             :: watcher → targets
+  ==
 ```
 
-The `sent` field tracks the last `file.cass` delivered to this subscriber.
-Only send if `file.cass > sent`, then update `sent := file.cass`.
+Dual-indexed for fast lookup both ways:
+- `fwd`: "who is watching this lane?" - for sending notifications
+- `rev`: "what is this process watching?" - for cleanup on death
 
-**Revisions** - version tracking via `born` (already implemented):
-- `file.cass` in each `sack` serves as the revision counter
-- Bumped on every content change via `++bump-file`
-- Directory `cass` propagates up, enabling subtree subscriptions
-- `bumped=(set lane:tarball)` from `++diff-balls` identifies what changed
+#### Key Semantics
 
-#### Flows
+**Subscriptions are to locations, not contents:**
+- If target is deleted, watcher gets `%news` with `view=[%none ~]`
+- Subscription persists - watcher will see when new content appears
+- Only permission changes (`%fell`) forcibly end subscriptions
 
-**1. Subscribe**
-- Process A sends `[%node =wire =road [%keep kind]]`
-- Check peek permission (reuse existing weir check)
-- Store subscription
-- Send `[%bond wire ~]` on success
-- Send `[%bond wire [~ tang]]` on failure (no permission, etc)
+**Notification flow:**
+1. Content changes → `++bo` tracks in `bumped=(set lane:tarball)`
+2. `bump-file` / `diff-balls` call `++notify` with bumped set
+3. `notify` finds watchers, relativizes paths, sends `%news`
 
-**2. File changes**
-- File at `/foo/bar` changes (via `++process-do-next` saving state, or `++make`)
-- Increment rev for that file
-- Find all `%file` subscribers to `/foo/bar`
-- Find all `%ball` subscribers to ancestors (`/foo`, `/`)
-- For each subscriber, send notification with `sub=<relative-path> rev view`
-- Relative path: `/bar` for subscriber at `/foo`, `/foo/bar` for subscriber at `/`
+**`what` set in `%news`:**
+- For file subscription: always empty (nothing changes "inside" a file)
+- For directory subscription: relative paths of changed descendants
 
-**3. Process completes (%done)**
-- Send notification with final state view (so subscribers see last state)
-- Then send notification with `view=[%none ~]` (so subscribers know it's gone)
-- Delete the file
-- Also cancel any subscriptions TO the deleted path
+#### Management Arms (app/mister.hoon)
 
-**4. File deleted (%cull)**
-- Send notification with `view=[%none ~]`
-- Cancel any subscriptions TO the deleted path
+- `++sub-put` - add subscription (target → watcher)
+- `++sub-del` - remove subscription
+- `++sub-wipe` - remove all outgoing subs from a watcher (on death)
+- `++notify` - send `%news` to watchers when lanes change
+- `++fell-sub` - remove subscription + send `%fell`
+- `++audit-weir` - re-check subs after weir change, fell blocked ones
 
-**5. Weir changes**
-- Weir at `/foo` changes via `++set-weir`
-- Check all subscriptions crossing through `/foo`
-- For any that no longer pass `++allowed`, send `[%fell wire]` and remove
+#### Integration Points
 
-**6. Voluntary unsubscribe**
-- Process A sends `[%node =wire =road [%drop ~]]`
-- Remove subscription
-- Send `[%fell wire]` as ack (or separate `[%left wire]`?)
-
-**7. Subscriber dies/crashes**
-- Process at `/foo/bar` terminates (%done or %fail)
-- Clean up all its outgoing subscriptions (no notification needed - it's dead)
-
-**8. Reload**
-- On agent reload, all subscriptions are lost (processes restart fresh)
-- Processes re-subscribe as needed after `[%load ~]`
-
-#### Open Questions
-
-- ~~Should weir have separate `keep=(set road)` or reuse `peek` permission?~~
-  **Resolved:** Reuse `peek`. Subscribing is just ongoing peek access.
-- For `%ball` subscription at `/foo`, if `/foo/bar/baz` changes:
-  - Send one diff with `sub=/bar/baz view=[%file cage]`?
-  - Or send multiple diffs bubbling up (bar's parent changed too)?
-  - Probably just the leaf change with relative path
-- Should subscriptions survive across the subscription target's restart?
-
-#### Implementation Order
-
-1. [x] Add types to nexus.hoon - `%news` intake with `what=(set lane:tarball)`
-2. [x] Version tracking infrastructure - `++bo` door with `bumped` set
-3. [x] Handle empty directories - `++diff-balls` detects empty dir appear/disappear
-4. [ ] Add subscription state to mister - index by target and subscriber
-5. [ ] Handle `%keep` dart - check permission, store, send `%bond`
-6. [ ] Handle `%drop` dart - remove, send `%fell`
-7. [ ] Wire `bumped` set to `%news` notifications in `++load-ball-changes` / `++cull-ball-changes`
-8. [ ] Notify on file change in `++process-do-next` / `++save-file`
-9. [ ] Cancel subscriptions when weir changes in `++set-weir`
-10. [ ] Clean up subscriptions when process dies
+| Event | Handler | Action |
+|-------|---------|--------|
+| `%keep` dart | `++handle-dart` | `sub-put`, send `%bond` |
+| `%drop` dart | `++handle-dart` | `sub-del`, send `%fell` |
+| File changes | `++bump-file` | `notify` via bumped set |
+| Bulk changes | `++diff-balls` | `notify` via bumped set |
+| Watcher dies | `++delete` | `sub-wipe` |
+| Weir changes | `++set-weir` | `audit-weir` |
+| Reload | `++reload` | `audit-weir /` |
+| Nexus reload | `++reload-nexus` | `audit-weir dest` |
 
 ## Mark Validation Refactoring (COMPLETE)
 
@@ -608,10 +581,10 @@ For `%&` (subtree) case - need `++validate-ball` helper to validate all cages in
 - **Load time** (`force=%.y`): Mark `.hoon` files may have been updated, so the type of `$type` may have changed. Must re-clam everything through current dais to pick up new type definitions.
 
 ### Future Work
-- [ ] Sailbox integration (depends on %keep) - incorporate SSE and HTTP logic from sailbox
+- [ ] Sailbox integration - incorporate SSE and HTTP logic from sailbox
 
-  Sailbox's `++make-sse-event` generates SSE content from `state=ball` - updates are
-  **state-derived**. Currently you manually emit `%sse` cards. With `%keep`:
+  Now that `%keep` is implemented, Sailbox's `++make-sse-event` can be wired to
+  `%news` intakes for reactive SSE updates:
 
   1. Request handler subscribes to files/dirs via `%keep`
   2. Files change → mister sends `%news` intake automatically

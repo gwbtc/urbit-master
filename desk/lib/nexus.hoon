@@ -299,6 +299,15 @@
 ::  Eyre bindings: URL path → file path in the tree
 ::
 +$  bindings  (map path rail:tarball)
+::  Internal subscriptions: process watches tree locations
+::
+::  fwd: "who is watching this lane?" → watcher + wire for routing
+::  rev: "what is this process watching?" → for cleanup on death
+::
++$  subs
+  $:  fwd=(map lane:tarball (map rail:tarball wire))
+      rev=(jug rail:tarball lane:tarball)
+  ==
 ::  High-water marks per file - NEVER deleted, even when files are deleted.
 ::  Prevents stale responses and enables subscription ordering.
 ::
