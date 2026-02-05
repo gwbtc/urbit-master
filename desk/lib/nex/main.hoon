@@ -1,11 +1,11 @@
-/+  nexus, tarball, fiberio, server, nex-server, nex-counter
+/+  nexus, tarball, server, nex-server, nex-counter
 |%
 ++  default-nexi
   %-  ~(gas by *nexi:nexus)
   :~  [%root root]
       [%server main:nex-server]
-      [%requests requests:nex-server]
       [%counter counter:nex-counter]
+      [%counter-ui counter-ui:nex-counter]
   ==
 ::
 ++  root
@@ -41,8 +41,6 @@
       ?:  ?=(%rise -.prod)
         %-  (slog leaf+"%root /main: failed, staying inert" tang.prod)
         stay:m
-      ::  Bind eyre to /server/main
-      ;<  ~  bind:m  (eyre-connect:fiberio /mister [/server %main])
       stay:m
     ==
   --

@@ -600,21 +600,6 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   (gall-poke /poke [our dude] cage)
-::  Eyre binding helpers
-::
-++  eyre-connect
-  |=  [url=path dest=rail:tarball]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (gall-poke-our master connect+!>([url dest]))
-  (pure:m ~)
-::
-++  eyre-disconnect
-  |=  url=path
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (gall-poke-our master disconnect+!>(url))
-::
 ++  give-response-header
   |=  [eyre-id=@ta =response-header:http]
   =/  m  (fiber ,~)

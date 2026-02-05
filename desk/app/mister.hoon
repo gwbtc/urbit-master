@@ -17,7 +17,6 @@
       =pool:nexus
       =sand:nexus
       =born:nexus
-      =bindings:nexus
       =subs:nexus
   ==
 --
@@ -39,7 +38,7 @@
   ::  Create empty ball with %root nexus at root
   =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
-    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *bindings:nexus *subs:nexus)
+    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
   [cards this]
 ::
 ++  on-save
@@ -58,7 +57,7 @@
       =/  lmp=lump:tarball  (fall fil.ball.old [~ ~ ~])
       ball.old(fil `lmp(neck `%root))
     =^  cards  state
-      abet:(reload:hc pool.old new-ball sand.old born.old bindings.old subs.old)
+      abet:(reload:hc pool.old new-ball sand.old born.old subs.old)
     [cards this]
   ==
 ::
@@ -113,44 +112,13 @@
         abet:(reload-nexus:hc p.dest.action)
       [cards this]
     ==
-    ::  Eyre binding: bind URL path to file path
-    ::
-      %connect
-    ?>  =(src our):bowl
-    =+  !<([url=path here=rail:tarball] vase)
-    ::  Encode rail in wire: [%connect len ...path... name]
-    =/  wir=wire  [%connect (scot %ud (lent path.here)) (snoc path.here name.here)]
-    :_  this
-    [%pass wir %arvo %e %connect `url dap.bowl]~
-    ::  Eyre unbinding
-    ::
-      %disconnect
-    ?>  =(src our):bowl
-    =+  !<(url=path vase)
-    :_  this(bindings (~(del by bindings) url))
-    [%pass / %arvo %e %disconnect `url]~
-    ::  HTTP request from eyre: route to bound file
+    ::  HTTP request from eyre: forward to /server/main
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
-    =/  lin=request-line:server  (parse-request-line:server url.request.req)
-    ::  Find binding by progressively extending URL prefix
-    ::
-    =/  prefix=(list @t)  (scag 1 site.lin)
-    |-
-    ?~  here=(~(get by bindings) prefix)
-      ?:  (lth (lent prefix) (lent site.lin))
-        $(prefix (scag +((lent prefix)) site.lin))
-      ::  No binding found
-      ::
-      :_  this
-      %+  give-simple-payload:app:server  eyre-id
-      [[404 ~] `(as-octs:mimes:html 'Not Found')]
-    ::  Poke the bound file with the request
-    ::
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give u.here handle-http-request+!>([eyre-id req]))
+      abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id req]))
     [cards this]
   ==
 ::
@@ -175,6 +143,12 @@
   ?+    path  (on-leave:def path)
       [%poke @ *]
     [~ this]
+      [%http-response @ ~]
+    =/  eyre-id=@ta  i.t.path
+    =/  =give:nexus  [|+[src sap]:bowl /cancel/[eyre-id]]
+    =^  cards  state
+      abet:(poke:hc give [/server %main] handle-http-cancel+!>(eyre-id))
+    [cards this]
       [%proc ^]
     =^  cards  state
       abet:(take-leave:hc path)
@@ -228,25 +202,9 @@
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
-  ?+    wire
-    =^  cards  state
-      abet:(take-arvo:hc wire sign)
-    [cards this]
-    ::  Eyre binding response
-    ::
-      [%connect *]
-    ?>  ?=([%eyre %bound *] sign)
-    ?.  accepted.sign
-      %-  (slog leaf+"eyre bind failed: {(spud path.binding.sign)}" ~)
-      [~ this]
-    ::  Decode rail from wire: [len ...path... name]
-    ?>  ?=([@ @ *] t.wire)
-    =/  len=@ud  (slav %ud i.t.wire)
-    =/  rest=path  t.t.wire
-    =/  here=rail:tarball  [(scag len rest) (snag len rest)]
-    %-  (slog leaf+"eyre bound: {(spud path.binding.sign)} -> {(spud (snoc path.here name.here))}" ~)
-    [~ this(bindings (~(put by bindings) path.binding.sign here))]
-  ==
+  =^  cards  state
+    abet:(take-arvo:hc wire sign)
+  [cards this]
 ::
 ++  on-fail   on-fail:def
 --
@@ -565,7 +523,6 @@
           old-ball=ball:tarball
           old-sand=sand:nexus
           old-born=born:nexus
-          old-bindings=bindings:nexus
           old-subs=subs:nexus
       ==
   ^+  this
@@ -575,7 +532,6 @@
   =.  ball  old-ball
   =.  sand  old-sand
   =.  born  old-born
-  =.  bindings  old-bindings
   =.  subs  old-subs
   ::  Capture ball before modifications (for change detection)
   =/  pre-ball=ball:tarball  ball
