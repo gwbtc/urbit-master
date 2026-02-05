@@ -33,7 +33,6 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
       =pool:nexus
       =sand:nexus
       =born:nexus
-      =bindings:nexus
       =subs:nexus
   ==
 ```
@@ -43,7 +42,6 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
 - `nexi` - compiled nexus definitions: `(map neck nexus)`
 - `sand` - sandboxing filters: `(axal weir)`
 - `born` - version tracking: `(axal [=cass:clay bags=(map @ta sack)])` where `sack = [proc=cass:clay file=cass:clay]`
-- `bindings` - eyre URL bindings: `(map path rail:tarball)`
 - `subs` - internal subscriptions: `[fwd=(map lane (map rail wire)) rev=(jug rail lane)]`
 
 ### Nexus
@@ -267,6 +265,20 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] Cancel wex entries when process dies (%done)
 - [x] Kick sup entries when process dies (%done)
 
+### HTTP (Server Nexus)
+- [x] Server nexus manages eyre bindings (register/unregister via `send-cards:io`)
+- [x] Server routes requests by matching URL to binding map (progressively shorter paths)
+- [x] Server authorizes responses via bend comparison (`=(p.from u.expected-bend)`)
+- [x] Server tracks connections (`connections=(map @ta binding:eyre)`)
+- [x] Server handles client disconnect (`%handle-http-cancel` from gall `on-leave`)
+- [x] Server kicks orphaned connections on unbind
+- [x] Gall agent is thin shell: forward HTTP to `/server/main`, relay on-leave
+- [x] Removed connect/disconnect poke infrastructure from gall agent and fiberio
+- [x] Counter app with self-contained UI sub-nexus (reference implementation)
+- [x] Requests pattern: per-request files at `/requests/[eyre-id]` via `make:io`
+- [x] SSE streaming with keep-alive timers (counter demo)
+- [x] Response routing through `/main` for authorization (request → main → server)
+
 ### Internal Subscriptions
 - [x] `subs` state with dual indices: `fwd` (target→watchers) and `rev` (watcher→targets)
 - [x] `%keep` dart → `sub-put`, check peek permission, send `%bond`
@@ -300,6 +312,43 @@ Files and directories cannot share a name at the same level. In Unix, `/foo` can
 - Set intersection check: `?^  (~(int in files) dirs)  %.n`
 - Recursive walk via `^$(b i.kids)` to check all levels
 - 13 tests covering collision prevention and detection
+
+### HTTP Architecture (Server Nexus + Requests Pattern)
+
+The gall agent (`app/mister.hoon`) is a thin shell. All HTTP logic lives in the tree.
+
+**Server nexus** (`lib/nex/server.hoon`) owns all HTTP concerns:
+- Eyre binding registration (via `send-cards:io` with `master:io`)
+- Request routing (URL path → binding → nexus via bend)
+- Response authorization (sender's bend must match binding's bend)
+- Connection tracking (`connections=(map @ta binding:eyre)`)
+- Client disconnect handling (`%handle-http-cancel` from `on-leave`)
+- Orphan cleanup on unbind (kick connections for removed bindings)
+
+**Gall agent** only does three things for HTTP:
+1. Forwards `%handle-http-request` to `/server/main`
+2. Forwards `on-leave [%http-response *]` as `%handle-http-cancel` to `/server/main`
+3. Watches/kicks on `/http-response/[eyre-id]` paths (eyre plumbing)
+
+**Requests pattern** — each HTTP request gets its own file and process:
+1. Server receives request, looks up binding, forwards to bound nexus
+2. Nexus `/main` receives request, creates file at `/requests/[eyre-id]` via `make:io`
+3. Request file's process handles the request independently (can do SSE, long-poll, etc.)
+4. Response flows: request file → poke `/main` → `/main` forwards to server → server emits cards
+5. Server validates that response sender's bend matches the binding's bend
+
+This solves the concurrency problem: SSE streams don't block new requests because each
+request is its own process. The `/main` process just dispatches and forwards.
+
+**Authorization flow:**
+- Nexus binds via `(poke:io /bind server-road bind-action+!>([%bind binding]))` — server records `[binding bend-of-sender]`
+- Responses route through the same `/main` that registered the binding
+- Server checks `=(p.from u.expected-bend)` — only the nexus that claimed the binding can respond on it
+
+**Reference implementation:** `lib/nex/counter.hoon` — self-contained counter app with:
+- `counter` nexus at `/counter`: ticking state, responds to `%counter-start`
+- `counter-ui` nexus at `/counter/ui`: HTTP handling, SSE streaming
+- Roads: `server-road` (up 2 to `/server/main`), `req-counter-road` (up 2 to `/counter/main`), `main-road` (up 1 to `/counter/ui/main`)
 
 ## Not Yet Implemented
 
@@ -446,18 +495,41 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 - `clam-cage`: returns error tang (trust boundary, graceful rejection)
 
 ## Future Work
-- [ ] Sailbox integration - incorporate SSE and HTTP logic from sailbox
+- [ ] Tarball explorer — universal tree browser and structural editor
 
-  Now that `%keep` is implemented, Sailbox's `++make-sse-event` can be wired to
-  `%news` intakes for reactive SSE updates:
+  A nexus that serves an HTML UI for browsing and manipulating any part of the
+  tarball tree. Like the explorer in `app/master.hoon`, but built as a nexus using
+  the server/requests pattern.
 
-  1. Request handler subscribes to files/dirs via `%keep`
-  2. Files change → mister sends `%news` intake automatically
-  3. Handler receives `%news` → emits SSE event to client
+  **Key insight: the tree is the app.** The explorer doesn't need to understand what
+  any nexus does. It operates at the structural level using three primitives:
 
-  This makes SSE updates reactive (state-driven) rather than imperative (manually triggered).
-  The `/server` request handler would `%keep` subscribe to relevant tree locations and
-  forward `%news` as SSE events.
+  - `peek:io` — read any node. Returns `view:nexus`: `[%ball =sand ball=ball:tarball]`
+    for directories, `[%file =cage]` for files, `[%none ~]` for absent nodes.
+  - `make:io` — create a file or entire subtree anywhere. The nexus at that location
+    handles the rest via `on-file`. `make` takes `(each [=sand =ball:tarball] cage)`,
+    so a single make can drop a full directory tree with files, permissions, and necks.
+  - `cull:io` — delete a file or directory. Process dies, subscriptions clean up.
+
+  The explorer becomes the universal admin UI for any mister app. No custom admin pages
+  needed. Want to start the counter? Make a file at the right path. Kill an SSE
+  connection? Cull its request file. Unbind a URL? Poke the server to unbind it. It's
+  all tree operations.
+
+  **Architecture:** Same pattern as counter-ui:
+  - Explorer nexus at `/explorer/ui`, bind URL paths (e.g. `/mister/ball/**`)
+  - Each request gets its own file at `/explorer/ui/requests/[eyre-id]`
+  - Request process peeks the target path based on URL, renders HTML
+  - Road from request file to target: up N to root, down to target path
+
+  **Phases:**
+  1. Read-only browser: directory listing, file display, tarball download
+  2. Structural writes: make (create files/dirs), cull (delete), upload
+  3. Guardrails: sand/weir already controls what's allowed where
+
+  **File uploads** work naturally: upload a file → explorer does `make:io` at the
+  target path → nexus `on-file` handles it. Upload a tarball → unpack → `make:io`
+  with the full subtree.
 
 - [ ] Nexuses and marks in the tree - could nexuses and marks live inside the ball?
 
