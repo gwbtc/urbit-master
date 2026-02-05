@@ -1,12 +1,37 @@
 ::  server/main nexus: HTTP gateway
 ::
-/+  nexus, tarball, fiberio, server
+/+  nexus, tarball, io=fiberio, server, http-utils, feather
 |%
-+$  action
-  $%  [%header eyre-id=@ta =response-header:http]
-      [%data eyre-id=@ta data=(unit octs)]
-      [%kick eyre-id=@ta]
-      [%response eyre-id=@ta =simple-payload:http]
+++  counter-road  `road:tarball`[%| 2 %& /counter %main]
+::
+++  counter-update
+  |=  [what=(set lane:tarball) =view:nexus]
+  ^-  manx
+  =/  count=@ud
+    ?.  ?=(%file -.view)  0
+    !<(@ud q.cage.view)
+  ;span: {(scow %ud count)}
+::
+++  counter-page
+  ^-  manx
+  ;html
+    ;head
+      ;title: Mister Counter
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;script(src "https://unpkg.com/htmx.org@2.0.3");
+      ;script(src "https://unpkg.com/htmx-ext-sse@2.2.2/sse.js");
+      ;+  feather:feather
+    ==
+    ;body.fc.g4.p5.ma.mw-page
+      ;h1.s3: Mister Counter
+      ;div.s6.bold.tc.p5.b1.br2(id "counter", hx-ext "sse", sse-connect "/mister/counter/stream", sse-swap "counter-update")
+        ; Waiting...
+      ==
+      ;form(hx-post "/mister/counter")
+        ;button.p-2.b1.br1.hover.pointer(type "submit"): Start Counter
+      ==
+    ==
   ==
 ::
 ++  main
@@ -33,8 +58,10 @@
     ?:  ?=(%rise -.prod)
       %-  (slog leaf+"%server /main: failed, staying inert" tang.prod)
       stay:m
+    ~&  >  "%server /main: ready, waiting for pokes"
     |-
-    ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:fiberio
+    ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
+    ~&  >  [%server-main-poke p.cage]
     ?+    p.cage  $
         ::
         ::  Incoming HTTP request from eyre: create request file
@@ -42,59 +69,13 @@
         %handle-http-request
       =/  [eyre-id=@ta req=inbound-request:eyre]
         !<([eyre-id=@ta inbound-request:eyre] q.cage)
+      ~&  >  [%server-main-request eyre-id url.request.req]
       ::  Create request file at /requests/[eyre-id]
       =/  dest=lane:tarball  [%& /requests eyre-id]  :: file: dir=/requests, name=eyre-id
-      ;<  ~  bind:m  (node-make:fiberio /make [%| 0 dest] |+[%http-request !>(req)])
+      ~&  >  [%server-main-making dest]
+      ;<  ~  bind:m  (make:io /make [%| 0 dest] |+[%http-request !>(req)])
+      ~&  >  [%server-main-made dest]
       $
-        ::
-        ::  Response from request file: send to eyre
-        ::
-        ::  Security: verify the poke comes from the matching request file.
-        ::  Only /requests/[eyre-id] may send responses for that eyre-id.
-        ::
-        %server-action
-      =/  act  !<(action q.cage)
-      =/  eyre-id=@ta
-        ?-  -.act
-          %header    eyre-id.act
-          %data      eyre-id.act
-          %kick      eyre-id.act
-          %response  eyre-id.act
-        ==
-      ::  Validate source: must be internal from /requests/[eyre-id]
-      ::
-      ::  From /server/main's perspective, /server/requests/[eyre-id] is:
-      ::    bend=[0 rail=[path=/requests name=eyre-id]]
-      ::  (0 steps because both are under /server)
-      ::
-      ?>  ?=([%& %0 [%requests ~] @] from)
-      ?>  =(name.q.p.from eyre-id)
-      ?-    -.act
-          %header
-        ;<  ~  bind:m
-          %-  send-cards:fiberio
-          :~  :^  %give  %fact  ~[/http-response/[eyre-id.act]]
-              http-response-header+!>(response-header.act)
-          ==
-        $
-          %data
-        ;<  ~  bind:m
-          %-  send-cards:fiberio
-          :~  [%give %fact ~[/http-response/[eyre-id.act]] http-response-data+!>(data.act)]
-          ==
-        $
-          %kick
-        ;<  ~  bind:m
-          %-  send-cards:fiberio
-          :~  [%give %kick ~[/http-response/[eyre-id.act]] ~]
-          ==
-        $
-          %response
-        ;<  ~  bind:m
-          %-  send-cards:fiberio
-          (give-simple-payload:app:server eyre-id.act simple-payload.act)
-        $
-      ==
     ==
   --
 ++  requests
@@ -110,24 +91,62 @@
     |=  =prod:fiber:nexus
     =/  m  (fiber:fiber:nexus ,~)
     ^-  process:fiber:nexus
+    ~&  >  [%requests-on-file rail -.prod]
     ?.  ?=([~ @] rail)
       stay:m
-    ::  Individual request handler
     ?:  ?=(%rise -.prod)
       %-  (slog leaf+"%requests/{(trip name.rail)}: failed" tang.prod)
       stay:m
-    ::  Get request state (eyre-id is the filename)
     =/  eyre-id=@ta  name.rail
+    ~&  >  [%request-file-start eyre-id]
     ;<  req=inbound-request:eyre  bind:m
-      (get-state-as:fiberio ,inbound-request:eyre)
-    ::  Build response
-    =/  payload=simple-payload:http
-      [[200 ~] `(as-octs:mimes:html 'Hello from request file!!!')]
-    ::  Poke /main with response
-    ::  From /server/requests/[id], up 1 to /server, then ./main
-    =/  dest=road:tarball  [%| 1 [%& / %main]]
-    ;<  ~  bind:m  (node-poke:fiberio /respond dest server-action+!>([%response eyre-id payload]))
-    ::  Done
-    (pure:m ~)
+      (get-state-as:io ,inbound-request:eyre)
+    ~&  >  [%request-file-url url.request.req method.request.req]
+    =/  =request-line:server  (parse-request-line:server url.request.req)
+    ~&  >  [%request-file-site site.request-line]
+    ?+    site.request-line
+      ~&  >  [%request-file-404 site.request-line]
+      ::  404
+      ;<  ~  bind:m
+        (give-simple-payload:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
+      (pure:m ~)
+    ::
+        [%mister %counter ~]
+      ?:  ?=(%'POST' method.request.req)
+        ::  Start the counter
+        ;<  ~  bind:m  (poke:io /start counter-road counter-start+!>(~))
+        ;<  ~  bind:m  (give-simple-payload:io eyre-id two-oh-four:http-utils)
+        (pure:m ~)
+      ::  Serve counter page
+      =/  bod=octs  (manx-to-octs:server counter-page)
+      ;<  ~  bind:m
+        (give-simple-payload:io eyre-id (mime-response:http-utils [/text/html bod]))
+      (pure:m ~)
+    ::
+        [%mister %counter %stream ~]
+      ::  SSE stream: subscribe to counter and forward updates
+      ?.  (is-sse-request:http-utils req)
+        ;<  ~  bind:m
+          (give-simple-payload:io eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+        (pure:m ~)
+      ;<  ~  bind:m  (give-sse-header:io eyre-id)
+      ;<  ~  bind:m  (keep:io /counter counter-road)
+      ::  Start keep-alive timer
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+      ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+      |-
+      ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /counter)
+      ?-  -.nw
+          %wake
+        ;<  ~  bind:m  (give-sse-keep-alive:io eyre-id)
+        ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+        ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+        $
+          %news
+        =/  data=wain  (manx-to-wain:http-utils (counter-update [what view]:nw))
+        ;<  ~  bind:m  (give-sse-event:io eyre-id [~ `'counter-update' data])
+        $
+      ==
+    ==
   --
 --

@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils, alarms, open-loops, iso-8601
+/+  io=sailboxio, telegram, pytz, random, time, hu=http-utils, server, tarball, json-utils, alarms, open-loops, iso-8601
 |%
 ::  Protocol-agnostic tool interface
 ::  This library provides a unified tool definition and execution layer
@@ -407,11 +407,11 @@
   =/  hour-12=@ud  ?:  =(hour-24 0)  12
                    ?:  (lte hour-24 12)  hour-24
                    (sub hour-24 12)
-  =/  hour-str=tape  (numb:sailbox hour-12)
+  =/  hour-str=tape  (numb:hu hour-12)
   =/  minute-str=tape
     ?:  (lth minute 10)
-      (weld "0" (numb:sailbox minute))
-    (numb:sailbox minute)
+      (weld "0" (numb:hu minute))
+    (numb:hu minute)
   =/  formatted=tape
     "{weekday} {year}-{month}-{day} {hour-str}:{minute-str}{?:(is-pm "pm" "am")} {(trip tz-name)}"
   (pure:m [%text (crip formatted)])
@@ -598,7 +598,7 @@
   ::  Update chat name in ball
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat")] chat:claude)
+    (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:hu u.chat-id)}.claude-chat")] chat:claude)
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
@@ -606,11 +606,11 @@
   =/  updated-chat=chat:claude  u.chat(name title)
   ~&  >  "RENAME TOOL: Writing updated chat with name '{<name.updated-chat>}'"
   ;<  ~  bind:m
-    (put-cage:io /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
+    (put-cage:io /claude/chats (crip "{(hexn:hu u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
   ~&  >  "RENAME TOOL: Chat file written successfully"
   ::  Send SSE event
   ;<  ~  bind:m
-    (send-sse-event:io /master/claude/stream/(crip (hexn:sailbox u.chat-id)) ~ `%title-update)
+    (send-sse-event:io /master/claude/stream/(crip (hexn:hu u.chat-id)) ~ `%title-update)
   ~&  >  "RENAME TOOL: SSE event sent"
   (pure:m [%text 'Chat renamed'])
 ::
@@ -822,7 +822,7 @@
   ^-  form:m
   ::  Use raw fiber form (|= input) to pattern match on incoming events
   ::  and directly emit timer cards for debouncing
-  |=  input:fiber:sailbox
+  |=  input:fiber:io
   =/  ball-0=ball:tarball  state
   ::  Read JSON from ball
   =/  jon=json

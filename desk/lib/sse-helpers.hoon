@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, sailbox, chat-index
+/+  io=sailboxio, hu=http-utils, chat-index
 |%
 ::  THE SINGLE SOURCE OF TRUTH FOR ADDING MESSAGES
 ::
@@ -23,7 +23,7 @@
     (add-message:chat-index chat timestamp msg)
   ::  2. Save to state FIRST
   ;<  ~  bind:m
-    (put-cage:io /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
+    (put-cage:io /claude/chats (crip "{(hexn:hu chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
   ::  3. THEN send SSE (so message is available when UI reads it)
   ;<  ~  bind:m  (notify-chat-message chat-id timestamp)
   ::  4. Return updated chat
@@ -37,7 +37,7 @@
   ^-  form:m
   ~&  >  "Sending SSE event for message at {<timestamp>} to chat {<chat-id>}"
   %:  send-sse-event:io
-    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    /master/claude/stream/(crip (hexn:hu chat-id))
     `(scot %ud timestamp)
     `%message-update
   ==
@@ -48,7 +48,7 @@
   ^-  form:m
   ~&  >  "Sending SSE event for state update to chat {<chat-id>}"
   %:  send-sse-event:io
-    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    /master/claude/stream/(crip (hexn:hu chat-id))
     ~
     `%state-update
   ==
@@ -59,7 +59,7 @@
   ^-  form:m
   ~&  >  "Sending SSE event for tool approval to chat {<chat-id>}"
   %:  send-sse-event:io
-    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    /master/claude/stream/(crip (hexn:hu chat-id))
     ~
     `%tool-approval
   ==
@@ -70,7 +70,7 @@
   ^-  form:m
   ~&  >  "Sending SSE event for title update to chat {<chat-id>}"
   %:  send-sse-event:io
-    /master/claude/stream/(crip (hexn:sailbox chat-id))
+    /master/claude/stream/(crip (hexn:hu chat-id))
     ~
     `%title-update
   ==

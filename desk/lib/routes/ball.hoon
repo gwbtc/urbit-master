@@ -1,4 +1,4 @@
-/+  io=sailboxio, sailbox, ui-ball, tarball, multipart, html-utils
+/+  io=sailboxio, hu=http-utils, ui-ball, tarball, multipart, html-utils
 =,  html-utils
 |%
 ::  GET /master/ball and /master/ball/* - View ball browser
@@ -14,7 +14,7 @@
   ^-  form:m
   ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
   =/  =simple-payload:http
-    %-  mime-response:sailbox
+    %-  mime-response:hu
     (handle-ball-get:ui-ball ball bowl conversions ball-path [ext args])
   (pure:m simple-payload)
 ::

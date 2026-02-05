@@ -1,4 +1,4 @@
-/+  io=sailboxio, sailbox, server, ui-master, ui-s3, html-utils, tarball, multipart, json-utils
+/+  io=sailboxio, hu=http-utils, server, ui-master, ui-s3, html-utils, tarball, multipart, json-utils
 /=  ball-routes  /lib/routes/ball
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
@@ -32,17 +32,17 @@
   =/  lin=request-line:server  (parse-request-line:server url.request.req)
   ::  Check authentication
   ?.  =(our src):bowl
-    (give-simple-payload:io (login-redirect:sailbox [ext site]:lin args.lin))
+    (give-simple-payload:io (login-redirect:hu [ext site]:lin args.lin))
   ::  Route all GET requests
   ?+    site.lin  ~|(%unrecognized-get !!)
       [%master ~]
     =/  =simple-payload:http
-      (mime-response:sailbox [/text/html (manx-to-octs:server home-page:ui-master)])
+      (mime-response:hu [/text/html (manx-to-octs:server home-page:ui-master)])
     (give-simple-payload:io simple-payload)
   ::
       [%master %test-sse ~]
     =/  =simple-payload:http
-      (mime-response:sailbox [/text/html (manx-to-octs:server simple-sse-test:ui-master)])
+      (mime-response:hu [/text/html (manx-to-octs:server simple-sse-test:ui-master)])
     (give-simple-payload:io simple-payload)
   ::
       [%master %claude ~]
@@ -69,7 +69,7 @@
   ::
       [%master %s3 ~]
     =/  =simple-payload:http
-      (mime-response:sailbox [/text/html (manx-to-octs:server (s3-manager:ui-s3 ball bowl))])
+      (mime-response:hu [/text/html (manx-to-octs:server (s3-manager:ui-s3 ball bowl))])
     (give-simple-payload:io simple-payload)
   ==
 ::

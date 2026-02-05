@@ -1,11 +1,12 @@
 ::  fiberio: helper functions for nexus fibers
 ::
-/+  nexus, tarball
+/+  nexus, tarball, server, hu=http-utils
 |%
 ++  fiber   fiber:fiber:nexus
 +$  input   input:fiber:nexus
 +$  intake  intake:fiber:nexus
 +$  dart    dart:nexus
+++  master  %mister
 ::
 ++  veto-error
   |=  =dart
@@ -41,6 +42,12 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (send-darts (turn cards |=(=card:agent:gall [%sysc card])))
+::
+++  trace
+  |=  =tang
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (pure:m ((slog tang) ~))
 ::
 ++  fiber-fail
   |=  err=tang
@@ -261,30 +268,30 @@
       [%skip ~]
     [%done seen.u.in]
   ==
-::  Node operations: make, poke, peek, cull, sand
+::  File operations: make, poke, peek, cull, sand
 ::
-++  node-make
+++  make
   |=  [=wire =road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %make make)
   (take-made wire)
 ::
-++  node-poke
+++  poke
   |=  [=wire =road:tarball =cage]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %poke cage)
   (take-pack wire)
 ::
-++  node-peek
+++  peek
   |=  [=wire =road:tarball]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %peek ~)
   (take-peek wire)
 ::
-++  node-cull
+++  cull
   |=  [=wire =road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -303,7 +310,7 @@
     [%fail %cull-failed u.err.u.in]
   ==
 ::
-++  node-sand
+++  sand
   |=  [=wire =road:tarball weir=(unit weir:nexus)]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -322,7 +329,7 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
-++  node-load
+++  reload
   |=  [=wire =road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -339,6 +346,67 @@
     ?~  err.u.in
       [%done ~]
     [%fail %load-failed u.err.u.in]
+  ==
+::  Subscription operations: keep, drop
+::
+++  keep
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %keep ~)
+  (take-bond wire)
+::
+++  drop
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %drop ~)
+  (take-fell wire)
+::
+++  take-bond
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %bond * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %keep-failed u.err.u.in]
+  ==
+::
+++  take-fell
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %fell *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done ~]
+  ==
+::
+++  take-news
+  |=  =wire
+  =/  m  (fiber ,[what=(set lane:tarball) =view:nexus])
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done [what view]:u.in]
   ==
 ::  Scry helper
 ::
@@ -360,15 +428,15 @@
   ==
 ::  Gall agent operations (via syscalls)
 ::
-++  poke
+++  gall-poke
   |=  [=wire =dock =cage]
   =/  m  (fiber ,~)
   ^-  form:m
   =/  =card:agent:gall  [%pass wire %agent dock %poke cage]
   ;<  ~  bind:m  (send-card card)
-  (take-poke-ack wire)
+  (take-gall-poke-ack wire)
 ::
-++  take-poke-ack
+++  take-gall-poke-ack
   |=  =wire
   =/  m  (fiber ,~)
   ^-  form:m
@@ -388,7 +456,7 @@
     [%fail %poke-failed u.p.sign.u.in]
   ==
 ::
-++  watch
+++  gall-watch
   |=  [=wire =dock =path]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -452,7 +520,7 @@
     [%done ~]
   ==
 ::
-++  leave
+++  gall-leave
   |=  [=wire =dock]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -526,24 +594,95 @@
   (pure:m here.bowl)
 ::  Poke our own ship
 ::
-++  poke-our
+++  gall-poke-our
   |=  [=dude:gall =cage]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  our=@p  bind:m  get-our
-  (poke /poke [our dude] cage)
+  (gall-poke /poke [our dude] cage)
 ::  Eyre binding helpers
 ::
 ++  eyre-connect
   |=  [url=path dest=rail:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (poke-our %mister connect+!>([url dest]))
+  ;<  ~  bind:m  (gall-poke-our master connect+!>([url dest]))
   (pure:m ~)
 ::
 ++  eyre-disconnect
   |=  url=path
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke-our %mister disconnect+!>(url))
+  (gall-poke-our master disconnect+!>(url))
+::
+++  give-response-header
+  |=  [eyre-id=@ta =response-header:http]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (give-response-header:hu eyre-id response-header))
+::
+++  give-response-data
+  |=  [eyre-id=@ta data=(unit octs)]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (give-response-data:hu eyre-id data))
+::
+++  give-simple-payload
+  |=  [eyre-id=@ta =simple-payload:http]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  %-  send-cards
+  (give-simple-payload:app:server eyre-id simple-payload)
+::
+++  kick-eyre
+  |=  eyre-id=@ta
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (kick-eyre-sub:hu eyre-id))
+::  SSE helpers
+::
+++  give-sse-header
+  |=  eyre-id=@ta
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (give-sse-header:hu eyre-id))
+::
+++  give-sse-event
+  |=  [eyre-id=@ta =sse-event:hu]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (give-sse-event:hu eyre-id sse-event))
+::
+++  give-sse-keep-alive
+  |=  eyre-id=@ta
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card (give-sse-keep-alive:hu eyre-id))
+::  +take-news-or-wake: wait for subscription news or timer wake
+::
+::    Use this in SSE loops to multiplex between data events and
+::    keep-alive timers. Returns %news with the update data, or
+::    %wake when the timer fires.
++$  news-or-wake
+  $%  [%news what=(set lane:tarball) =view:nexus]
+      [%wake ~]
+  ==
+::
+++  take-news-or-wake
+  |=  news-wire=wire
+  =/  m  (fiber ,news-or-wake)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * * *]
+    ?.  =(news-wire wire.u.in)
+      [%skip ~]
+    [%done %news [what view]:u.in]
+      [~ %arvo [%wait @ ~] %behn %wake *]
+    ?~  error.sign.u.in
+      [%done %wake ~]
+    [%fail %timer-error u.error.sign.u.in]
+  ==
 --

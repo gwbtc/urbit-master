@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601, sse=sse-helpers
+/+  io=sailboxio, tools, chat-index, pytz, hu=http-utils, time, iso-8601, sse=sse-helpers
 |%
 ::  Maximum characters for context window (as proxy for tokens)
 ::
@@ -207,9 +207,9 @@
                      (sub hour-24 12)
     =/  minute-str=tape
       ?:  (lth minute 10)
-        (weld "0" (numb:sailbox minute))
-      (numb:sailbox minute)
-    (crip "{weekday} {year}-{month}-{day} {(numb:sailbox hour-12)}:{minute-str}{?:(is-pm "pm" "am")} {(trip user-timezone)}")
+        (weld "0" (numb:hu minute))
+      (numb:hu minute)
+    (crip "{weekday} {year}-{month}-{day} {(numb:hu hour-12)}:{minute-str}{?:(is-pm "pm" "am")} {(trip user-timezone)}")
   ::  Build the request body with system prompt and tools
   ::  IMPORTANT: This system prompt is sent with EVERY request, not just at conversation start
   ::  All information here is LIVE and REAL-TIME
@@ -222,7 +222,7 @@
     %+  turn  history
     |=(msg=message:claude (count-message-chars msg))
   =/  context-truncated=?  !=(total-messages context-messages)
-  =/  chat-id-text=@t  (crip (hexn:sailbox id.chat))
+  =/  chat-id-text=@t  (crip (hexn:hu id.chat))
   ::  Build chat range string showing which messages from which chats
   =/  chat-ranges=tape
     ?~  history  "no messages"

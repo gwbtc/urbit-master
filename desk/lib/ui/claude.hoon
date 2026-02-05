@@ -1,5 +1,5 @@
 /-  claude
-/+  *ui-layout, sailbox, fi=feather-icons, claude-lib=claude, pytz,
+/+  *ui-layout, hu=http-utils, fi=feather-icons, claude-lib=claude, pytz,
     pprint=time-pprint, tarball
 |%
 ::  Helper: check if chat is waiting for Claude's response
@@ -28,11 +28,11 @@
     ?~  tz-wain  'UTC'
     ?~  u.tz-wain  'UTC'
     i.u.tz-wain
-  ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
+  ~&  >  "handle-claude-sse called for chat {(hexn:hu chat-id)} with event {<event>}"
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball state) [/claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat")] chat:claude)
+    (~(get-cage-as ba:tarball state) [/claude/chats (crip "{(hexn:hu chat-id)}.claude-chat")] chat:claude)
   ?~  chat
-    %-  manx-to-wain:sailbox
+    %-  manx-to-wain:hu
     ;div: Chat not found
   ?+    event  !!
       [~ %state-update]
@@ -83,9 +83,9 @@
       ==
     =/  combined=wain
       ;:  welp
-        (manx-to-wain:sailbox thinking-indicator)
-        (manx-to-wain:sailbox stop-btn)
-        (manx-to-wain:sailbox send-btn)
+        (manx-to-wain:hu thinking-indicator)
+        (manx-to-wain:hu stop-btn)
+        (manx-to-wain:hu send-btn)
       ==
     ~&  >  "SSE state-update response has {<(lent combined)>} lines"
     combined
@@ -109,7 +109,7 @@
       (get:((on @ud message:claude) lth) messages-by-time.u.chat msg-timestamp)
     ?~  message-to-render
       ~&  >  "No message to render"
-      %-  manx-to-wain:sailbox
+      %-  manx-to-wain:hu
       ;div;
     ::  Get timestamp - either from id or find it in the mop
     =/  timestamp=@ud
@@ -187,18 +187,18 @@
     ::  Combine all out-of-band swaps
     =/  combined=wain
       ;:  welp
-        (manx-to-wain:sailbox wrapper)
-        (manx-to-wain:sailbox placeholder-remover)
-        (manx-to-wain:sailbox thinking-indicator)
-        (manx-to-wain:sailbox stop-btn)
-        (manx-to-wain:sailbox send-btn)
+        (manx-to-wain:hu wrapper)
+        (manx-to-wain:hu placeholder-remover)
+        (manx-to-wain:hu thinking-indicator)
+        (manx-to-wain:hu stop-btn)
+        (manx-to-wain:hu send-btn)
       ==
     ~&  >  "SSE response has {<(lent combined)>} lines"
     combined
       [~ %title-update]
     ~&  >  "Rendering title-update SSE event"
     ::  Return updated chat title with out-of-band swap
-    %-  manx-to-wain:sailbox
+    %-  manx-to-wain:hu
     ;div(hx-swap-oob "innerHTML:#chat-title")
       ; {(trip name.u.chat)}
     ==
@@ -212,7 +212,7 @@
             ::  Normal chat form
             ;form
               =id            "chat-form"
-              =hx-post       "/master/claude/{(hexn:sailbox id.u.chat)}"
+              =hx-post       "/master/claude/{(hexn:hu id.u.chat)}"
               =hx-target     "#messages"
               =hx-swap       "none"
               =style         "display: flex; gap: 0.5rem;"
@@ -244,8 +244,8 @@
               ==
             ==
       ==
-    ~&  >  "SSE tool-approval response has {<(lent (manx-to-wain:sailbox input-area))>} lines"
-    (manx-to-wain:sailbox input-area)
+    ~&  >  "SSE tool-approval response has {<(lent (manx-to-wain:hu input-area))>} lines"
+    (manx-to-wain:hu input-area)
   ==
 ::
 ++  claude-card
@@ -778,7 +778,7 @@
       });
 
       let isLoading = false;
-      let earliestTimestamp = {?~(earliest-timestamp "null" (numb:sailbox u.earliest-timestamp))};
+      let earliestTimestamp = {?~(earliest-timestamp "null" (numb:hu u.earliest-timestamp))};
       const hasMore = {?:(has-more "true" "false")};
       const messagesDiv = document.getElementById('messages');
 
@@ -788,7 +788,7 @@
         loadMoreBtn.id = 'load-more-btn';
         loadMoreBtn.textContent = 'Load More Messages';
         loadMoreBtn.style = 'width: 100%; padding: 0.75rem; margin-bottom: 0.5rem; background: var(--b2); color: var(--f0); border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;';
-        loadMoreBtn.setAttribute('hx-get', `/master/claude/{(hexn:sailbox id.chat)}/messages?before=$\{earliestTimestamp}&limit=10`);
+        loadMoreBtn.setAttribute('hx-get', `/master/claude/{(hexn:hu id.chat)}/messages?before=$\{earliestTimestamp}&limit=10`);
         loadMoreBtn.setAttribute('hx-swap', 'afterend');
         loadMoreBtn.setAttribute('hx-indicator', '#load-more-btn');
         loadMoreBtn.onclick = () => \{
@@ -813,7 +813,7 @@
             const newMessages = Array.from(messagesDiv.querySelectorAll('[data-timestamp]'));
             if (newMessages.length > 0) \{
               earliestTimestamp = parseInt(newMessages[0].dataset.timestamp);
-              loadMoreBtn.setAttribute('hx-get', `/master/claude/{(hexn:sailbox id.chat)}/messages?before=$\{earliestTimestamp}&limit=10`);
+              loadMoreBtn.setAttribute('hx-get', `/master/claude/{(hexn:hu id.chat)}/messages?before=$\{earliestTimestamp}&limit=10`);
               htmx.process(loadMoreBtn);
             } else \{
               loadMoreBtn.textContent = 'No more messages';
@@ -895,16 +895,16 @@
                 ?:  =(c '\'')  ~['\\' '\'']
                 ~[c]
               ;div(style "display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; {(trip bg-style)} border-radius: 6px; border: 1px solid var(--b2);")
-                ;a(href "/master/claude/{(hexn:sailbox chat-list-id)}", id ?:(is-active "chat-title" ""), title "{(trip name.chat-list-chat)}", style "flex: 1; text-decoration: none; color: var(--f0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;")
+                ;a(href "/master/claude/{(hexn:hu chat-list-id)}", id ?:(is-active "chat-title" ""), title "{(trip name.chat-list-chat)}", style "flex: 1; text-decoration: none; color: var(--f0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;")
                   ; {(trip name.chat-list-chat)}
                 ==
-                ;button(onclick "editChat('{(hexn:sailbox chat-list-id)}', '{escaped-name}')", style "background: none; border: none; padding: 0.25rem; cursor: pointer; color: var(--f0); opacity: 0.6; display: flex; align-items: center;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.6'")
+                ;button(onclick "editChat('{(hexn:hu chat-list-id)}', '{escaped-name}')", style "background: none; border: none; padding: 0.25rem; cursor: pointer; color: var(--f0); opacity: 0.6; display: flex; align-items: center;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.6'")
                   ;svg(xmlns "http://www.w3.org/2000/svg", width "16", height "16", viewBox "0 0 24 24", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
                     ;path(d "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7");
                     ;path(d "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z");
                   ==
                 ==
-                ;button(onclick "deleteChat('{(hexn:sailbox chat-list-id)}', '{escaped-name}')", style "background: none; border: none; padding: 0.25rem; cursor: pointer; color: var(--red); opacity: 0.6; display: flex; align-items: center;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.6'")
+                ;button(onclick "deleteChat('{(hexn:hu chat-list-id)}', '{escaped-name}')", style "background: none; border: none; padding: 0.25rem; cursor: pointer; color: var(--red); opacity: 0.6; display: flex; align-items: center;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.6'")
                   ;svg(xmlns "http://www.w3.org/2000/svg", width "16", height "16", viewBox "0 0 24 24", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
                     ;polyline(points "3 6 5 6 21 6");
                     ;path(d "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2");
@@ -918,7 +918,7 @@
           ;*  ?~  parent.chat  ~
               =/  parent-chat=(unit chat:claude)  (~(get by chats) chat-id.u.parent.chat)
               ?~  parent-chat  ~
-              :~  ;a(href "/master/claude/{(hexn:sailbox chat-id.u.parent.chat)}", title "Go to parent: {(trip name.u.parent-chat)}", style "position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--b1); border: 1px solid var(--b2); border-radius: 6px; color: var(--f0); text-decoration: none; opacity: 0.7; transition: opacity 0.2s;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.7'")
+              :~  ;a(href "/master/claude/{(hexn:hu chat-id.u.parent.chat)}", title "Go to parent: {(trip name.u.parent-chat)}", style "position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--b1); border: 1px solid var(--b2); border-radius: 6px; color: var(--f0); text-decoration: none; opacity: 0.7; transition: opacity 0.2s;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.7'")
                     ;+  (make:fi 'corner-up-left')
                     ;span(style "font-size: 0.9rem;"): Parent
                   ==
@@ -927,7 +927,7 @@
           ;p(style "font-size: clamp(0.9rem, 3vw, 1rem); opacity: 0.8;"): Ask me anything
         ==
         ::  Hidden SSE connection
-        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:sailbox id.chat)}", sse-swap "message-update,title-update,state-update,tool-approval", style "display:none;");
+        ;div(hx-ext "sse", sse-connect "/master/claude/stream/{(hexn:hu id.chat)}", sse-swap "message-update,title-update,state-update,tool-approval", style "display:none;");
         ;div(style "display: flex; gap: 0.5rem; align-items: stretch; flex: 1; min-height: 0;")
           ::  Vertical navigation bar
           ;div
@@ -984,7 +984,7 @@
               ::  Normal chat form
               ;form
                 =id            "chat-form"
-                =hx-post       "/master/claude/{(hexn:sailbox id.chat)}"
+                =hx-post       "/master/claude/{(hexn:hu id.chat)}"
                 =hx-target     "#messages"
                 =hx-swap       "none"
                 =style         "display: flex; gap: 0.5rem;"

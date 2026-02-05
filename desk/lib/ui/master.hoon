@@ -1,4 +1,4 @@
-/+  *ui-layout, sailbox, fi=feather-icons, ui-claude, tarball
+/+  *ui-layout, hu=http-utils, fi=feather-icons, ui-claude, tarball
 |%
 ++  telegram-card
   ^-  manx
@@ -49,7 +49,7 @@
     ::  Read counter from ball
     =/  counter=@ud  (~(got-cage-as ba:tarball state) [/state 'counter.ud'] @ud)
     ~&  >  "Returning counter value: {<counter>}"
-    %-  manx-to-wain:sailbox
+    %-  manx-to-wain:hu
     ;div: Count: {(scow %ud counter)}
   ==
 ::

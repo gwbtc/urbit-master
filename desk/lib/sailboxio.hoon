@@ -1,4 +1,4 @@
-/+  server, multipart, sailbox, html-utils, tarball
+/+  server, multipart, sailbox, html-utils, hu=http-utils, tarball
 =|  hold=_| :: switch to interleave vs sequentialize processes
 |%
 ++  fiber   fiber:fiber:sailbox
@@ -447,18 +447,18 @@
   (send-raw-card %simple-payload payload)
 ::
 ++  send-sse-event
-  |=  [site=(list @t) =sse-key:sailbox]
+  |=  [site=(list @t) =sse-key:hu]
   =/  m  (fiber ,~)
   ^-  form:m
   (send-raw-card %sse site ~ sse-key)
 ::
 ++  send-sse-events
-  |=  [site=(list @t) keys=(list sse-key:sailbox)]
+  |=  [site=(list @t) keys=(list sse-key:hu)]
   =/  m  (fiber ,~)
   ^-  form:m
   %-  send-raw-cards
   %+  turn  keys
-  |=  =sse-key:sailbox
+  |=  =sse-key:hu
   [%sse site ~ sse-key]
 ::
 ++  send-wait

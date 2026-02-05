@@ -543,6 +543,7 @@
   ?~  files  this
   =/  file-name=@ta             -.i.files
   =/  file-rail=rail:tarball    [here file-name]
+  =.  this  ?^((get-born file-rail) this (init-born file-rail))
   =.  this  (spawn-proc file-rail [%load ~])
   =.  this  (enqu-take file-rail (sys-give /load) ~)
   $(files t.files)
@@ -973,8 +974,7 @@
 ++  spawn-proc
   |=  [here=rail:tarball =prod:fiber:nexus]
   ^+  this
-  ::  Init born if new, then bump proc cass
-  =.  this  ?~((get-born here) (init-born here) this)
+  ::  Bump proc cass (born must already exist from save-file)
   =.  this  (bump-proc here)
   ::  Build and store proc - use default spool if no nexus
   =/  =spool:fiber:nexus
@@ -1103,10 +1103,10 @@
       (validate-file p.p.make ~ q.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
-    ::  Spawn process (ensures born exists, bumps proc aeon)
-    =.  this  (spawn-proc dest-rail [%make ~])
     ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [~ p.p.make p.validated])
+    ::  Spawn process (needs file in ball for build-spool)
+    =.  this  (spawn-proc dest-rail [%make ~])
     (enqu-take dest-rail (sys-give /make) ~)
   ==
 ::
@@ -1287,16 +1287,11 @@
 ++  save-file
   |=  [here=rail:tarball new-content=content:tarball]
   ^+  this
-  =/  old-content=(unit content:tarball)
-    (~(get ba:tarball ball) path.here name.here)
-  ::  Determine if state changed (compare cages)
-  =/  changed=?
-    ?~  old-content  %.y
-    !=(cage.u.old-content cage.new-content)
+  ::  Init born if needed
+  =.  this  ?^((get-born here) this (init-born here))
   ::  Save to ball
   =.  ball  (~(put ba:tarball ball) here new-content)
-  ::  Bump aeon only if changed
-  ?.(changed this (bump-file here))
+  (bump-file here)
 ::
 ++  wrap-wire
   |=  [here=rail:tarball =wire]

@@ -1,5 +1,5 @@
 /-  claude
-/+  dbug, sailbox, io=sailboxio, server,
+/+  dbug, sailbox, io=sailboxio, server, hu=http-utils,
     ui-master, ui-claude, ui-ball, telegram,
     sse=sse-helpers, tarball, alarms, tools, open-loops, nexus
 /=  master-routes  /lib/routes/master
@@ -202,7 +202,7 @@
           args=(list [key=@t value=@t])
           last-event-id=(unit @t)
       ==
-  ^-  (unit sse-key:sailbox)
+  ^-  (unit sse-key:hu)
   ?+    site  ~
     [%master %test-sse ~]          `[~ `'/test/counter']
     [%master %claude %stream @ ~]  ~

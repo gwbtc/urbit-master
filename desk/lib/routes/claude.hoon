@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, sailbox, server, ui-claude, claude-lib=claude, chat-index,
+/+  io=sailboxio, hu=http-utils, server, ui-claude, claude-lib=claude, chat-index,
     sse=sse-helpers, *html-utils, tarball, json-utils, tools
 |%
 ::  Helper: Get all chats from ball as a map
@@ -52,7 +52,7 @@
 ++  get-chat
   |=  [=ball:tarball chat-id=@ux]
   ^-  (unit chat:claude)
-  (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat")] chat:claude)
+  (~(get-cage-as ba:tarball ball) [/claude/chats (crip "{(hexn:hu chat-id)}.claude-chat")] chat:claude)
 ::
 ::  Helper: Put a chat to ball
 ::
@@ -62,7 +62,7 @@
   ^-  form:m
   ;<  ball=ball:tarball  bind:m  get-state:io
   ;<  ~  bind:m
-    (put-cage:io /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(chat)])
+    (put-cage:io /claude/chats (crip "{(hexn:hu chat-id)}.claude-chat") [%claude-chat !>(chat)])
   (pure:m ~)
 ::
 ::  Helper: Delete a chat from ball
@@ -71,7 +71,7 @@
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)
   ^-  form:m
-  (del:io /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat"))
+  (del:io /claude/chats (crip "{(hexn:hu chat-id)}.claude-chat"))
 ::
 ::  Helper: Set active chat in ball
 ::
@@ -81,7 +81,7 @@
   ^-  form:m
   =/  =wain
     ?~  chat-id  ~
-    ~[(crip (hexn:sailbox u.chat-id))]
+    ~[(crip (hexn:hu u.chat-id))]
   (put-cage:io /claude 'active-chat.txt' [%txt !>(wain)])
 ::
 ::  POST /master/claude/{id} - Send message to Claude chat
@@ -306,7 +306,7 @@
   ;<  ~  bind:m  (put-chat child-chat-id child-chat)
   ;<  ~  bind:m  (set-active-chat `child-chat-id)
   ::  Return the child chat ID as plain text
-  (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html (crip (hexn:sailbox child-chat-id)))])
+  (give-simple-payload:io [[200 ~[['content-type' 'text/plain']]] `(as-octs:mimes:html (crip (hexn:hu child-chat-id)))])
 ::
 ::  GET /master/claude - Redirect to active chat or new chat
 ::
@@ -317,7 +317,7 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  active=(unit @ux)  (get-active-chat ball)
   ?^  active
-    (give-simple-payload:io [[303 ~[['location' (crip "/master/claude/{(hexn:sailbox u.active)}")]]] ~])
+    (give-simple-payload:io [[303 ~[['location' (crip "/master/claude/{(hexn:hu u.active)}")]]] ~])
   (give-simple-payload:io [[303 ~[['location' '/master/claude/new']]] ~])
 ::
 ::  GET /master/claude/new - Create new chat and redirect
@@ -368,7 +368,7 @@
     ==
   ;<  ~  bind:m  (put-chat chat-id new-chat)
   ;<  ~  bind:m  (set-active-chat `chat-id)
-  (give-simple-payload:io [[303 ~[['location' (crip "/master/claude/{(hexn:sailbox chat-id)}")]]] ~])
+  (give-simple-payload:io [[303 ~[['location' (crip "/master/claude/{(hexn:hu chat-id)}")]]] ~])
 ::
 ::  GET /master/claude/{id} - Render chat page
 ::
@@ -388,7 +388,7 @@
         (~(dog jo:json-utils u.creds-jon) /ai-model so:dejs:format)
     ==
   =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
-  (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat all-chats user-timezone api-key ai-model))]))
+  (give-simple-payload:io (mime-response:hu [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat all-chats user-timezone api-key ai-model))]))
 ::
 ::  GET /master/claude/{id}/messages - Get paginated messages
 ::
