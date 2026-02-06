@@ -1,13 +1,13 @@
 ::  HTTP request state for request files
 ::
-|_  req=inbound-request:eyre
+|_  [src=@p req=inbound-request:eyre]
 ++  grab
   |%
-  ++  noun  ,inbound-request:eyre
+  ++  noun  ,[src=@p inbound-request:eyre]
   --
 ++  grow
   |%
-  ++  noun  req
+  ++  noun  [src req]
   ++  json
     ^-  ^json
     =/  bod=(unit @t)
@@ -18,7 +18,8 @@
         `(cat 3 (end [3 4.096] raw) '...(truncated)')
       `raw
     %-  pairs:enjs:format
-    :~  ['authenticated' b+authenticated.req]
+    :~  ['src' s+(scot %p src)]
+        ['authenticated' b+authenticated.req]
         ['secure' b+secure.req]
         ['method' s+method.request.req]
         ['url' s+url.request.req]

@@ -83,8 +83,8 @@
       ::  Incoming HTTP request from eyre
       ::
       %handle-http-request
-    =/  [eyre-id=@ta req=inbound-request:eyre]
-      !<([eyre-id=@ta inbound-request:eyre] q.cage)
+    =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+      !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
     ~&  >  [%server-request eyre-id url.request.req]
     =/  =request-line:server  (parse-request-line:server url.request.req)
     ::  Look up binding (prefix match, most specific wins)
@@ -112,7 +112,7 @@
     ;<  ~  bind:m  (replace:io !>(st))
     ::  Convert bend to road: [%| steps %& rail]
     =/  =road:tarball  [%| p.bend.u.match %& q.bend.u.match]
-    ;<  ~  bind:m  (poke:io /forward road handle-http-request+!>([eyre-id req]))
+    ;<  ~  bind:m  (poke:io /forward road handle-http-request+!>([eyre-id src req]))
     $
       ::  Response from handler
       ::

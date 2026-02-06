@@ -31,10 +31,10 @@
         ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
         ?+    p.cage  $
             %handle-http-request
-          =/  [eyre-id=@ta req=inbound-request:eyre]
-            !<([eyre-id=@ta inbound-request:eyre] q.cage)
+          =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+            !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
           ~&  >  [%explorer-dispatch eyre-id url.request.req]
-          ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>(req))
+          ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>([src req]))
           $
             %send-action
           ;<  ~  bind:m  (poke:io /send server-road cage)
@@ -50,7 +50,11 @@
           %-  (slog leaf+"%explorer /requests: failed" tang.prod)
           stay:m
         =/  eyre-id=@ta  name.rail
-        ;<  req=inbound-request:eyre  bind:m  (get-state-as:io ,inbound-request:eyre)
+        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
         ::  Extract raw path, resolve through ball tree

@@ -122,7 +122,7 @@
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id req]))
+      abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id src.bowl req]))
     [cards this]
   ==
 ::
