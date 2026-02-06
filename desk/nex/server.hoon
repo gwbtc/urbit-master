@@ -123,6 +123,10 @@
     =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id)
     ?~  conn-binding
       ~&  >  [%server-unknown-connection eyre-id]
+      ::  Forward cancel to sender so it can clean up
+      ?.  ?=(%& -.from)  $
+      =/  =road:tarball  [%| p.p.from %& q.p.from]
+      ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
       $
     =/  expected-bend=(unit bend:fiber:nexus)  (~(get by bindings.st) u.conn-binding)
     ?~  expected-bend
