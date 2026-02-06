@@ -1,4 +1,4 @@
-/+  nexus, tarball, server, nex-server, nex-counter, nex-explorer
+/+  nexus, tarball, server, nex-server, nex-counter, nex-explorer, nex-usergroups
 |%
 ++  default-nexi
   %-  ~(gas by *nexi:nexus)
@@ -6,6 +6,7 @@
       [%server main:nex-server]
       [%counter counter:nex-counter]
       [%explorer explorer:nex-explorer]
+      [%usergroups usergroups:nex-usergroups]
   ==
 ::
 ++  root
@@ -30,6 +31,8 @@
     ::  Blocking weir [~ ~ ~] until explicitly configured
     =.  ball  (~(put of ball) /peers [~ ~ ~])
     =.  sand  (~(put of sand) /peers [~ ~ ~])
+    ::  Create /groups directory with neck=%usergroups
+    =.  ball  (~(put of ball) /groups [~ `%usergroups ~])
     [sand ball]
   ::
   ++  on-file
