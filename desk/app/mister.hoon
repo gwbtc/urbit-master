@@ -276,7 +276,7 @@
   &+p.vale-result
 ::  Validate file content: handles %temp, empty-mime, scries for dais
 ::
-++  validate-file
+++  validate-new-cage
   |=  [=mark old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
   ::  Skip validation for %temp mark - ephemeral
@@ -302,7 +302,7 @@
   ?:  =(%temp p.cage)
     |+~[leaf+"clam: cannot validate %temp mark from untrusted source"]
   =/  result=(each vase tang)
-    (validate-file p.cage ~ q.cage %.y)
+    (validate-new-cage p.cage ~ q.cage %.y)
   ?:  ?=(%| -.result)
     result
   &+[p.cage p.result]
@@ -316,7 +316,7 @@
   |=  =ball:tarball
   ^-  ball:tarball
   ::  validate files at this level
-  ::  for each file, run validate-file and crash if it fails
+  ::  for each file, run validate-new-cage and crash if it fails
   ::  rebuild contents map with validated vases
   ::
   =/  validated-contents=(map @ta content:tarball)
@@ -327,7 +327,7 @@
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
     =/  res=(each vase tang)
-      (validate-file p.cage.content ~ q.cage.content %.y)
+      (validate-new-cage p.cage.content ~ q.cage.content %.y)
     ?.  ?=(%& -.res)  ~|(p.res !!)
     $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
   ::  recurse into subdirectories
@@ -1001,7 +1001,7 @@
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
   =/  validated=(each vase tang)
-    (validate-file p.cage.u.file-data `fil-state new-state %.n)
+    (validate-new-cage p.cage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
     =.  this  (nack-poke-takes here next.new-proc p.validated)
@@ -1073,7 +1073,7 @@
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (new file, no old content)
     =/  validated=(each vase tang)
-      (validate-file p.p.make ~ q.p.make %.n)
+      (validate-new-cage p.p.make ~ q.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Save initial state (bumps file aeon since old content is ~)
