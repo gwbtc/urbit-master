@@ -539,7 +539,7 @@
           [%cull ~]
           [%sand weir=(unit weir)]
           [%load ~]
-          [%poke =cage]
+          [%poke =page]
       ==
   ==
 +$  ack  (unit tang)
@@ -547,7 +547,7 @@
 ++  deaf
   |=  tap=(trap)
   ^-  (each * (list tank))
-  =/  ton  (mock [tap %9 2 %0 1] |=((pair) ~))
+  =/  ton  (mock [tap %9 2 %0 1] ~)
   ?-  -.ton
     %0  [%& p.ton]
   ::

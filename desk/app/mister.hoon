@@ -6,11 +6,12 @@
 /=  m-  /mar/mister-action
 /=  m-  /mar/mister-ack
 /=  m-  /mar/http-request
+/=  m-  /mar/peer-poke
 /=  m-  /nex/root
 /=  m-  /nex/counter
 /=  m-  /nex/server
 /=  m-  /nex/explorer
-/=  m-  /nex/usergroups
+/=  m-  /nex/peers
 /=  m-  /tests/nexus
 |%
 +$  versioned-state
@@ -73,19 +74,11 @@
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
-      ::  Poke destination must be a file
+      ::  All pokes route through /peers/main gateway
       ?>  ?=(%& -.dest.action)
-      ::  External pokes can only enter at /public/* or /peers/~src/*
-      ::  This gates WHERE external ships "exist" in the tree
-      ?>  ?|  =(src our):bowl
-              ?=([%public ^] path.p.dest.action)
-              ?&  ?=([%peers @ ^] path.p.dest.action)
-                  =(i.t.path.p.dest.action (scot %p src.bowl))
-              ==
-          ==
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
-        abet:(poke:hc give [p.dest.action cage.action])
+        abet:(poke:hc give [/peers %main] peer-poke+!>([p.dest.action page.action]))
       [cards this]
       ::
         %make
@@ -376,10 +369,11 @@
   ^+  this
   ::  Sanitize error if internal poke without peek permission
   =/  err=(unit tang)
-    ?.  ?=(%& -.from)  err  :: external pokes see full error
-    ?:  ?=([~ %|] (allowed %peek p.from `[%& here]))
-      ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
-    err
+    ?.  ?=(%& -.from)
+      ?~(err ~ `~[leaf+"poke failed"])
+    ?.  ?=([~ %|] (allowed %peek p.from `[%& here]))
+      err
+    ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
   ?-    -.from
       %&
     ::  Internal - send %pack intake to source path

@@ -290,6 +290,16 @@
   ;<  ~  bind:m  (send-dart %node wire road %peek ~)
   (take-peek wire)
 ::
+::  Check if a target (file or directory) exists at a road.
+::  Returns %.n on peek failure or %none view, %.y otherwise.
+::
+++  peek-exists
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,?)
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek wire road)
+  (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
+::
 ++  cull
   |=  [=wire =road:tarball]
   =/  m  (fiber ,~)

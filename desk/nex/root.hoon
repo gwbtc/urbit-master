@@ -16,21 +16,11 @@
   ::  Create /explorer directory with neck=%explorer
   =?  ball  =(~ (~(get of ball) /explorer))
     (~(put of ball) /explorer [~ `%explorer ~])
-  ::  Create /public directory - entry point for external pokes
-  ::  Blocking weir [~ ~ ~] until explicitly configured
-  =?  ball  =(~ (~(get of ball) /public))
-    (~(put of ball) /public [~ ~ ~])
-  =?  sand  =(~ (~(get of sand) /public))
-    (~(put of sand) /public [~ ~ ~])
-  ::  Create /peers directory - entry point for per-ship external pokes
-  ::  Blocking weir [~ ~ ~] until explicitly configured
+  ::  Create /peers directory with neck=%peers
+  ::  All foreign ship interaction goes through here.
+  ::  Peers nexus manages gateway processes, usergroups, and weirs.
   =?  ball  =(~ (~(get of ball) /peers))
-    (~(put of ball) /peers [~ ~ ~])
-  =?  sand  =(~ (~(get of sand) /peers))
-    (~(put of sand) /peers [~ ~ ~])
-  ::  Create /groups directory with neck=%usergroups
-  =?  ball  =(~ (~(get of ball) /groups))
-    (~(put of ball) /groups [~ `%usergroups ~])
+    (~(put of ball) /peers [~ `%peers ~])
   [sand ball]
 ::
 ++  on-file
