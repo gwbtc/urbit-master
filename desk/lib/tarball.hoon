@@ -959,7 +959,7 @@
   $(p t.p, n [i.p n])
 ::
 ++  gen
-  |_  [=bowl:gall conversions=(map mars:clay tube:clay)]
+  |_  [now=@da conversions=(map mars:clay tube:clay)]
   ::  TODO: implement PAX extended headers (typeflag 'x' and 'g')
   ::  to preserve arbitrary metadata fields like date-created
   ::  Format: <length> <key>=<value>\n
@@ -999,7 +999,7 @@
     =.  uid.header        (~(gut by fields) 'uid' '0000000')
     =.  gid.header        (~(gut by fields) 'gid' '0000000')
     =.  size.header       (~(gut by fields) 'size' '0')
-    =.  mtime.header      (~(gut by fields) 'mtime' (da-oct now.bowl))
+    =.  mtime.header      (~(gut by fields) 'mtime' (da-oct now))
     =.  linkname.header   (~(gut by fields) 'linkname' '')
     =.  uname.header      (~(gut by fields) 'uname' 'root')
     =.  gname.header      (~(gut by fields) 'gname' 'root')
@@ -1026,19 +1026,14 @@
     `u.data(p (add p.u.data (sub 512 (mod p.u.data 512))))
   ::
   ++  make-directory-entry
-    |=  [=path =metadata nec=(unit neck)]
+    |=  [=path =metadata]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
-    ::  Add .neck extension to directory name if neck exists
-    =/  dirname-with-ext=tape
-      ?~  nec
-        (trip (rsh [3 1] (spat name)))
-      (weld (trip (rsh [3 1] (spat name))) (weld "." (trip u.nec)))
     =.  metadata
       %-  ~(gas by metadata)
       :~  ['typeflag' '5']
           ['prefix' (rsh [3 1] (spat prefix))]
-          ['name' (cat 3 (crip dirname-with-ext) '/')]
+          ['name' (cat 3 (rsh [3 1] (spat name)) '/')]
       ==
     (generate-entry metadata ~)
   ::
@@ -1058,39 +1053,73 @@
             ['linkname' (encode-symlink u.maybe-sym)]
         ==
       (generate-entry sym-metadata ~)
-    ::  It's a regular file - add extension based on mark
+    ::  Regular file - name already has extension from extend-ball
     =/  =mime  (cage-to-mime cage.content)
-    =/  mark=@tas  p.cage.content
-    ::  Add extension to filename (unless it's %mime which keeps original name)
-    =/  filename-with-ext=tape
-      ?:  =(%mime mark)
-        ::  For %mime cages, the name already has the extension
-        (trip (rsh [3 1] (spat name)))
-      ::  For other marks, append .mark as extension
-      (weld (trip (rsh [3 1] (spat name))) (weld "." (trip mark)))
     =/  cage-metadata=metadata
       %-  ~(gas by metadata.content)
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
-          ['name' (crip filename-with-ext)]
+          ['name' (rsh [3 1] (spat name))]
       ==
     (generate-entry cage-metadata `q.mime)
   ::
+::  +extend-ball: rewrite ball keys with filesystem extensions
+::
+::  Bakes .mark extensions into filenames and .neck extensions into
+::  directory names so tar paths match their directory entries.
+::  e.g. key %main in a %hoon cage becomes %main.hoon,
+::  dir key %server with neck %server becomes %server.server
+::
+  ++  extend-ball
+    |=  =ball
+    ^-  ^ball
+    =/  new-fil=(unit lump)
+      ?~  fil.ball  ~
+      =/  new-contents=(map @ta content)
+        %-  ~(gas by *(map @ta content))
+        %+  turn  ~(tap by contents.u.fil.ball)
+        |=  [name=@ta =content]
+        =/  ext-name=@ta
+          ?:  =(%mime p.cage.content)  name
+          (crip "{(trip name)}.{(trip p.cage.content)}")
+        [ext-name content]
+      `u.fil.ball(contents new-contents)
+    ::  Rename subdirs: add .neck extension to dir keys, recurse
+    =/  new-dir=(map @ta ^ball)
+      %-  ~(gas by *(map @ta ^ball))
+      %+  turn  ~(tap by dir.ball)
+      |=  [name=@ta sub=^ball]
+      =/  ext-name=@ta
+        ?~  fil.sub  name
+        ?~  neck.u.fil.sub  name
+        (crip "{(trip name)}.{(trip u.neck.u.fil.sub)}")
+      [ext-name (extend-ball sub)]
+    [new-fil new-dir]
+  ::
+::  +make-tarball: extend ball keys with .mark/.neck then generate tar
+::
+::  Extends once at the top then delegates to +make-tarball-raw
+::  which recurses without re-extending.
+::
   ++  make-tarball
+    |=  [=path =ball]
+    ^-  tarball
+    (make-tarball-raw path (extend-ball ball))
+  ::
+  ++  make-tarball-raw
     |=  [=path =ball]
     ^-  tarball
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
       =/  contents-list=(list [@ta content])  ~(tap by contents.u.fil.ball)
-      ::  Filter out %temp cages - they never get exported
       =/  exportable=(list [@ta content])
         %+  skip  contents-list
         |=([name=@ta c=content] =(%temp p.cage.c))
       %+  weld
         ?~  path
           ~
-        [(make-directory-entry path metadata.u.fil.ball neck.u.fil.ball) ~]
+        [(make-directory-entry path metadata.u.fil.ball) ~]
       %+  turn  exportable
       |=  [name=@ta =content]
       (make-content-entry (snoc path name) content)
@@ -1100,7 +1129,7 @@
       tar-entries
     =/  [name=@ta sub-ball=^ball]  i.directories
     =/  sub-tar=tarball
-      (make-tarball (snoc path name) sub-ball)
+      (make-tarball-raw (snoc path name) sub-ball)
     %=  $
       directories  t.directories
       tar-entries  (weld tar-entries sub-tar)

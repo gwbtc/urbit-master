@@ -43,6 +43,8 @@
       wex=boat:gall
       sup=bitt:gall
       here=rail:tarball
+      dap=dude:gall
+      byk=beak
   ==
 ::
 +$  make  (each [=sand =ball:tarball] cage)

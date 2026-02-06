@@ -10,8 +10,10 @@
     ^-  [sand:nexus ball:tarball]
     ::  Create /main file (the counter)
     =.  ball  (~(put ba:tarball ball) [/ %main] [~ %ud !>(0)])
-    ::  Create /ui directory with neck=%counter-ui
-    =.  ball  (~(put of ball) /ui [~ `%counter-ui ~])
+    ::  Create /ui/main file (HTTP dispatcher)
+    =.  ball  (~(put ba:tarball ball) [/ui %main] [~ %sig !>(~)])
+    ::  Create /ui/requests directory for per-request processes
+    =.  ball  (~(put of ball) /ui/requests [~ ~ ~])
     [sand ball]
   ::
   ++  on-file
@@ -21,6 +23,8 @@
     =/  m  (fiber:fiber:nexus ,~)
     ^-  process:fiber:nexus
     ?+    rail  stay:m
+        ::  /main: counter process — ticks from 0 to 10
+        ::
         [~ %main]
       ;<  ~  bind:m  ?.  ?=(%rise -.prod)  (pure:m ~)
         (trace:io leaf+"%counter /main: failed" tang.prod)
@@ -41,66 +45,41 @@
       ~&  [%counter %tick +(count)]
       ;<  ~  bind:m  (replace:io !>(+(count)))
       $
-    ==
-  --
-::
-++  counter-ui
-  ^-  nexus:nexus
-  |%
-  ++  on-load
-    |=  [=sand:nexus =ball:tarball]
-    ^-  [sand:nexus ball:tarball]
-    ::  Create /main file
-    =.  ball  (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
-    ::  Create /requests directory for per-request processes
-    =.  ball  (~(put of ball) /requests [~ ~ ~])
-    [sand ball]
-  ::
-  ++  on-file
-    |=  [=rail:tarball =mark]
-    ^-  spool:fiber:nexus
-    |=  =prod:fiber:nexus
-    =/  m  (fiber:fiber:nexus ,~)
-    ^-  process:fiber:nexus
-    ?+    rail  stay:m
-        ::  /main: bind paths and dispatch requests to /requests/*
+        ::  /ui/main: bind paths and dispatch requests
         ::
-        [~ %main]
+        [[%ui ~] %main]
       ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%counter-ui /main: failed, staying inert" tang.prod)
+        %-  (slog leaf+"%counter /ui/main: failed, staying inert" tang.prod)
         stay:m
-      ~&  >  "%counter-ui /main: binding paths"
+      ~&  >  "%counter /ui/main: binding paths"
       ;<  ~  bind:m  (bind [~ /mister/counter])
       ;<  ~  bind:m  (bind [~ /mister/counter/stream])
-      ~&  >  "%counter-ui /main: ready"
+      ~&  >  "%counter /ui/main: ready"
       |-
       ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
       ?+    p.cage  $
           %handle-http-request
         =/  [eyre-id=@ta req=inbound-request:eyre]
           !<([eyre-id=@ta inbound-request:eyre] q.cage)
-        ~&  >  [%counter-ui-dispatch eyre-id url.request.req]
-        ::  Create request file at /requests/[eyre-id]
+        ~&  >  [%counter-dispatch eyre-id url.request.req]
         ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>(req))
         $
-          ::  Forward responses from request files to server
-          ::
           %send-action
         ;<  ~  bind:m  (poke:io /send server-road cage)
         $
       ==
-        ::  /requests/*: individual request handlers
+        ::  /ui/requests/*: individual request handlers
         ::
-        [[%requests ~] @]
+        [[%ui %requests ~] @]
       ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%counter-ui /requests: failed" tang.prod)
+        %-  (slog leaf+"%counter /ui/requests: failed" tang.prod)
         stay:m
       =/  eyre-id=@ta  name.rail
       ;<  req=inbound-request:eyre  bind:m  (get-state-as:io ,inbound-request:eyre)
-      ~&  >  [%counter-ui-request eyre-id url.request.req]
+      ~&  >  [%counter-request eyre-id url.request.req]
       =/  =request-line:server  (parse-request-line:server url.request.req)
       ?+    site.request-line
-        ~&  >  [%counter-ui-unknown site.request-line]
+        ~&  >  [%counter-unknown site.request-line]
         ;<  ~  bind:m  (send-simple eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
         (pure:m ~)
       ::
@@ -142,13 +121,13 @@
       ==
     ==
   --
-::  Road from /counter/ui/main to /server/main (for binding)
+::  Road from /counter/ui/main to /server/main
 ::
 ++  server-road  `road:tarball`[%| 2 %& /server %main]
-::  Roads from /counter/ui/requests/* (for request handling)
+::  Road from /counter/ui/requests/* to /counter/main
 ::
 ++  req-counter-road  `road:tarball`[%| 2 %& ~ %main]
-::  Road from /counter/ui/requests/* to /counter/ui/main (for responses)
+::  Road from /counter/ui/requests/* to /counter/ui/main
 ::
 ++  main-road  `road:tarball`[%| 1 %& ~ %main]
 ::

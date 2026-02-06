@@ -680,6 +680,7 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 
   This is role-based access control as tree structure, managed reactively.
 
+- [ ] Explorer cleanup: consolidate `cage-to-mime` in explorer with `gen:tarball`'s version (avoid duplicating tube-building logic)
 - [ ] Testing - exercise the flows end-to-end
 
 ## Open Questions (Resolved)

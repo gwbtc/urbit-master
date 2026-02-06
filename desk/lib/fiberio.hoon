@@ -6,7 +6,6 @@
 +$  input   input:fiber:nexus
 +$  intake  intake:fiber:nexus
 +$  dart    dart:nexus
-++  master  %mister
 ::
 ++  veto-error
   |=  =dart
@@ -426,6 +425,93 @@
       [%skip ~]
     [%done !<(mold vase.u.in)]
   ==
+::  Clay operations
+::
+++  warp
+  |=  [=ship =riff:clay]
+  =/  m  (fiber ,riot:clay)
+  ^-  form:m
+  ;<  ~  bind:m  (send-card %pass /warp %arvo %c %warp ship riff)
+  ;<  =sign-arvo  bind:m  (take-arvo /warp)
+  ?>  ?=([%clay %writ *] sign-arvo)
+  (pure:m +>.sign-arvo)
+::
+++  build-tube
+  |=  [[=ship =desk =case] =mars:clay]
+  =*  arg  +<
+  =/  m  (fiber ,tube:clay)
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
+  ?~  riot
+    (fiber-fail leaf+<['build-tube' arg]> ~)
+  ?>  =(%tube p.r.u.riot)
+  (pure:m !<(tube:clay q.r.u.riot))
+::
+++  build-tube-soft
+  |=  [[=ship =desk =case] =mars:clay]
+  =/  m  (fiber ,(unit tube:clay))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%tube p.r.u.riot)
+  (pure:m `!<(tube:clay q.r.u.riot))
+::  +try-build-tube: build a single tube, trying our desk first then %base
+::
+++  try-build-tube
+  |=  [our=@p =desk =case =mars:clay]
+  =/  m  (fiber ,(unit tube:clay))
+  ^-  form:m
+  ;<  tube=(unit tube:clay)  bind:m
+    (build-tube-soft [our desk case] mars)
+  ?^  tube
+    (pure:m tube)
+  (build-tube-soft [our %base case] mars)
+::  +collect-marks: collect all marks used in cages within a ball
+::
+++  collect-marks
+  |=  =ball:tarball
+  ^-  (set mark)
+  =/  marks=(set mark)  ~
+  ::  Collect marks from current node's contents
+  =?  marks  ?=(^ fil.ball)
+    =/  entries=(list (pair @ta content:tarball))
+      ~(tap by contents.u.fil.ball)
+    |-  ^-  (set mark)
+    ?~  entries  marks
+    =*  content  q.i.entries
+    $(entries t.entries, marks (~(put in marks) p.cage.content))
+  ::  Recurse into subdirectories
+  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
+  |-  ^-  (set mark)
+  ?~  subdirs  marks
+  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
+  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
+::  +get-mark-conversions: build mark conversions map for all marks in ball
+::
+++  get-mark-conversions
+  |=  =ball:tarball
+  =/  m  (fiber ,(map mars:clay tube:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  =/  =case  [%da now]
+  =/  marks=(list mark)  ~(tap in (collect-marks ball))
+  =/  conversions=(map mars:clay tube:clay)  ~
+  |-  ^-  form:m
+  ?~  marks
+    (pure:m conversions)
+  =/  from=mark  i.marks
+  =/  to=mark  %mime
+  =/  =mars:clay  [from to]
+  ;<  tube-result=(unit tube:clay)  bind:m
+    (try-build-tube our desk case mars)
+  =?  conversions  ?=(^ tube-result)
+    (~(put by conversions) mars u.tube-result)
+  $(marks t.marks)
 ::  Gall agent operations (via syscalls)
 ::
 ++  gall-poke
@@ -592,6 +678,30 @@
   ^-  form:m
   ;<  =bowl:nexus  bind:m  (get-bowl /get-here)
   (pure:m here.bowl)
+::
+++  get-agent
+  =/  m  (fiber ,dude:gall)
+  ^-  form:m
+  ;<  =bowl:nexus  bind:m  (get-bowl /get-agent)
+  (pure:m dap.bowl)
+::
+++  get-beak
+  =/  m  (fiber ,beak)
+  ^-  form:m
+  ;<  =bowl:nexus  bind:m  (get-bowl /get-beak)
+  (pure:m byk.bowl)
+::
+++  get-desk
+  =/  m  (fiber ,desk)
+  ^-  form:m
+  ;<  =bowl:nexus  bind:m  (get-bowl /get-desk)
+  (pure:m q.byk.bowl)
+::
+++  get-case
+  =/  m  (fiber ,case)
+  ^-  form:m
+  ;<  =bowl:nexus  bind:m  (get-bowl /get-case)
+  (pure:m r.byk.bowl)
 ::  Poke our own ship
 ::
 ++  gall-poke-our

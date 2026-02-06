@@ -1128,7 +1128,7 @@
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  =(proc-path here-path)  ~
     [~ duct ship sub]
-  [now our eny filtered-wex filtered-sup here]:[bowl .]
+  [now our eny filtered-wex filtered-sup here dap byk]:[bowl .]
 ::  Sandboxing / weir filtering
 ::
 ::  The "governor" is the nearest directory strictly ABOVE both source

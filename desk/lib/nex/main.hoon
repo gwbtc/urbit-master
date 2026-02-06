@@ -1,11 +1,11 @@
-/+  nexus, tarball, server, nex-server, nex-counter
+/+  nexus, tarball, server, nex-server, nex-counter, nex-explorer
 |%
 ++  default-nexi
   %-  ~(gas by *nexi:nexus)
   :~  [%root root]
       [%server main:nex-server]
       [%counter counter:nex-counter]
-      [%counter-ui counter-ui:nex-counter]
+      [%explorer explorer:nex-explorer]
   ==
 ::
 ++  root
@@ -20,6 +20,8 @@
     =.  ball  (~(put of ball) /server [~ `%server ~])
     ::  Create /counter directory with neck=%counter
     =.  ball  (~(put of ball) /counter [~ `%counter ~])
+    ::  Create /explorer directory with neck=%explorer
+    =.  ball  (~(put of ball) /explorer [~ `%explorer ~])
     ::  Create /public directory - entry point for external pokes
     ::  Blocking weir [~ ~ ~] until explicitly configured
     =.  ball  (~(put of ball) /public [~ ~ ~])

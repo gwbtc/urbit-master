@@ -488,7 +488,7 @@
   =/  =mime
     ?:  =(%mime p.cag)
       !<(mime q.cag)
-    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+    (~(cage-to-mime gen:tarball [now.bowl conversions]) cag)
   =/  text=@t  ;;(@t q.q.mime)
   ::  Upload to S3
   ;<  now=@da  bind:m  get-time:io
@@ -566,7 +566,7 @@
   =/  =mime
     ?:  =(%mime p.cag)
       !<(mime q.cag)
-    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+    (~(cage-to-mime gen:tarball [now.bowl conversions]) cag)
   =/  text=@t  ;;(@t q.q.mime)
   ::  Upload to S3
   ;<  now=@da  bind:m  get-time:io

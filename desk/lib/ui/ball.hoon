@@ -25,7 +25,7 @@
   ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
     ::  Generate tarball for current directory
     =/  subball=ball:tarball  (~(dip ba:tarball ball) ball-path)
-    =/  tar=tarball:tarball  (~(make-tarball gen:tarball [bowl conversions]) ball-path subball)
+    =/  tar=tarball:tarball  (~(make-tarball gen:tarball [now.bowl conversions]) ball-path subball)
     =/  tar-data=octs  (encode-tarball:tarball tar)
     ::  Generate filename based on directory path
     =/  dir-name=@t
@@ -50,7 +50,7 @@
       [/text/plain (as-octs:mimes:html 'symlink')]
     ?:  =(%mime p.cag)
       !<(mime q.cag)
-    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+    (~(cage-to-mime gen:tarball [now.bowl conversions]) cag)
   ::  No ext - try as directory first, fallback to file
   =/  dir-exists=(unit ball:tarball)  (~(dap ba:tarball ball) ball-path)
   ?^  dir-exists
@@ -70,7 +70,7 @@
     [/text/plain (as-octs:mimes:html 'symlink')]
   ?:  =(%mime p.cag)
     !<(mime q.cag)
-  (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+  (~(cage-to-mime gen:tarball [now.bowl conversions]) cag)
 ::  Render ball file browser UI
 ::
 ++  ball-browser
@@ -271,7 +271,7 @@
           =/  =mime
             ?:  =(%mime p.cag)
               !<(mime q.cag)
-            (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+            (~(cage-to-mime gen:tarball [now.bowl conversions]) cag)
           =/  size=@ud  p.q.mime
           =/  mime-raw=tape  (trip (spat p.mime))
           =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))

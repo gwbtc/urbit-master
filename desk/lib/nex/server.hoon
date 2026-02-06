@@ -28,6 +28,15 @@
   $:  bindings=(map binding:eyre bend:fiber:nexus)
       connections=(map @ta binding:eyre)
   ==
+::  +find-suffix: returns [~ /tail] if :full is (weld :prefix /tail)
+::
+++  find-suffix
+  |=  [prefix=path full=path]
+  ^-  (unit path)
+  ?~  prefix  `full
+  ?~  full    ~
+  ?.  =(i.prefix i.full)  ~
+  $(prefix t.prefix, full t.full)
 ::
 ++  main
   ^-  nexus:nexus
@@ -67,9 +76,10 @@
         =.  bindings.st  (~(put by bindings.st) binding.act p.from)
         ;<  ~  bind:m  (replace:io !>(st))
         ::  Register with eyre
+        ;<  =dude:gall  bind:m  get-agent:io
         ;<  ~  bind:m
           %-  send-cards:io
-          [%pass /eyre-bind %arvo %e %connect binding.act master:io]~
+          [%pass /eyre-bind %arvo %e %connect binding.act dude]~
         $
           %unbind
         ~&  >  [%server-unbind binding.act]
@@ -100,28 +110,31 @@
         !<([eyre-id=@ta inbound-request:eyre] q.cage)
       ~&  >  [%server-request eyre-id url.request.req]
       =/  =request-line:server  (parse-request-line:server url.request.req)
-      =/  =binding:eyre  [~ site.request-line]
-      ::  Look up binding (try progressively shorter paths)
+      ::  Look up binding (prefix match, most specific wins)
       ;<  st=server-state  bind:m  (get-state-as:io server-state)
-      =/  target=(unit bend:fiber:nexus)
-        =/  pax=(list @t)  path.binding
+      =/  match=(unit [=binding:eyre =bend:fiber:nexus])
+        =|  best=(unit [=binding:eyre =bend:fiber:nexus])
+        =/  entries=(list [=binding:eyre =bend:fiber:nexus])
+          ~(tap by bindings.st)
         |-
-        ^-  (unit bend:fiber:nexus)
-        ?~  pax  ~
-        =/  found  (~(get by bindings.st) [site.binding pax])
-        ?^  found  found
-        $(pax (snip `path`pax))
-      ?~  target
-        ~&  >  [%server-no-binding binding]
+        ?~  entries  best
+        ?~  (find-suffix path.binding.i.entries site.request-line)
+          $(entries t.entries)
+        ?~  best  $(best `i.entries, entries t.entries)
+        ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))
+          $(best `i.entries, entries t.entries)
+        $(entries t.entries)
+      ?~  match
+        ~&  >  [%server-no-binding site.request-line]
         ;<  ~  bind:m
           %-  send-cards:io
           (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
         $
-      ~&  >  [%server-found-binding binding u.target]
-      =.  connections.st  (~(put by connections.st) eyre-id binding)
+      ~&  >  [%server-found-binding binding.u.match bend.u.match]
+      =.  connections.st  (~(put by connections.st) eyre-id binding.u.match)
       ;<  ~  bind:m  (replace:io !>(st))
       ::  Convert bend to road: [%| steps %& rail]
-      =/  =road:tarball  [%| p.u.target %& q.u.target]
+      =/  =road:tarball  [%| p.bend.u.match %& q.bend.u.match]
       ;<  ~  bind:m  (poke:io /forward road handle-http-request+!>([eyre-id req]))
       $
         ::  Response from handler
