@@ -297,10 +297,6 @@
 ::
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
-+$  nexi  (map neck:tarball nexus)
-::  Eyre bindings: URL path → file path in the tree
-::
-+$  bindings  (map path rail:tarball)
 ::  Internal subscriptions: process watches tree locations
 ::
 ::  fwd: "who is watching this lane?" → watcher + wire for routing
@@ -653,8 +649,8 @@
 ::    accumulating effects
 ::  - each nexus should create a main process to handle its API
 ::
-++  nexus
-  $_  ^|
++$  nexus
+  $_  ^?
   |%
   :: top-down reconsideration of directory structure in +on-load and whenever
   :: this nexus is initially created

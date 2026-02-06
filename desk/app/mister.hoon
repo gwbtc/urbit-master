@@ -1,4 +1,4 @@
-/+  default-agent, dbug, tarball, nexus, nex-main, server
+/+  default-agent, dbug, tarball, nexus, server
 /=  m-  /mar/server-state
 /=  m-  /mar/tree
 /=  m-  /mar/sand
@@ -6,6 +6,11 @@
 /=  m-  /mar/mister-action
 /=  m-  /mar/mister-ack
 /=  m-  /mar/http-request
+/=  m-  /nex/root
+/=  m-  /nex/counter
+/=  m-  /nex/server
+/=  m-  /nex/explorer
+/=  m-  /nex/usergroups
 /=  m-  /tests/nexus
 |%
 +$  versioned-state
@@ -14,7 +19,6 @@
 +$  card  card:agent:gall
 +$  state-0
   $:  %0
-      =nexi:nexus
       =ball:tarball
       =pool:nexus
       =sand:nexus
@@ -36,8 +40,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  =.  nexi  default-nexi:nex-main
-  ::  Create empty ball with %root nexus at root
+::  Create empty ball with %root nexus at root
   =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
     abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
@@ -51,7 +54,6 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  =.  nexi  default-nexi:nex-main
   ?-    -.old
       %0
     ::  Ensure neck at root is %root (nexus on-load will create main.sig)
@@ -441,7 +443,7 @@
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
-    (~(get by nexi) u.neck.u.fil.sub-ball)
+    (build-nexus u.neck.u.fil.sub-ball)
   ::  Run on-load if nexus exists
   ::
   ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
@@ -478,7 +480,7 @@
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
-    (~(get by nexi) u.neck.u.fil.sub-ball)
+    (build-nexus u.neck.u.fil.sub-ball)
   ?~  nex
     ~|("no nexus at destination" !!)
   ::  Get current sand subtree (preserve parent weir)
@@ -740,7 +742,15 @@
 ++  build-nexus
   |=  neck=@tas
   ^-  (unit nexus:nexus)
-  (~(get by nexi) neck)
+  =/  base=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
+  =/  segs=(list path)  (segments:clay neck)
+  |-
+  ?~  segs  ~
+  =/  pax=path  `path`[%nex (snoc i.segs %hoon)]
+  ?.  .^(? %cu (weld base pax))
+    $(segs t.segs)
+  =+  .^(=vase %ca (weld base pax))
+  (mole |.(!<(nexus:nexus vase)))
 ::
 ++  find-nearest-nexus
   |=  here=rail:tarball
@@ -1185,7 +1195,6 @@
   ?~  path.here
     next
   $(filt next, path.here (snip `fold:tarball`path.here))
-::
 ::  =born: Thin wrappers around ++bo in lib/nexus.hoon
 ::  See ++bo for documentation of semantics and invariants.
 ::  TODO: Use bumped set for subscription notifications

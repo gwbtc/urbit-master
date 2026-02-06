@@ -1,80 +1,82 @@
 ::  explorer nexus: tarball tree browser
 ::
 /+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, iso-8601, html-utils, multipart
-|%
-++  explorer
-  ^-  nexus:nexus
-  |%
-  ++  on-load
-    |=  [=sand:nexus =ball:tarball]
-    ^-  [sand:nexus ball:tarball]
-    =.  ball  (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
-    =.  ball  (~(put of ball) /requests [~ ~ ~])
-    [sand ball]
-  ::
-  ++  on-file
-    |=  [=rail:tarball =mark]
-    ^-  spool:fiber:nexus
-    |=  =prod:fiber:nexus
-    =/  m  (fiber:fiber:nexus ,~)
-    ^-  process:fiber:nexus
-    ?+    rail  stay:m
-        [~ %main]
-      ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%explorer /main: failed, staying inert" tang.prod)
-        stay:m
-      ~&  >  "%explorer /main: binding /mister/ball"
-      ;<  ~  bind:m  (bind [~ /mister/ball])
-      ;<  ~  bind:m  (bind [~ /mister/ball/stream])
-      ~&  >  "%explorer /main: ready"
-      |-
-      ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-      ?+    p.cage  $
-          %handle-http-request
-        =/  [eyre-id=@ta req=inbound-request:eyre]
-          !<([eyre-id=@ta inbound-request:eyre] q.cage)
-        ~&  >  [%explorer-dispatch eyre-id url.request.req]
-        ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>(req))
-        $
-          %send-action
-        ;<  ~  bind:m  (poke:io /send server-road cage)
-        $
-          %handle-http-cancel
-        =/  eyre-id=@ta  !<(@ta q.cage)
-        ~&  >  [%explorer-cancel eyre-id]
-        ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
-        $
+=<  ^-  nexus:nexus
+    |%
+    ++  on-load
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
+      =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
+        (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+      =?  ball  =(~ (~(get of ball) /requests))
+        (~(put of ball) /requests [~ ~ ~])
+      [sand ball]
+    ::
+    ++  on-file
+      |=  [=rail:tarball =mark]
+      ^-  spool:fiber:nexus
+      |=  =prod:fiber:nexus
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  process:fiber:nexus
+      ?+    rail  stay:m
+          [~ %main]
+        ?:  ?=(%rise -.prod)
+          %-  (slog leaf+"%explorer /main: failed, staying inert" tang.prod)
+          stay:m
+        ~&  >  "%explorer /main: binding /mister/ball"
+        ;<  ~  bind:m  (bind [~ /mister/ball])
+        ;<  ~  bind:m  (bind [~ /mister/ball/stream])
+        ~&  >  "%explorer /main: ready"
+        |-
+        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
+        ?+    p.cage  $
+            %handle-http-request
+          =/  [eyre-id=@ta req=inbound-request:eyre]
+            !<([eyre-id=@ta inbound-request:eyre] q.cage)
+          ~&  >  [%explorer-dispatch eyre-id url.request.req]
+          ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>(req))
+          $
+            %send-action
+          ;<  ~  bind:m  (poke:io /send server-road cage)
+          $
+            %handle-http-cancel
+          =/  eyre-id=@ta  !<(@ta q.cage)
+          ~&  >  [%explorer-cancel eyre-id]
+          ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
+          $
+        ==
+          [[%requests ~] @]
+        ?:  ?=(%rise -.prod)
+          %-  (slog leaf+"%explorer /requests: failed" tang.prod)
+          stay:m
+        =/  eyre-id=@ta  name.rail
+        ;<  req=inbound-request:eyre  bind:m  (get-state-as:io ,inbound-request:eyre)
+        ~&  >  [%explorer-request eyre-id url.request.req]
+        =/  =request-line:server  (parse-request-line:server url.request.req)
+        ::  Extract raw path, resolve through ball tree
+        =/  raw-path=path
+          ?.  ?=([%mister %ball *] site.request-line)  ~
+          t.t.site.request-line
+        ?:  ?=([%stream ~] raw-path)
+          =/  watch-path=path
+            =/  p=(unit @t)  (get-key:kv:html-utils 'path' args.request-line)
+            ?~  p  ~
+            (stab u.p)
+          (handle-stream eyre-id req watch-path)
+        ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
+        ?.  ?=([%& %ball *] root-seen)
+          ;<  ~  bind:m  (send-simple eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
+          (pure:m ~)
+        =/  root=ball:tarball  ball.p.root-seen
+        =/  root-born=born:nexus  born.p.root-seen
+        =/  tree-path=path  (resolve-url-path raw-path root)
+        ?:  =('POST' method.request.req)
+          (handle-post eyre-id tree-path req)
+        (handle-get eyre-id tree-path root root-born args.request-line)
       ==
-        [[%requests ~] @]
-      ?:  ?=(%rise -.prod)
-        %-  (slog leaf+"%explorer /requests: failed" tang.prod)
-        stay:m
-      =/  eyre-id=@ta  name.rail
-      ;<  req=inbound-request:eyre  bind:m  (get-state-as:io ,inbound-request:eyre)
-      ~&  >  [%explorer-request eyre-id url.request.req]
-      =/  =request-line:server  (parse-request-line:server url.request.req)
-      ::  Extract raw path, resolve through ball tree
-      =/  raw-path=path
-        ?.  ?=([%mister %ball *] site.request-line)  ~
-        t.t.site.request-line
-      ?:  ?=([%stream ~] raw-path)
-        =/  watch-path=path
-          =/  p=(unit @t)  (get-key:kv:html-utils 'path' args.request-line)
-          ?~  p  ~
-          (stab u.p)
-        (handle-stream eyre-id req watch-path)
-      ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
-      ?.  ?=([%& %ball *] root-seen)
-        ;<  ~  bind:m  (send-simple eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
-        (pure:m ~)
-      =/  root=ball:tarball  ball.p.root-seen
-      =/  root-born=born:nexus  born.p.root-seen
-      =/  tree-path=path  (resolve-url-path raw-path root)
-      ?:  =('POST' method.request.req)
-        (handle-post eyre-id tree-path req)
-      (handle-get eyre-id tree-path root root-born args.request-line)
-    ==
-  --
+    --
+::
+|%
 ::  Absolute road to /server/main
 ::
 ++  server-road  `road:tarball`[%& %& /server %main]
