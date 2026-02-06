@@ -1,9 +1,11 @@
 /+  default-agent, dbug, tarball, nexus, nex-main, server
+/=  m-  /mar/server-state
 /=  m-  /mar/tree
 /=  m-  /mar/sand
 /=  m-  /mar/kids
 /=  m-  /mar/mister-action
 /=  m-  /mar/mister-ack
+/=  m-  /mar/http-request
 /=  m-  /tests/nexus
 |%
 +$  versioned-state

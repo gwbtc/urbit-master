@@ -121,9 +121,9 @@
       ==
     ==
   --
-::  Road from /counter/ui/main to /server/main
+::  Absolute road to /server/main
 ::
-++  server-road  `road:tarball`[%| 2 %& /server %main]
+++  server-road  `road:tarball`[%& %& /server %main]
 ::  Road from /counter/ui/requests/* to /counter/main
 ::
 ++  req-counter-road  `road:tarball`[%| 2 %& ~ %main]

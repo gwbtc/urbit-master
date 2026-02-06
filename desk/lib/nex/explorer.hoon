@@ -51,22 +51,20 @@
       =/  raw-path=path
         ?.  ?=([%mister %ball *] site.request-line)  ~
         t.t.site.request-line
-      =/  ext=(unit @ta)  ext.request-line
-      ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%| 2 %| ~])
+      ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
       ?.  ?=([%& %ball *] root-seen)
         ;<  ~  bind:m  (send-simple eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
         (pure:m ~)
       =/  root=ball:tarball  ball.p.root-seen
       =/  tree-path=path  (resolve-url-path raw-path root)
-      ::  Branch on HTTP method
       ?:  =('POST' method.request.req)
         (handle-post eyre-id tree-path req)
-      (handle-get eyre-id tree-path root ext args.request-line)
+      (handle-get eyre-id tree-path root args.request-line)
     ==
   --
-::  Road from /explorer/main to /server/main
+::  Absolute road to /server/main
 ::
-++  server-road  `road:tarball`[%| 1 %& /server %main]
+++  server-road  `road:tarball`[%& %& /server %main]
 ::  Road from /explorer/requests/* to /explorer/main
 ::
 ++  main-road  `road:tarball`[%| 1 %& ~ %main]
@@ -85,21 +83,18 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path root=ball:tarball ext=(unit @ta) args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path root=ball:tarball args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
-  ::  Check for ?download=tar
   =/  download-param=(unit @t)  (get-key:kv:html-utils 'download' args)
-  =/  sub=ball:tarball  (~(dip ba:tarball root) tree-path)
-  ::  Check if tree-path is a directory (has lump or children)
-  ?:  |(?=(^ fil.sub) !=(~ dir.sub))
-    ::  Tarball download
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) tree-path)
+  ?:  ?=(^ sub)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
-      (serve-tarball eyre-id tree-path sub)
+      (serve-tarball eyre-id tree-path u.sub)
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map mars:clay tube:clay)  bind:m
-      (get-mark-conversions:io sub)
+      (get-mark-conversions:io u.sub)
     =/  bod=octs  (manx-to-octs:server (render-dir tree-path root now conversions))
     ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
@@ -111,19 +106,11 @@
   =/  name=@ta  (rear tree-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball root) parent)
   =/  content-data=(unit content:tarball)
-    =/  direct=(unit content:tarball)
-      ?~  fil.parent-ball  ~
-      (~(get by contents.u.fil.parent-ball) name)
-    ?^  direct  direct
-    ::  Try with extension (for %mime files where ext was stripped by URL parser)
-    ?~  ext  ~
-    =/  full-name=@ta  (crip "{(trip name)}.{(trip u.ext)}")
     ?~  fil.parent-ball  ~
-    (~(get by contents.u.fil.parent-ball) full-name)
+    (find-file name u.fil.parent-ball)
   ?~  content-data
     ;<  ~  bind:m  (send-simple eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  ::  Serve file content
   =/  =cage  cage.u.content-data
   ;<  =mime  bind:m  (cage-to-mime cage)
   ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [p.mime q.mime]))
@@ -304,6 +291,21 @@
     ==
   ;<  ~  bind:m  (send-simple eyre-id [[200 headers] `tar-data])
   (pure:m ~)
+::  Find a file by URL segment in a lump
+::  Matches exact name first, then tries name.mark pattern
+::
+++  find-file
+  |=  [seg=@ta =lump:tarball]
+  ^-  (unit content:tarball)
+  =/  direct  (~(get by contents.lump) seg)
+  ?^  direct  direct
+  =/  entries=(list [@ta content:tarball])  ~(tap by contents.lump)
+  |-
+  ?~  entries  ~
+  =/  [name=@ta =content:tarball]  i.entries
+  ?:  =(seg (crip "{(trip name)}.{(trip p.cage.content)}"))
+    `content
+  $(entries t.entries)
 ::  Walk root ball along path, collecting neck for each directory
 ::
 ++  get-necks

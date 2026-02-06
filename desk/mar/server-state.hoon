@@ -1,11 +1,45 @@
 ::  server-state: mark for server nexus state
 ::
-/+  nex-server
+/+  nexus, nex-server
 |_  state=server-state:nex-server
 ++  grad  %noun
 ++  grow
   |%
   ++  noun  state
+  ++  json
+    ^-  ^json
+    =/  bindings-list=(list [=binding:eyre =bend:fiber:nexus])
+      ~(tap by bindings.state)
+    =/  connections-list=(list [@ta =binding:eyre])
+      ~(tap by connections.state)
+    %-  pairs:enjs:format
+    :~  :-  'bindings'
+        :-  %a
+        %+  turn  bindings-list
+        |=  [=binding:eyre =bend:fiber:nexus]
+        %-  pairs:enjs:format
+        :~  ['site' ?~(site.binding s+'~' s+u.site.binding)]
+            ['path' s+(spat path.binding)]
+            ['steps' (numb:enjs:format p.bend)]
+            :-  'target'
+            %-  pairs:enjs:format
+            :~  ['path' s+(spat path.q.bend)]
+                ['name' s+name.q.bend]
+            ==
+        ==
+      ::
+        :-  'connections'
+        :-  %a
+        %+  turn  connections-list
+        |=  [eyre-id=@ta =binding:eyre]
+        %-  pairs:enjs:format
+        :~  ['eyre-id' s+eyre-id]
+            ['site' ?~(site.binding s+'~' s+u.site.binding)]
+            ['path' s+(spat path.binding)]
+        ==
+    ==
+  ++  mime  [/application/json (as-octs:mimes:html -:txt)]
+  ++  txt   [(en:json:html json)]~
   --
 ++  grab
   |%
