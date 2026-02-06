@@ -25,6 +25,7 @@
         stay:m
       ~&  >  "%explorer /main: binding /mister/ball"
       ;<  ~  bind:m  (bind [~ /mister/ball])
+      ;<  ~  bind:m  (bind [~ /mister/ball/stream])
       ~&  >  "%explorer /main: ready"
       |-
       ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
@@ -37,6 +38,11 @@
         $
           %send-action
         ;<  ~  bind:m  (poke:io /send server-road cage)
+        $
+          %handle-http-cancel
+        =/  eyre-id=@ta  !<(@ta q.cage)
+        ~&  >  [%explorer-cancel eyre-id]
+        ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
         $
       ==
         [[%requests ~] @]
@@ -51,15 +57,22 @@
       =/  raw-path=path
         ?.  ?=([%mister %ball *] site.request-line)  ~
         t.t.site.request-line
+      ?:  ?=([%stream ~] raw-path)
+        =/  watch-path=path
+          =/  p=(unit @t)  (get-key:kv:html-utils 'path' args.request-line)
+          ?~  p  ~
+          (stab u.p)
+        (handle-stream eyre-id req watch-path)
       ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
       ?.  ?=([%& %ball *] root-seen)
         ;<  ~  bind:m  (send-simple eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
         (pure:m ~)
       =/  root=ball:tarball  ball.p.root-seen
+      =/  root-born=born:nexus  born.p.root-seen
       =/  tree-path=path  (resolve-url-path raw-path root)
       ?:  =('POST' method.request.req)
         (handle-post eyre-id tree-path req)
-      (handle-get eyre-id tree-path root args.request-line)
+      (handle-get eyre-id tree-path root root-born args.request-line)
     ==
   --
 ::  Absolute road to /server/main
@@ -83,7 +96,7 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path root=ball:tarball args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path root=ball:tarball root-born=born:nexus args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
@@ -91,11 +104,11 @@
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) tree-path)
   ?:  ?=(^ sub)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
-      (serve-tarball eyre-id tree-path u.sub)
+      (serve-tarball eyre-id tree-path u.sub (~(dip of root-born) tree-path))
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (get-mark-conversions:io u.sub)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root now conversions))
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born now conversions))
     ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  Not a directory — try as file
@@ -274,14 +287,15 @@
 ::  Serve a directory as a tarball download
 ::
 ++  serve-tarball
-  |=  [eyre-id=@ta tree-path=path b=ball:tarball]
+  |=  [eyre-id=@ta tree-path=path b=ball:tarball sub-born=born:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born b)
   ;<  now=@da  bind:m  get-time:io
   ;<  conversions=(map mars:clay tube:clay)  bind:m
-    (get-mark-conversions:io b)
+    (get-mark-conversions:io stamped)
   =/  tar=tarball:tarball
-    (~(make-tarball gen:tarball [now conversions]) tree-path b)
+    (~(make-tarball gen:tarball [now conversions]) tree-path stamped)
   =/  tar-data=octs  (encode-tarball:tarball tar)
   =/  dir-name=tape
     ?~(tree-path "root" (trip (rear tree-path)))
@@ -306,6 +320,87 @@
   ?:  =(seg (crip "{(trip name)}.{(trip p.cage.content)}"))
     `content
   $(entries t.entries)
+::  Handle SSE stream: subscribe to root, push change events
+::
+++  handle-stream
+  |=  [eyre-id=@ta req=inbound-request:eyre watch-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+    (pure:m ~)
+  ;<  ~  bind:m  (send-header eyre-id sse-header:http-utils)
+  ;<  ~  bind:m  (keep:io /ball [%& %| ~])
+  ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
+  ?-    -.nw
+      %wake
+    ;<  ~  bind:m  (send-data eyre-id `sse-keep-alive:http-utils)
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    $
+      %news
+    ?.  ?=([%ball *] view.nw)  $
+    =/  root=ball:tarball  ball.view.nw
+    =/  root-born=born:nexus  born.view.nw
+    =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
+    =/  par-born=born:nexus  (~(dip of root-born) watch-path)
+    =/  necks=(map path @ta)  (get-necks watch-path root)
+    =/  url-prefix=tape  (build-url watch-path necks)
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  conversions=(map mars:clay tube:clay)  bind:m
+      (get-mark-conversions:io par)
+    =/  lanes=(list lane:tarball)  ~(tap in what.nw)
+    |-
+    ?~  lanes  ^$
+    =/  [parent=path item=@ta is-file=?]
+      ?-  -.i.lanes
+        %&  [path.p.i.lanes name.p.i.lanes %.y]
+        %|  ?~  p.i.lanes  [~ %$ %.n]
+            [(snip `path`p.i.lanes) (rear p.i.lanes) %.n]
+      ==
+    ::  Skip lanes not matching watched directory
+    ?.  =(parent watch-path)
+      $(lanes t.lanes)
+    =/  exists=?
+      ?:  is-file
+        ?~  fil.par  %.n
+        (~(has by contents.u.fil.par) item)
+      (~(has by dir.par) item)
+    ?:  exists
+      ::  Add: render full row HTML
+      =/  row-html=tape
+        ?:  is-file
+          ?~  fil.par  ""
+          =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
+          ?~  ct  ""
+          (en-xml:html (render-file-row item u.ct url-prefix watch-path par-born now.bowl conversions))
+        =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
+        ?~  sub  ""
+        (en-xml:html (render-dir-row item u.sub url-prefix))
+      =/  =json
+        %-  pairs:enjs:format
+        :~  ['action' s+'add']
+            ['name' s+item]
+            ['html' s+(crip row-html)]
+        ==
+      =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
+      =/  data=octs  (sse-encode:http-utils ~[sse-event])
+      ;<  ~  bind:m  (send-data eyre-id `data)
+      $(lanes t.lanes)
+    ::  Delete: send name
+    =/  =json
+      %-  pairs:enjs:format
+      :~  ['action' s+'del']
+          ['name' s+item]
+      ==
+    =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
+    =/  data=octs  (sse-encode:http-utils ~[sse-event])
+    ;<  ~  bind:m  (send-data eyre-id `data)
+    $(lanes t.lanes)
+  ==
 ::  Walk root ball along path, collecting neck for each directory
 ::
 ++  get-necks
@@ -378,6 +473,18 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (send [eyre-id %simple simple-payload])
+::
+++  send-header
+  |=  [eyre-id=@ta =response-header:http]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (send [eyre-id %header response-header])
+::
+++  send-data
+  |=  [eyre-id=@ta data=(unit octs)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (send [eyre-id %data data])
 ::
 ++  page-head
   |=  title=tape
@@ -512,11 +619,13 @@
 ++  render-dir
   |=  $:  pax=path
           root=ball:tarball
+          root-born=born:nexus
           now=@da
           conversions=(map mars:clay tube:clay)
       ==
   ^-  manx
   =/  b=ball:tarball  (~(dip ba:tarball root) pax)
+  =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  necks=(map path @ta)  (get-necks pax root)
   =/  neck-ext=tape
     ?~  fil.b  ""
@@ -538,7 +647,7 @@
       ;+  (breadcrumb pax necks)
       ;h1: Index of {path-display}
       ;+  (dir-info b url-prefix)
-      ;table
+      ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th: Name
           ;th: Mime Type
@@ -569,29 +678,7 @@
           |=  name=@ta
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
-          =/  sub-neck=tape
-            ?~  fil.sub  ""
-            ?~  neck.u.fil.sub  ""
-            ".{(trip u.neck.u.fil.sub)}"
-          =/  dir-url=tape  "{url-prefix}/{(trip name)}{sub-neck}"
-          ;tr
-            ;td
-              ;a/"{dir-url}": {(trip name)}{sub-neck}/
-            ==
-            ;td: -
-            ;td: -
-            ;td: -
-            ;td
-              ;a/"{dir-url}?download=tar"
-                ;button(type "button"): Download
-              ==
-              ;form.del-form(method "POST", action url-prefix)
-                ;input(type "hidden", name "action", value "delete-folder");
-                ;input(type "hidden", name "foldername", value (trip name));
-                ;button(type "submit", onclick "return confirm('Delete folder {(trip name)} and all its contents?')"): Delete
-              ==
-            ==
-          ==
+          (render-dir-row name sub url-prefix)
         ::  Files
         =.  rows
           %+  weld  rows
@@ -599,70 +686,30 @@
           |=  name=@ta
           ^-  manx
           =/  =content:tarball  (~(got by file-contents) name)
-          =/  mtime-display=tape  (get-mtime metadata.content)
-          =/  cag=cage  cage.content
-          ?:  =(%symlink p.cag)
-            =/  sym  !<(symlink:tarball q.cag)
-            =/  target-display=tape  (trip (encode-symlink:tarball sym))
-            =/  resolved-path=path  (resolve-symlink:tarball sym pax)
-            =/  target-url=tape  "/mister/ball{(trip (spat resolved-path))}"
-            ;tr
-              ;td
-                ;a/"{target-url}": {(trip name)}
-                ;span.symlink-target:  -> {target-display}
-              ==
-              ;td: symlink
-              ;td: -
-              ;td: {mtime-display}
-              ;td
-                ;form.del-form(method "POST", action url-prefix)
-                  ;input(type "hidden", name "action", value "delete-file");
-                  ;input(type "hidden", name "filename", value (trip name));
-                  ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-                ==
-              ==
-            ==
-          =/  display-name=tape
-            ?:  =(%mime p.cag)
-              (trip name)
-            "{(trip name)}.{(trip p.cag)}"
-          =/  file-url=tape  "{url-prefix}/{display-name}"
-          =/  =mime
-            ?:  =(%mime p.cag)
-              !<(mime q.cag)
-            (~(cage-to-mime gen:tarball [now conversions]) cag)
-          =/  mime-raw=tape  (trip (spat p.mime))
-          =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-          ;tr
-            ;td
-              ;a/"{file-url}": {display-name}
-            ==
-            ;td: {mime-display}
-            ;td: {(format-size p.q.mime)}
-            ;td: {mtime-display}
-            ;td
-              ;a/"{file-url}"(download display-name)
-                ;button(type "button"): Download
-              ==
-              ;form.del-form(method "POST", action url-prefix)
-                ;input(type "hidden", name "action", value "delete-file");
-                ;input(type "hidden", name "filename", value (trip name));
-                ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-              ==
-            ==
-          ==
+          (render-file-row name content url-prefix pax b-born now conversions)
         rows
       ==
+      ;script: {(trip sse-script)}
     ==
   ==
 ::
-++  get-mtime
-  |=  =metadata:tarball
-  ^-  tape
-  =/  mtime=(unit @t)  (~(get by metadata) 'mtime')
-  ?~  mtime  "-"
-  =/  da=@da  (from-unix:chrono:userlib (rash u.mtime oct:tarball))
-  (en:datetime-local:iso-8601 da)
+++  sse-script
+  ^-  @t
+  '''
+  (function() {
+    var tbl = document.getElementById('listing');
+    if (!tbl) return;
+    var tb = tbl.querySelector('tbody') || tbl;
+    var es = new EventSource('/mister/ball/stream?path=' + tbl.dataset.path);
+    es.addEventListener('ball-change', function(e) {
+      var d = JSON.parse(e.data);
+      var row = tb.querySelector('tr[data-name="' + d.name + '"]');
+      if (row) row.remove();
+      if (d.action === 'add' && d.html) tb.insertAdjacentHTML('beforeend', d.html);
+    });
+  })();
+  '''
+::
 ::
 ::
 ++  format-size
@@ -673,4 +720,100 @@
   ?:  (lth n 1.048.576)
     "{(scow %ud (div n 1.024))} KB"
   "{(scow %ud (div n 1.048.576))} MB"
+::
+++  render-dir-row
+  |=  [name=@ta sub=ball:tarball url-prefix=tape]
+  ^-  manx
+  =/  sub-neck=tape
+    ?~  fil.sub  ""
+    ?~  neck.u.fil.sub  ""
+    ".{(trip u.neck.u.fil.sub)}"
+  =/  dir-url=tape  "{url-prefix}/{(trip name)}{sub-neck}"
+  ;tr(data-name (trip name), data-type "dir")
+    ;td
+      ;a/"{dir-url}": {(trip name)}{sub-neck}/
+    ==
+    ;td: -
+    ;td: -
+    ;td: -
+    ;td
+      ;a/"{dir-url}?download=tar"
+        ;button(type "button"): Download
+      ==
+      ;form.del-form(method "POST", action url-prefix)
+        ;input(type "hidden", name "action", value "delete-folder");
+        ;input(type "hidden", name "foldername", value (trip name));
+        ;button(type "submit", onclick "return confirm('Delete folder {(trip name)} and all its contents?')"): Delete
+      ==
+    ==
+  ==
+::
+++  render-file-row
+  |=  $:  name=@ta
+          =content:tarball
+          url-prefix=tape
+          pax=path
+          dir-born=born:nexus
+          now=@da
+          conversions=(map mars:clay tube:clay)
+      ==
+  ^-  manx
+  =/  mtime-display=tape
+    =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+      (~(get of dir-born) ~)
+    ?~  node  "-"
+    =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name)
+    ?~  sk  "-"
+    (en:datetime-local:iso-8601 da.file.u.sk)
+  =/  cag=cage  cage.content
+  ?:  =(%symlink p.cag)
+    =/  sym  !<(symlink:tarball q.cag)
+    =/  target-display=tape  (trip (encode-symlink:tarball sym))
+    =/  resolved-path=path  (resolve-symlink:tarball sym pax)
+    =/  target-url=tape  "/mister/ball{(trip (spat resolved-path))}"
+    ;tr(data-name (trip name), data-type "file")
+      ;td
+        ;a/"{target-url}": {(trip name)}
+        ;span.symlink-target:  -> {target-display}
+      ==
+      ;td: symlink
+      ;td: -
+      ;td: {mtime-display}
+      ;td
+        ;form.del-form(method "POST", action url-prefix)
+          ;input(type "hidden", name "action", value "delete-file");
+          ;input(type "hidden", name "filename", value (trip name));
+          ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
+        ==
+      ==
+    ==
+  =/  display-name=tape
+    ?:  =(%mime p.cag)
+      (trip name)
+    "{(trip name)}.{(trip p.cag)}"
+  =/  file-url=tape  "{url-prefix}/{display-name}"
+  =/  =mime
+    ?:  =(%mime p.cag)
+      !<(mime q.cag)
+    (~(cage-to-mime gen:tarball [now conversions]) cag)
+  =/  mime-raw=tape  (trip (spat p.mime))
+  =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
+  ;tr(data-name (trip name), data-type "file")
+    ;td
+      ;a/"{file-url}": {display-name}
+    ==
+    ;td: {mime-display}
+    ;td: {(format-size p.q.mime)}
+    ;td: {mtime-display}
+    ;td
+      ;a/"{file-url}"(download display-name)
+        ;button(type "button"): Download
+      ==
+      ;form.del-form(method "POST", action url-prefix)
+        ;input(type "hidden", name "action", value "delete-file");
+        ;input(type "hidden", name "filename", value (trip name));
+        ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
+      ==
+    ==
+  ==
 --

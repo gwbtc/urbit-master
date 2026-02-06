@@ -49,8 +49,8 @@
 ::
 +$  make  (each [=sand =ball:tarball] cage)
 +$  view
-  $%  [%ball =sand ball=ball:tarball]
-      [%file =cage]
+  $%  [%ball =sand =born ball=ball:tarball]
+      [%file =sack =cage]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -510,6 +510,28 @@
     ==
     $(kids t.kids)
   --
+::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
+::
+++  stamp-mtimes
+  |=  [=born b=ball:tarball]
+  ^-  ball:tarball
+  =/  lumps  ~(tap of b)
+  |-
+  ?~  lumps  b
+  =/  [pax=path lmp=lump:tarball]  i.lumps
+  =/  node=(unit [=cass:clay bags=(map @ta sack)])
+    (~(get of born) pax)
+  ?~  node  $(lumps t.lumps)
+  =.  metadata.lmp
+    (~(put by metadata.lmp) 'mtime' (da-oct:tarball da.cass.u.node))
+  =.  contents.lmp
+    %-  ~(urn by contents.lmp)
+    |=  [name=@ta =content:tarball]
+    =/  sk=(unit sack)  (~(get by bags.u.node) name)
+    ?~  sk  content
+    content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball da.file.u.sk)))
+  =.  b  (~(put of b) pax lmp)
+  $(lumps t.lumps)
 ::  TODO: Subscriptions (%keep/%drop/%bond/%fell/%news)
 ::  - Add subscription state types here
 ::  - Hook into born.file updates for notifications

@@ -62,7 +62,6 @@
     ~&  >  "%server /main: ready"
     |-
     ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-    ~&  >  [%server-poke p.cage]
     ?+    p.cage  $
         ::  Binding management
         ::
@@ -157,7 +156,6 @@
       ?.  =(p.from u.expected-bend)
         ~&  >  [%server-unauthorized eyre-id p.from u.expected-bend]
         $
-      ~&  >  [%server-send -.upd eyre-id]
       ?-    -.upd
           %header
         ;<  ~  bind:m
@@ -194,8 +192,14 @@
       =/  eyre-id=@ta  !<(@ta q.cage)
       ;<  st=server-state  bind:m  (get-state-as:io server-state)
       ~&  >  [%server-cancel eyre-id]
+      =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id)
       =.  connections.st  (~(del by connections.st) eyre-id)
       ;<  ~  bind:m  (replace:io !>(st))
+      ::  Forward cancel to bound nexus
+      ?~  conn-binding  $
+      =/  =bend:fiber:nexus  (fall (~(get by bindings.st) u.conn-binding) *bend:fiber:nexus)
+      =/  =road:tarball  [%| p.bend %& q.bend]
+      ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
       $
     ==
   --

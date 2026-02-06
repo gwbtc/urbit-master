@@ -355,11 +355,12 @@
 ++  delete
   |=  [dir=path name=@ta]
   ^+  this
-  ::  Bump file aeon (content going from something to nothing)
-  =.  this  (bump-file [dir name])
+  ?>  ?=(^ (~(get ba:tarball ball) [dir name]))
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
+  ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
+  =.  this  (bump-file [dir name])
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   this(pool (~(put of pool) dir pipe))
 ::  Send ack/nack back to poke source
@@ -545,8 +546,6 @@
   =.  ball  ~|(%validate-ball-reload (validate-ball ball))
   ::  Validate name uniqueness (no file/dir collisions)
   ?>  ~(validate-names ba:tarball ball)
-  ::  Sync metadata: preserve old mtime where unchanged, update where changed
-  =.  ball  (sync-metadata:tarball pre-ball ball now.bowl)
   ::  Re-check all subscriptions against potentially changed weirs
   =.  this  (audit-weir /)
   ::  Spawn processes and sync all changes
@@ -684,11 +683,16 @@
       =/  content=(unit content:tarball)
         (~(get ba:tarball ball) path.p.target name.p.target)
       ?~  content  [%none ~]
-      [%file cage.u.content]
+      =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+        (~(get of born) path.p.target)
+      =/  sk=sack:nexus
+        ?~  node  *sack:nexus
+        (fall (~(get by bags.u.node) name.p.target) *sack:nexus)
+      [%file sk cage.u.content]
         %|
       =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
       ?~  sub-ball  [%none ~]
-      [%ball (~(dip of sand) p.target) u.sub-ball]
+      [%ball (~(dip of sand) p.target) (~(dip of born) p.target) u.sub-ball]
     ==
   ::  Send to each watcher
   =.  this
@@ -890,7 +894,8 @@
         ?~  sub-ball
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  sub-sand=sand:nexus  (~(dip of sand) dest)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand u.sub-ball)
+        =/  sub-born=born:nexus  (~(dip of born) dest)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-born u.sub-ball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -898,7 +903,12 @@
           (~(get ba:tarball ball) path.dest name.dest)
         ?~  content
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file cage.u.content)
+        =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+          (~(get of born) path.dest)
+        =/  sk=sack:nexus
+          ?~  node  *sack:nexus
+          (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk cage.u.content)
       ==
       ::
         %keep
@@ -993,15 +1003,12 @@
       %next
     ::  Save state (bumps aeon only if content changed)
     =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
-    ::  Touch file to update mtime/size and propagate up
-    =.  ball  (~(touch ba:tarball ball) here now.bowl)
     (store-proc here new-proc)
       %done
     ::  State was valid, now delete
     =/  err=tang  ~[leaf+"process completed"]
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
-    =.  ball  (~(touch ba:tarball ball) here now.bowl)
     =.  this  (clean (snoc path.here name.here) %file)
     (delete path.here name.here)
       %fail
@@ -1039,13 +1046,11 @@
     =^  new-sand  new-ball  (run-on-loads dest-path new-sand new-ball)
     ::  Validate all cages in loaded ball
     =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
-    ::  sync-metadata: set mtime for all new files
-    =/  synced=ball:tarball  (sync-metadata:tarball *ball:tarball validated now.bowl)
     ::  Put the final sand and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
-    =.  ball  (~(pub ba:tarball ball) dest-path synced)
+    =.  ball  (~(pub ba:tarball ball) dest-path validated)
     ::  Spawn processes and sync all changes (old is empty)
-    (load-ball-changes dest-path *ball:tarball synced)
+    (load-ball-changes dest-path *ball:tarball validated)
     ::
       %&
     ::  Make file - payload must be cage
@@ -1247,8 +1252,13 @@
   ^+  this
   ::  Init born if needed
   =.  this  ?^((get-born here) this (init-born here))
-  ::  Save to ball
+  ::  Only bump if content actually changed
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) here)
   =.  ball  (~(put ba:tarball ball) here new-content)
+  ?:  ?&  ?=(^ old)
+          =(cage.u.old cage.new-content)
+      ==
+    this
   (bump-file here)
 ::
 ++  wrap-wire
