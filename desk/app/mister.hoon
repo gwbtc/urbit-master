@@ -624,6 +624,17 @@
   this
 ::  Send %news to all subscribers watching changed lanes
 ::
+::  TODO: replace `what` with born-diff approach
+::    - Add +$  tote  [weir=cass:clay fold=cass:clay] to directory nodes
+::      weir cass bumps when weir changes, fold cass bumps on file changes
+::    - %news sends the new born (already computed) instead of `what`
+::    - Subscribers save last-born per subscription, diff to see changes
+::    - Diff is a pure library function: old born + new born → change set
+::    - Eliminates all of notify's change-tracking logic below (lines ~40)
+::    - born IS the state — can't be stale or wrong unlike side-channel `what`
+::    - Subscribers choose their own diff granularity (tote cass check vs deep)
+::
+
 ++  notify
   |=  changed=(set lane:tarball)
   ^+  this

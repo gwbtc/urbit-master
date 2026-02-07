@@ -57,8 +57,12 @@
       =?  ball  =(~ (~(get of ball) /usergroups/src))
         (~(put of ball) /usergroups/src [~ ~ ~])
       ::  Create /ships directory (ship dirs created lazily)
+      ::  Permissive weir: ships can reach the full tree from here.
+      ::  Per-ship weirs narrow access for each foreign ship.
       =?  ball  =(~ (~(get of ball) /ships))
         (~(put of ball) /ships [~ ~ ~])
+      =/  root-roads=(set road:tarball)  (sy [%& %| /]~)
+      =.  sand  (~(put of sand) /ships [root-roads root-roads root-roads])
       [sand ball]
     ::
     ++  on-file
@@ -67,7 +71,11 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
-      ?+    [rail mark]  stay:m
+      ::  NOTE: we switch on rail alone because ?+ [rail mark] doesn't
+      ::  narrow rail's subfaces (path.rail stays (list @ta), breaks
+      ::  i.t.path.rail). Mark is asserted inside each case instead.
+      ::
+      ?+    rail  stay:m
         ::  /main: poke router + weir manager
         ::  Routes incoming peer-pokes to per-ship gateways,
         ::  lazily creating ship directories on first contact.
@@ -79,7 +87,8 @@
         ::    - Skip our own ship (always full tree access, no usergroups)
         ::    - On new ship dir in /ships/, apply weir immediately
         ::
-          [[~ %main] *]
+          [~ %main]
+        ?>  ?=(%sig mark)
         ?:  ?=(%rise -.prod)
           %-  (slog leaf+"%peers /main: failed, staying inert" tang.prod)
           stay:m
@@ -125,7 +134,8 @@
         ::  Receives peer-poke [dest=rail =page], forwards cage to dest.
         ::  Weir handles auth and clamming at boundary.
         ::
-          [[[%ships @ ~] %main] *]
+          [[%ships @ ~] %main]
+        ?>  ?=(%sig mark)
         ?:  ?=(%rise -.prod)
           %-  (slog leaf+"%peers /ships/*/main: failed, staying inert" tang.prod)
           stay:m
@@ -145,7 +155,8 @@
         ::  /usergroups/who/*: group membership
         ::  State: (set @p). Pokes: %put-members, %add-member, %del-member
         ::
-          [[[%usergroups %who ~] @] %ships]
+          [[%usergroups %who ~] @]
+        ?>  ?=(%ships mark)
         |=  =input:fiber:nexus
         ^-  output:m
         ?+  in.input  [~ state.input %skip ~]
@@ -164,7 +175,8 @@
         ::  /usergroups/how/*: weir templates
         ::  State: weir:nexus. Pokes: %put-weir
         ::
-          [[[%usergroups %how ~] @] %weir]
+          [[%usergroups %how ~] @]
+        ?>  ?=(%weir mark)
         |=  =input:fiber:nexus
         ^-  output:m
         ?+  in.input  [~ state.input %skip ~]
@@ -177,7 +189,8 @@
         ::  /usergroups/src/*: reverse index (ship → groups)
         ::  State: (set rail). Pokes: %put-rails, %add-rail, %del-rail
         ::
-          [[[%usergroups %src ~] @] %rails]
+          [[%usergroups %src ~] @]
+        ?>  ?=(%rails mark)
         |=  =input:fiber:nexus
         ^-  output:m
         ?+  in.input  [~ state.input %skip ~]
