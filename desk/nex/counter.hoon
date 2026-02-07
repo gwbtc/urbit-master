@@ -118,7 +118,7 @@
             ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
             $
               %news
-            =/  =sse-event:http-utils  [~ `'counter-update' (manx-to-wain:http-utils (counter-update [what view]:nw))]
+            =/  =sse-event:http-utils  [~ `'counter-update' (manx-to-wain:http-utils (counter-update view.nw))]
             =/  data=octs  (sse-encode:http-utils ~[sse-event])
             ;<  ~  bind:m  (send-data eyre-id `data)
             $
@@ -174,7 +174,7 @@
   (send [eyre-id %kick ~])
 ::
 ++  counter-update
-  |=  [what=(set lane:tarball) =view:nexus]
+  |=  =view:nexus
   ^-  manx
   =/  count=@ud
     ?.  ?=(%file -.view)  0

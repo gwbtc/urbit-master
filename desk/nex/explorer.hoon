@@ -336,6 +336,11 @@
     ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header eyre-id sse-header:http-utils)
+  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial [%& %| ~])
+  =/  prev-born=born:nexus
+    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
+      *born:nexus
+    born.p.initial-seen
   ;<  ~  bind:m  (keep:io /ball [%& %| ~])
   ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
@@ -351,6 +356,8 @@
     ?.  ?=([%ball *] view.nw)  $
     =/  root=ball:tarball  ball.view.nw
     =/  root-born=born:nexus  born.view.nw
+    =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
+    =.  prev-born  root-born
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  par-born=born:nexus  (~(dip of root-born) watch-path)
     =/  necks=(map path @ta)  (get-necks watch-path root)
@@ -358,7 +365,7 @@
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (get-mark-conversions:io par)
-    =/  lanes=(list lane:tarball)  ~(tap in what.nw)
+    =/  lanes=(list lane:tarball)  ~(tap in what)
     |-
     ?~  lanes  ^$
     =/  [parent=path item=@ta is-file=?]
@@ -765,7 +772,7 @@
       ==
   ^-  manx
   =/  mtime-display=tape
-    =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+    =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
       (~(get of dir-born) ~)
     ?~  node  "-"
     =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name)

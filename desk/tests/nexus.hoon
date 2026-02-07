@@ -278,75 +278,45 @@
   ::  Init creates [0 0] sack for new file
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [new-born=born:nexus bumped=(set lane:tarball)]  (init:b [/a/b %file])
+  =/  new-born=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now new-born)
   %+  expect-eq
     !>  `(unit sack:nexus)``[[0 now] [0 now]]
   !>  (get:b2 [/a/b %file])
 ::
-++  test-bo-init-no-bumped
-  ::  Init doesn't add to bumped set (first creation, not a change)
-  =/  b  (make-bo ~2024.1.1)
-  =/  [* bumped=(set lane:tarball)]  (init:b [/a/b %file])
-  %+  expect-eq
-    !>  `(set lane:tarball)`~
-  !>  bumped
-::
 ++  test-bo-bump-proc-increments
   ::  bump-proc increments proc cass
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file])
+  =/  born1=born:nexus  (init:b [/a %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (bump-proc:b2 [/a %file])
+  =/  born2=born:nexus  (bump-proc:b2 [/a %file])
   =/  b3  (make-bo-with now born2)
   =/  sok=(unit sack:nexus)  (get:b3 [/a %file])
   %+  expect-eq
     !>  `@ud`1
   !>  ud.proc:(need sok)
 ::
-++  test-bo-bump-proc-no-bumped
-  ::  bump-proc doesn't add to bumped (proc not for subscriptions)
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file])
-  =/  b2  (make-bo-with now born1)
-  =/  [* bumped=(set lane:tarball)]  (bump-proc:b2 [/a %file])
-  %+  expect-eq
-    !>  `(set lane:tarball)`~
-  !>  bumped
-::
 ++  test-bo-bump-file-increments
   ::  bump-file increments file cass
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file])
+  =/  born1=born:nexus  (init:b [/a %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (bump-file:b2 [/a %file])
+  =/  born2=born:nexus  (bump-file:b2 [/a %file])
   =/  b3  (make-bo-with now born2)
   =/  sok=(unit sack:nexus)  (get:b3 [/a %file])
   %+  expect-eq
     !>  `@ud`1
   !>  ud.file:(need sok)
 ::
-++  test-bo-bump-file-adds-to-bumped
-  ::  bump-file adds file lane to bumped
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file])
-  =/  b2  (make-bo-with now born1)
-  =/  [* bumped=(set lane:tarball)]  (bump-file:b2 [/a %file])
-  %+  expect-eq
-    !>  %.y
-  !>  (~(has in bumped) &+[/a %file])
-::
 ++  test-bo-bump-file-propagates-dir
   ::  bump-file also bumps parent directory cass
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a/b %file])
+  =/  born1=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (bump-file:b2 [/a/b %file])
+  =/  born2=born:nexus  (bump-file:b2 [/a/b %file])
   =/  b3  (make-bo-with now born2)
   ::  Check that /a/b dir was bumped
   =/  dir-cass=(unit cass:clay)  (get-dir-cass:b3 /a/b)
@@ -358,9 +328,9 @@
   ::  bump-file propagates dir cass all the way to root
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a/b/c %file])
+  =/  born1=born:nexus  (init:b [/a/b/c %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (bump-file:b2 [/a/b/c %file])
+  =/  born2=born:nexus  (bump-file:b2 [/a/b/c %file])
   =/  b3  (make-bo-with now born2)
   ::  Check root was bumped
   =/  root-cass=(unit cass:clay)  (get-dir-cass:b3 /)
@@ -368,25 +338,11 @@
     !>  `@ud`1
   !>  ud:(need root-cass)
 ::
-++  test-bo-bump-file-bumped-includes-dirs
-  ::  bump-file adds all ancestor dirs to bumped
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a/b %file])
-  =/  b2  (make-bo-with now born1)
-  =/  [* bumped=(set lane:tarball)]  (bump-file:b2 [/a/b %file])
-  ;:  weld
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/a/b %file]))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) |+/a/b))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) |+/a))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) |+/))
-  ==
-::
 ++  test-bo-bump-dir-propagates
   ::  bump-dir propagates to all ancestors
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus bumped=(set lane:tarball)]  (bump-dir:b /a/b/c)
+  =/  born1=born:nexus  (bump-dir:b /a/b/c)
   =/  b2  (make-bo-with now born1)
   ::  All ancestors should be bumped
   ;:  weld
@@ -469,13 +425,13 @@
   ::  Multiple bump-file calls increment cass each time
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file])
+  =/  born1=born:nexus  (init:b [/a %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (bump-file:b2 [/a %file])
+  =/  born2=born:nexus  (bump-file:b2 [/a %file])
   =/  b3  (make-bo-with now born2)
-  =/  [born3=born:nexus *]  (bump-file:b3 [/a %file])
+  =/  born3=born:nexus  (bump-file:b3 [/a %file])
   =/  b4  (make-bo-with now born3)
-  =/  [born4=born:nexus *]  (bump-file:b4 [/a %file])
+  =/  born4=born:nexus  (bump-file:b4 [/a %file])
   =/  b5  (make-bo-with now born4)
   =/  sok=(unit sack:nexus)  (get:b5 [/a %file])
   %+  expect-eq
@@ -486,11 +442,11 @@
   ::  Two files in same dir have independent sacks
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file1])
+  =/  born1=born:nexus  (init:b [/a %file1])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (init:b2 [/a %file2])
+  =/  born2=born:nexus  (init:b2 [/a %file2])
   =/  b3  (make-bo-with now born2)
-  =/  [born3=born:nexus *]  (bump-file:b3 [/a %file1])
+  =/  born3=born:nexus  (bump-file:b3 [/a %file1])
   =/  b4  (make-bo-with now born3)
   ::  file1 was bumped, file2 wasn't
   =/  sok1=(unit sack:nexus)  (get:b4 [/a %file1])
@@ -504,15 +460,15 @@
   ::  Two files in same dir share the dir cass
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a %file1])
+  =/  born1=born:nexus  (init:b [/a %file1])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (init:b2 [/a %file2])
+  =/  born2=born:nexus  (init:b2 [/a %file2])
   =/  b3  (make-bo-with now born2)
   ::  Bump file1
-  =/  [born3=born:nexus *]  (bump-file:b3 [/a %file1])
+  =/  born3=born:nexus  (bump-file:b3 [/a %file1])
   =/  b4  (make-bo-with now born3)
   ::  Bump file2
-  =/  [born4=born:nexus *]  (bump-file:b4 [/a %file2])
+  =/  born4=born:nexus  (bump-file:b4 [/a %file2])
   =/  b5  (make-bo-with now born4)
   ::  Dir /a should have been bumped twice
   =/  dir-cass=(unit cass:clay)  (get-dir-cass:b5 /a)
@@ -536,9 +492,9 @@
   ::  Test deeply nested paths propagate correctly
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/a/b/c/d/e/f %file])
+  =/  born1=born:nexus  (init:b [/a/b/c/d/e/f %file])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus bumped=(set lane:tarball)]  (bump-file:b2 [/a/b/c/d/e/f %file])
+  =/  born2=born:nexus  (bump-file:b2 [/a/b/c/d/e/f %file])
   =/  b3  (make-bo-with now born2)
   ::  All ancestor dirs should be bumped
   ;:  weld
@@ -549,34 +505,6 @@
     %+  expect-eq  !>(`@ud`1)  !>(ud:(need (get-dir-cass:b3 /a/b)))
     %+  expect-eq  !>(`@ud`1)  !>(ud:(need (get-dir-cass:b3 /a)))
     %+  expect-eq  !>(`@ud`1)  !>(ud:(need (get-dir-cass:b3 /)))
-    ::  bumped should have 7 dirs + 1 file = 8 entries
-    %+  expect-eq  !>(`@ud`8)  !>(~(wyt in bumped))
-  ==
-::
-++  test-bo-bumped-accumulates
-  ::  bumped set accumulates across multiple bump-file calls
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  ::  Init two files in different dirs
-  =/  [born1=born:nexus *]  (init:b [/a %file1])
-  =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (init:b2 [/b %file2])
-  =/  b3  (make-bo-with now born2)
-  ::  Bump first file - bumped has file1, /a, /
-  =/  [born3=born:nexus s1=(set lane:tarball)]  (bump-file:b3 [/a %file1])
-  ::  Manually create new door with accumulated bumped
-  =/  b4  ~(. bo:nexus now [born3 *ball:tarball])
-  =.  bumped.b4  s1
-  ::  Bump second file - bumped should add file2, /b (/ already there)
-  =/  [born4=born:nexus s2=(set lane:tarball)]  (bump-file:b4 [/b %file2])
-  ::  Should have: file1, file2, /a, /b, / (root bumped twice but set dedupes)
-  ;:  weld
-    %+  expect-eq  !>(%.y)  !>((~(has in s2) &+[/a %file1]))
-    %+  expect-eq  !>(%.y)  !>((~(has in s2) &+[/b %file2]))
-    %+  expect-eq  !>(%.y)  !>((~(has in s2) |+/a))
-    %+  expect-eq  !>(%.y)  !>((~(has in s2) |+/b))
-    %+  expect-eq  !>(%.y)  !>((~(has in s2) |+/))
-    %+  expect-eq  !>(`@ud`5)  !>(~(wyt in s2))
   ==
 ::
 ::  Helper to make a ball with files (same content)
@@ -605,7 +533,9 @@
   =/  b  (make-bo now)
   =/  old-ball=ball:tarball  *ball:tarball
   =/  new-ball=ball:tarball  (make-ball-with-files ~[%newfile])
-  =/  [born1=born:nexus bumped=(set lane:tarball)]  (diff-balls:b / old-ball new-ball)
+  =/  pre=born:nexus  *born:nexus
+  =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus pre born1)
   =/  b2  (make-bo-with now born1)
   ::  File should be init'd and bumped
   =/  sok=(unit sack:nexus)  (get:b2 [/ %newfile])
@@ -620,11 +550,12 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init the file that will be "deleted"
-  =/  [born1=born:nexus *]  (init:b [/ %oldfile])
+  =/  born1=born:nexus  (init:b [/ %oldfile])
   =/  b2  (make-bo-with now born1)
   =/  old-ball=ball:tarball  (make-ball-with-files ~[%oldfile])
   =/  new-ball=ball:tarball  *ball:tarball
-  =/  [born2=born:nexus bumped=(set lane:tarball)]  (diff-balls:b2 / old-ball new-ball)
+  =/  born2=born:nexus  (diff-balls:b2 / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   =/  b3  (make-bo-with now born2)
   ::  File should be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %oldfile])
@@ -638,11 +569,12 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init the file
-  =/  [born1=born:nexus *]  (init:b [/ %file])
+  =/  born1=born:nexus  (init:b [/ %file])
   =/  b2  (make-bo-with now born1)
   =/  old-ball=ball:tarball  (make-ball-with-content %file 'old content')
   =/  new-ball=ball:tarball  (make-ball-with-content %file 'new content')
-  =/  [born2=born:nexus bumped=(set lane:tarball)]  (diff-balls:b2 / old-ball new-ball)
+  =/  born2=born:nexus  (diff-balls:b2 / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   =/  b3  (make-bo-with now born2)
   ::  File should be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %file])
@@ -656,10 +588,11 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init the file
-  =/  [born1=born:nexus *]  (init:b [/ %file])
+  =/  born1=born:nexus  (init:b [/ %file])
   =/  b2  (make-bo-with now born1)
   =/  ball=ball:tarball  (make-ball-with-content %file 'same content')
-  =/  [born2=born:nexus bumped=(set lane:tarball)]  (diff-balls:b2 / ball ball)
+  =/  born2=born:nexus  (diff-balls:b2 / ball ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   =/  b3  (make-bo-with now born2)
   ::  File should NOT be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %file])
@@ -673,11 +606,11 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init files that exist in old
-  =/  [born1=born:nexus *]  (init:b [/ %deleted])
+  =/  born1=born:nexus  (init:b [/ %deleted])
   =/  b2  (make-bo-with now born1)
-  =/  [born2=born:nexus *]  (init:b2 [/ %changed])
+  =/  born2=born:nexus  (init:b2 [/ %changed])
   =/  b3  (make-bo-with now born2)
-  =/  [born3=born:nexus *]  (init:b3 [/ %unchanged])
+  =/  born3=born:nexus  (init:b3 [/ %unchanged])
   =/  b4  (make-bo-with now born3)
   ::  Old: deleted, changed, unchanged
   =/  old-contents=(map @ta content:tarball)
@@ -695,7 +628,8 @@
         [%unchanged [~ [%txt !>('same')]]]
     ==
   =/  new-ball=ball:tarball  [`[~ ~ new-contents] ~]
-  =/  [born4=born:nexus bumped=(set lane:tarball)]  (diff-balls:b4 / old-ball new-ball)
+  =/  born4=born:nexus  (diff-balls:b4 / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born3 born4)
   =/  b5  (make-bo-with now born4)
   ;:  weld
     ::  new: init'd and bumped
@@ -717,7 +651,7 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init file in subdir
-  =/  [born1=born:nexus *]  (init:b [/sub %oldfile])
+  =/  born1=born:nexus  (init:b [/sub %oldfile])
   =/  b2  (make-bo-with now born1)
   ::  Old: /sub/oldfile
   =/  old-sub=ball:tarball  (make-ball-with-files ~[%oldfile])
@@ -725,7 +659,8 @@
   ::  New: /sub/newfile (oldfile deleted, newfile added)
   =/  new-sub=ball:tarball  (make-ball-with-files ~[%newfile])
   =/  new-ball=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) %sub new-sub)]
-  =/  [born2=born:nexus bumped=(set lane:tarball)]  (diff-balls:b2 / old-ball new-ball)
+  =/  born2=born:nexus  (diff-balls:b2 / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   =/  b3  (make-bo-with now born2)
   ;:  weld
     ::  oldfile: bumped (deleted)
@@ -742,7 +677,8 @@
   =/  b  (make-bo now)
   =/  old-ball=ball:tarball  *ball:tarball
   =/  new-ball=ball:tarball  [`[~ ~ ~] ~]  :: empty dir (lump, no contents)
-  =/  [born1=born:nexus bumped=(set lane:tarball)]  (diff-balls:b / old-ball new-ball)
+  =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus *born:nexus born1)
   ::  Root dir should be bumped
   %+  expect-eq
     !>  %.y
@@ -754,7 +690,8 @@
   =/  b  (make-bo now)
   =/  old-ball=ball:tarball  [`[~ ~ ~] ~]  :: empty dir
   =/  new-ball=ball:tarball  *ball:tarball
-  =/  [born1=born:nexus bumped=(set lane:tarball)]  (diff-balls:b / old-ball new-ball)
+  =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus *born:nexus born1)
   ::  Root dir should be bumped
   %+  expect-eq
     !>  %.y
@@ -764,10 +701,11 @@
   ::  diff-balls: identical balls produce no bumps
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  [born1=born:nexus *]  (init:b [/ %file])
+  =/  born1=born:nexus  (init:b [/ %file])
   =/  b2  (make-bo-with now born1)
   =/  ball=ball:tarball  (make-ball-with-files ~[%file])
-  =/  [* bumped=(set lane:tarball)]  (diff-balls:b2 / ball ball)
+  =/  born2=born:nexus  (diff-balls:b2 / ball ball)
+  =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   %+  expect-eq
     !>  `@ud`0
   !>  ~(wyt in bumped)

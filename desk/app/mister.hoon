@@ -485,8 +485,12 @@
   =/  new-sand=sand:nexus  -.res(fil parent-weir)
   =/  new-ball=ball:tarball  +.res
   ::  Put results back
+  =/  old-born=born:nexus  born
   =.  sand  (put-sub-sand sand dest new-sand)
   =.  ball  (~(pub ba:tarball ball) dest new-ball)
+  ::  Bump weir cass in born for any directories where weir changed
+  =.  this  (bump-weir-changes dest sub-sand new-sand)
+  =.  this  (notify old-born)
   ::  Re-check subscriptions against potentially changed weirs in subtree
   (audit-weir dest)
 ::  Spawn processes for files in new ball, bump if content changed from old
@@ -537,7 +541,10 @@
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
   ::  Run nexus on-loads top-down (may modify ball and sand)
+  =/  pre-sand=sand:nexus  sand
   =^  sand  ball  (run-on-loads / sand ball)
+  ::  Bump weir cass in born for any directories where weir changed
+  =.  this  (bump-weir-changes / pre-sand sand)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
   =.  ball  ~|(%validate-ball-reload (validate-ball ball))
   ::  Validate name uniqueness (no file/dir collisions)
@@ -624,20 +631,10 @@
   this
 ::  Send %news to all subscribers watching changed lanes
 ::
-::  TODO: replace `what` with born-diff approach
-::    - Add +$  tote  [weir=cass:clay fold=cass:clay] to directory nodes
-::      weir cass bumps when weir changes, fold cass bumps on file changes
-::    - %news sends the new born (already computed) instead of `what`
-::    - Subscribers save last-born per subscription, diff to see changes
-::    - Diff is a pure library function: old born + new born → change set
-::    - Eliminates all of notify's change-tracking logic below (lines ~40)
-::    - born IS the state — can't be stale or wrong unlike side-channel `what`
-::    - Subscribers choose their own diff granularity (tote cass check vs deep)
-::
-
 ++  notify
-  |=  changed=(set lane:tarball)
+  |=  old-born=born:nexus
   ^+  this
+  =/  changed=(set lane:tarball)  (diff-born:nexus old-born born)
   ?:  =(~ changed)  this
   ::  For each watched lane, find subscribers and send news
   =/  watched=(list [target=lane:tarball watchers=(map rail:tarball wire)])
@@ -667,22 +664,6 @@
     ==
   ::  Skip if nothing relevant changed
   ?:  =(~ relevant)  $(watched t.watched)
-  ::  Build relative what set (strip target prefix from relevant lanes)
-  =/  what=(set lane:tarball)
-    ?-    -.target
-        ::  File target: what is always empty (nothing inside a file)
-        %&  ~
-        ::  Dir target: relativize each relevant lane
-        %|
-      %-  ~(gas in *(set lane:tarball))
-      %+  turn  ~(tap in relevant)
-      |=  chg=lane:tarball
-      ^-  lane:tarball
-      ?-  -.chg
-        %&  &+[(need (decap:tarball p.target path.p.chg)) name.p.chg]
-        %|  |+(need (decap:tarball p.target p.chg))
-      ==
-    ==
   ::  Get current view of target
   =/  =view:nexus
     ?-    -.target
@@ -690,7 +671,7 @@
       =/  content=(unit content:tarball)
         (~(get ba:tarball ball) path.p.target name.p.target)
       ?~  content  [%none ~]
-      =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+      =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
         (~(get of born) path.p.target)
       =/  sk=sack:nexus
         ?~  node  *sack:nexus
@@ -705,7 +686,7 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire] acc=_this]
-    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire what view)
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire view)
   $(watched t.watched)
 ::  Fell a single subscription: remove from indices, send %fell to watcher
 ::
@@ -918,7 +899,7 @@
           (~(get ba:tarball ball) path.dest name.dest)
         ?~  content
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        =/  node=(unit [=cass:clay bags=(map @ta sack:nexus)])
+        =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
           (~(get of born) path.dest)
         =/  sk=sack:nexus
           ?~  node  *sack:nexus
@@ -1027,9 +1008,11 @@
     =.  this  (clean (snoc path.here name.here) %file)
     (delete path.here name.here)
       %fail
-    ::  Process failed - don't save state, restart
+    ::  Process failed - don't save state, clean subs, restart
     =.  this  (nack-poke-takes here next.new-proc err.res)
     =.  this  (nack-poke-takes here skip.new-proc err.res)
+    =.  this  (clean (snoc path.here name.here) %file)
+    =.  this  (sub-wipe here)
     =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
@@ -1117,12 +1100,33 @@
     ::  Bump and remove from pool and ball
     (delete path.dest-rail name.dest-rail)
   ==
+::  Walk two sand trees and bump weir cass in born for changed weirs
+::
+++  bump-weir-changes
+  |=  [here=fold:tarball old=sand:nexus new=sand:nexus]
+  ^+  this
+  =?  this  !=(fil.old fil.new)
+    =/  old-born=born:nexus  born
+    =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) here)
+    (notify old-born)
+  =/  all-kids=(list @ta)
+    ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
+  |-
+  ?~  all-kids  this
+  =/  kid-old=sand:nexus  (fall (~(get by dir.old) i.all-kids) *sand:nexus)
+  =/  kid-new=sand:nexus  (fall (~(get by dir.new) i.all-kids) *sand:nexus)
+  =.  this  ^$(here (snoc here i.all-kids), old kid-old, new kid-new)
+  $(all-kids t.all-kids)
 ::
 ++  set-weir
   |=  [dest=path weir=(unit weir:nexus)]
   ^+  this
   ?>  ?=(^ dest)  :: root should always have system access
   =.  sand  ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir))
+  ::  Bump weir cass in born for this directory
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) dest)
+  =.  this  (notify old-born)
   ::  Re-check subscriptions from watchers under this weir
   (audit-weir dest)
 ::
@@ -1202,7 +1206,6 @@
   $(filt next, path.here (snip `fold:tarball`path.here))
 ::  =born: Thin wrappers around ++bo in lib/nexus.hoon
 ::  See ++bo for documentation of semantics and invariants.
-::  TODO: Use bumped set for subscription notifications
 ::
 ++  get-born
   |=  here=rail:tarball
@@ -1217,31 +1220,29 @@
 ++  init-born
   |=  here=rail:tarball
   ^+  this
-  =/  [new-born=born:nexus *]  (~(init bo:nexus now.bowl [born ball]) here)
-  this(born new-born)
+  this(born (~(init bo:nexus now.bowl [born ball]) here))
 ::
 ++  bump-proc
   |=  here=rail:tarball
   ^+  this
-  =/  [new-born=born:nexus *]  (~(bump-proc bo:nexus now.bowl [born ball]) here)
-  this(born new-born)
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-proc bo:nexus now.bowl [born ball]) here)
+  (notify old-born)
 ::
 ++  bump-file
   |=  here=rail:tarball
   ^+  this
-  =/  [new-born=born:nexus changed=(set lane:tarball)]
-    (~(bump-file bo:nexus now.bowl [born ball]) here)
-  =.  born  new-born
-  (notify changed)
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
+  (notify old-born)
 ::  Diff two balls and bump all changes (new, changed, deleted files and empty dirs).
 ::
 ++  diff-balls
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
-  =/  [new-born=born:nexus changed=(set lane:tarball)]
-    (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
-  =.  born  new-born
-  (notify changed)
+  =/  old-born=born:nexus  born
+  =.  born  (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
+  (notify old-born)
 ::  Spawn processes and sync all changes when a ball is created/reloaded.
 ::  Handles spawning files and bumping all changes (new, changed, deleted files, empty dirs).
 ::

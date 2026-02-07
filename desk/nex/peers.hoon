@@ -211,7 +211,7 @@
 |%
 +$  main-event
   $%  [%poke =from:fiber:nexus =cage]
-      [%news =wire what=(set lane:tarball) =view:nexus]
+      [%news =wire =view:nexus]
       [%fell =wire]
   ==
 ::
@@ -226,8 +226,8 @@
     [%fail (veto-error:io dart.u.in.input)]
       [~ %poke * *]
     [%done %poke [from cage]:u.in.input]
-      [~ %news * * *]
-    [%done %news [wire what view]:u.in.input]
+      [~ %news * *]
+    [%done %news [wire view]:u.in.input]
       [~ %fell *]
     [%done %fell wire.u.in.input]
   ==

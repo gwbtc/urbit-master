@@ -406,16 +406,16 @@
 ::
 ++  take-news
   |=  =wire
-  =/  m  (fiber ,[what=(set lane:tarball) =view:nexus])
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %news * * *]
+      [~ %news * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done [what view]:u.in]
+    [%done view.u.in]
   ==
 ::  Scry helper
 ::
@@ -769,7 +769,7 @@
 ::    keep-alive timers. Returns %news with the update data, or
 ::    %wake when the timer fires.
 +$  news-or-wake
-  $%  [%news what=(set lane:tarball) =view:nexus]
+  $%  [%news =view:nexus]
       [%wake ~]
   ==
 ::
@@ -781,10 +781,10 @@
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %news * * *]
+      [~ %news * *]
     ?.  =(news-wire wire.u.in)
       [%skip ~]
-    [%done %news [what view]:u.in]
+    [%done %news view.u.in]
       [~ %arvo [%wait @ ~] %behn %wake *]
     ?~  error.sign.u.in
       [%done %wake ~]

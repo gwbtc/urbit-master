@@ -103,7 +103,7 @@
         [%load =wire err=(unit tang)] :: response to load
         [%bond =wire err=(unit tang)] :: subscription established/failed
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
-        [%news =wire what=(set lane:tarball) =view] :: state notification with changed lanes
+        [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
@@ -309,21 +309,26 @@
 ::  High-water marks per file - NEVER deleted, even when files are deleted.
 ::  Prevents stale responses and enables subscription ordering.
 ::
-::  proc: incremented on process restart, for stale response detection
-::  file: incremented on state change, for subscription notifications
+::  proc: incremented on process spawn/restart
+::  file: incremented on content change
 ::
++$  tote  [weir=cass:clay fold=cass:clay]
 +$  sack  [proc=cass:clay file=cass:clay]
-+$  born  (axal [=cass:clay bags=(map @ta sack)])
++$  born  (axal [=tote bags=(map @ta sack)])
 ::  +bo: Pure operations on born (version tracking)
 ::
-::  Structure: (axal [cass:clay bags=(map @ta sack)])
-::    - Each directory node has a cass (version) and bags (file sacks)
+::  Structure: (axal [tote bags=(map @ta sack)])
+::    - tote = [weir=cass:clay fold=cass:clay]
+::    - Each directory node has a tote and bags (file sacks)
 ::    - sack = [proc=cass:clay file=cass:clay]
 ::
 ::  Semantics:
-::    - proc cass: bumped on process spawn/restart (stale response detection)
-::    - file cass: bumped on content change (subscription notifications)
-::    - dir cass: bumped when ANY descendant changes (propagates up to root)
+::    - proc cass: bumped on process spawn/restart (stale detection + notifications)
+::    - file cass: bumped on content change (notifications)
+::    - fold cass: bumped when ANY descendant changes (propagates up to root)
+::    - weir cass: bumped when weir changes at this directory
+::
+::  All four trigger subscriber notifications via diff-born.
 ::
 ::  Lifecycle for new file:
 ::    init      → [0 0]  (file exists)
@@ -333,17 +338,17 @@
 ::  Invariants:
 ::    - Born records are NEVER deleted (high-water mark for ordering)
 ::    - File cass bumps IFF content changes
-::    - Dir cass bumps on any descendant change
+::    - Fold cass bumps on any descendant change
+::    - Weir cass bumps on weir change at that directory
 ::
 ++  bo
-  =|  bumped=(set lane:tarball)
   |_  [now=@da old=[=born =ball:tarball]]
   ::  Get sack for a file
   ::
   ++  get
     |=  here=rail:tarball
     ^-  (unit sack)
-    =/  node=(unit [=cass:clay bags=(map @ta sack)])
+    =/  node=(unit [=tote bags=(map @ta sack)])
       (~(get of born.old) path.here)
     ?~  node  ~
     (~(get by bags.u.node) name.here)
@@ -352,18 +357,18 @@
   ++  put
     |=  [here=rail:tarball sok=sack]
     ^-  born
-    =/  node=[=cass:clay bags=(map @ta sack)]
-      (fall (~(get of born.old) path.here) [[0 now] ~])
+    =/  node=[=tote bags=(map @ta sack)]
+      (fall (~(get of born.old) path.here) [[[0 now] [0 now]] ~])
     (~(put of born.old) path.here node(bags (~(put by bags.node) name.here sok)))
   ::  Get dir cass
   ::
   ++  get-dir-cass
     |=  dir=fold:tarball
     ^-  (unit cass:clay)
-    =/  node=(unit [=cass:clay bags=(map @ta sack)])
+    =/  node=(unit [=tote bags=(map @ta sack)])
       (~(get of born.old) dir)
     ?~  node  ~
-    `cass.u.node
+    `fold.tote.u.node
   ::  Next cass value (increment ud, update da)
   ::
   ++  next-cass
@@ -376,38 +381,44 @@
   ::
   ++  init
     |=  here=rail:tarball
-    ^-  [born (set lane:tarball)]
-    =.  born.old  (put here [[0 now] [0 now]])
-    [born.old bumped]
-  ::  Bump proc cass (asserts born exists) - doesn't add to bumped (proc not for subscriptions)
+    ^-  born
+    (put here [[0 now] [0 now]])
+  ::  Bump proc cass (asserts born exists)
   ::
   ++  bump-proc
     |=  here=rail:tarball
-    ^-  [born (set lane:tarball)]
+    ^-  born
     =/  sok=sack  (need (get here))
-    =.  born.old  (put here [(next-cass proc.sok) file.sok])
-    [born.old bumped]
+    (put here [(next-cass proc.sok) file.sok])
   ::  Bump dir cass and propagate up to root
   ::
   ++  bump-dir
     |=  dir=fold:tarball
-    ^-  [born (set lane:tarball)]
-    =.  bumped  (~(put in bumped) |+dir)
-    =/  node=[=cass:clay bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[0 now] ~])
-    =/  new-cass=cass:clay  (next-cass cass.node)
-    =.  born.old  (~(put of born.old) dir node(cass new-cass))
-    ?~  dir  [born.old bumped]
+    ^-  born
+    =/  node=[=tote bags=(map @ta sack)]
+      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
+    =/  new-cass=cass:clay  (next-cass fold.tote.node)
+    =.  born.old  (~(put of born.old) dir node(fold.tote new-cass))
+    ?~  dir  born.old
     (bump-dir (snip `fold:tarball`dir))
   ::  Bump file cass and propagate dir cass up to root (asserts born exists)
   ::
   ++  bump-file
     |=  here=rail:tarball
-    ^-  [born (set lane:tarball)]
-    =.  bumped  (~(put in bumped) &+here)
+    ^-  born
     =/  sok=sack  (need (get here))
     =.  born.old  (put here [proc.sok (next-cass file.sok)])
     (bump-dir path.here)
+  ::  Bump weir cass of directory node and propagate fold cass up
+  ::
+  ++  bump-weir
+    |=  dir=fold:tarball
+    ^-  born
+    =/  node=[=tote bags=(map @ta sack)]
+      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
+    =.  born.old
+      (~(put of born.old) dir node(weir.tote (next-cass weir.tote.node)))
+    (bump-dir dir)
   ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
   ::
   ++  is-empty-dir
@@ -435,7 +446,7 @@
   ::
   ++  diff-balls
     |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
-    ^-  [born (set lane:tarball)]
+    ^-  born
     ::  Get file maps at this level
     =/  old-files=(map @ta content:tarball)
       ?~(fil.old-ball ~ contents.u.fil.old-ball)
@@ -445,18 +456,15 @@
     =/  new-names=(set @ta)  ~(key by new-files)
     ::  Process files: new, changed, deleted
     =/  all-names=(list @ta)  ~(tap in (~(uni in old-names) new-names))
-    |-  ^-  [born (set lane:tarball)]
+    |-  ^-  born
     ?^  all-names
       =/  name=@ta  i.all-names
       =/  in-old=?  (~(has in old-names) name)
       =/  in-new=?  (~(has in new-names) name)
-      =/  [b=born s=(set lane:tarball)]
+      =.  born.old
         ?:  &(in-new !in-old)
           ::  New file: init then bump
-          =/  [b1=born s1=(set lane:tarball)]  (init [here name])
-          =:  born.old  b1
-              bumped    s1
-          ==
+          =.  born.old  (init [here name])
           (bump-file [here name])
         ?:  &(in-old !in-new)
           ::  Deleted file: bump
@@ -468,10 +476,7 @@
           ::  Changed: bump
           (bump-file [here name])
         ::  No change
-        [born.old bumped]
-      =:  born.old  b
-          bumped    s
-      ==
+        born.old
       $(all-names t.all-names)
     ::  Handle empty dir edge cases
     =/  old-exists=?  (dir-exists old-ball)
@@ -479,31 +484,20 @@
     =/  old-is-empty=?  (is-empty-dir old-ball)
     =/  new-is-empty=?  (is-empty-dir new-ball)
     ::  Empty dir appears
-    =/  [b1=born s1=(set lane:tarball)]
-      ?.  &(new-is-empty !old-exists)  [born.old bumped]
+    =?  born.old  &(new-is-empty !old-exists)
       (bump-dir here)
-    =:  born.old  b1
-        bumped    s1
-    ==
     ::  Empty dir disappears
-    =/  [b2=born s2=(set lane:tarball)]
-      ?.  &(old-is-empty !new-exists)  [born.old bumped]
+    =?  born.old  &(old-is-empty !new-exists)
       (bump-dir here)
-    =:  born.old  b2
-        bumped    s2
-    ==
     ::  Recurse into all subdirs
     =/  all-kids=(set @ta)
       (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
     =/  kids=(list @ta)  ~(tap in all-kids)
-    |-  ^-  [born (set lane:tarball)]
-    ?~  kids  [born.old bumped]
+    |-  ^-  born
+    ?~  kids  born.old
     =/  kid-old=ball:tarball  (fall (~(get by dir.old-ball) i.kids) *ball:tarball)
     =/  kid-new=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
-    =/  [b=born s=(set lane:tarball)]  (diff-balls (snoc here i.kids) kid-old kid-new)
-    =:  born.old  b
-        bumped    s
-    ==
+    =.  born.old  (diff-balls (snoc here i.kids) kid-old kid-new)
     $(kids t.kids)
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
@@ -515,11 +509,11 @@
   |-
   ?~  lumps  b
   =/  [pax=path lmp=lump:tarball]  i.lumps
-  =/  node=(unit [=cass:clay bags=(map @ta sack)])
+  =/  node=(unit [=tote bags=(map @ta sack)])
     (~(get of born) pax)
   ?~  node  $(lumps t.lumps)
   =.  metadata.lmp
-    (~(put by metadata.lmp) 'mtime' (da-oct:tarball da.cass.u.node))
+    (~(put by metadata.lmp) 'mtime' (da-oct:tarball da.fold.tote.u.node))
   =.  contents.lmp
     %-  ~(urn by contents.lmp)
     |=  [name=@ta =content:tarball]
@@ -528,9 +522,79 @@
     content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball da.file.u.sk)))
   =.  b  (~(put of b) pax lmp)
   $(lumps t.lumps)
-::  TODO: Subscriptions (%keep/%drop/%bond/%fell/%news)
-::  - Add subscription state types here
-::  - Hook into born.file updates for notifications
+::  +diff-born: compare two born trees and return set of changed lanes
+::
+::  Pure function: walks both trees, comparing totes and sacks.
+::  Four modes:
+::    %all   - compare everything (tote + bags)
+::    %state - compare fold cass + file cass only (content changes)
+::    %weir  - compare weir cass only (sandbox changes)
+::    %proc  - compare proc cass only (process restarts)
+::
+++  diff-born
+  |=  [old=born new=born]
+  ^-  (set lane:tarball)
+  (diff-born-at / old new %all)
+::
+++  diff-born-state
+  |=  [old=born new=born]
+  ^-  (set lane:tarball)
+  (diff-born-at / old new %state)
+::
+++  diff-born-weir
+  |=  [old=born new=born]
+  ^-  (set lane:tarball)
+  (diff-born-at / old new %weir)
+::
+++  diff-born-proc
+  |=  [old=born new=born]
+  ^-  (set lane:tarball)
+  (diff-born-at / old new %proc)
+::
+++  diff-born-at
+  |=  [here=fold:tarball old=born new=born mode=?(%all %state %weir %proc)]
+  ^-  (set lane:tarball)
+  =|  result=(set lane:tarball)
+  ::  Compare directory-level totes
+  =/  old-tote=tote  ?~(fil.old *tote tote.u.fil.old)
+  =/  new-tote=tote  ?~(fil.new *tote tote.u.fil.new)
+  =/  dir-changed=?
+    ?-  mode
+      %all    !=(old-tote new-tote)
+      %state  !=(fold.old-tote fold.new-tote)
+      %weir   !=(weir.old-tote weir.new-tote)
+      %proc   %.n
+    ==
+  =?  result  dir-changed
+    (~(put in result) |+here)
+  ::  Compare bags (file sacks) — skip for weir-only mode
+  =.  result
+    ?:  ?=(%weir mode)  result
+    =/  old-bags=(map @ta sack)  ?~(fil.old ~ bags.u.fil.old)
+    =/  new-bags=(map @ta sack)  ?~(fil.new ~ bags.u.fil.new)
+    =/  all-names=(list @ta)
+      ~(tap in (~(uni in ~(key by old-bags)) ~(key by new-bags)))
+    |-
+    ?~  all-names  result
+    =/  old-sk=sack  (fall (~(get by old-bags) i.all-names) *sack)
+    =/  new-sk=sack  (fall (~(get by new-bags) i.all-names) *sack)
+    =/  sack-changed=?
+      ?:  ?=(%all mode)    !=(old-sk new-sk)
+      ?:  ?=(%state mode)  !=(file.old-sk file.new-sk)
+      !=(proc.old-sk proc.new-sk)
+    =?  result  sack-changed
+      (~(put in result) &+[here i.all-names])
+    $(all-names t.all-names)
+  ::  Recurse into children
+  =/  all-kids=(list @ta)
+    ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
+  |-
+  ?~  all-kids  result
+  =/  old-kid=born  (fall (~(get by dir.old) i.all-kids) *born)
+  =/  new-kid=born  (fall (~(get by dir.new) i.all-kids) *born)
+  =.  result
+    (~(uni in result) (diff-born-at (snoc here i.all-kids) old-kid new-kid mode))
+  $(all-kids t.all-kids)
 ::  External action type for pokes
 ::
 +$  action
