@@ -1122,7 +1122,9 @@
   |=  [dest=path weir=(unit weir:nexus)]
   ^+  this
   ?>  ?=(^ dest)  :: root should always have system access
+  =/  old-sand=sand:nexus  sand
   =.  sand  ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir))
+  ?:  =(old-sand sand)  this
   ::  Bump weir cass in born for this directory
   =/  old-born=born:nexus  born
   =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) dest)

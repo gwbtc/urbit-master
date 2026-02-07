@@ -12,9 +12,6 @@
 ::      /who/        group → members: /who/admins → (set @p)
 ::      /how/        group → weir template: /how/admins → weir
 ::                     /how/public weir is applied to ALL ships
-::      /src/        ship → groups: /src/~zod → (set rail)
-::                     bidirectional index with /who — kept reconciled
-::                     by /peers/main on any change to either
 ::    /ships/        per-ship directories, created lazily on first poke
 ::                     our own ship lives here too, with full tree access
 ::                     (skips usergroup lookup entirely)
@@ -32,7 +29,7 @@
 ::  Weir strategy:
 ::    /peers/ has a permissive weir (full tree, no syscalls). Anything
 ::    leaving /peers/ gets clammed. Ship dirs have tighter weirs derived
-::    from usergroup membership. /peers/main watches /usergroups and
+::    from usergroup membership. /peers/main watches /who, /how, and
 ::    /ships, recalculating and %sand'ing weirs reactively.
 ::
 /+  nexus, tarball, io=fiberio
@@ -53,9 +50,6 @@
       ::  Create /usergroups/how - weir templates per group
       =?  ball  =(~ (~(get of ball) /usergroups/how))
         (~(put of ball) /usergroups/how [~ ~ ~])
-      ::  Create /usergroups/src - per-ship group index (bidirectional)
-      =?  ball  =(~ (~(get of ball) /usergroups/src))
-        (~(put of ball) /usergroups/src [~ ~ ~])
       ::  Create /ships directory (ship dirs created lazily)
       ::  Permissive weir: ships can reach the full tree from here.
       ::  Per-ship weirs narrow access for each foreign ship.
@@ -79,22 +73,22 @@
         ::  /main: poke router + weir manager
         ::  Routes incoming peer-pokes to per-ship gateways,
         ::  lazily creating ship directories on first contact.
-        ::  Watches /usergroups and /ships for changes:
-        ::    - Reconcile /who ↔ /src (keep bidirectional index consistent)
-        ::    - For each affected ship, compute weir as union of its
-        ::      group weir templates (/how/*), plus /how/public
-        ::    - %sand the computed weir onto /ships/~ship/
-        ::    - Skip our own ship (always full tree access, no usergroups)
-        ::    - On new ship dir in /ships/, apply weir immediately
+        ::  Watches /who, /how, and /ships for changes, re-syncs all
+        ::  ship weirs on any change. /ships is watched to prevent
+        ::  rogue weir manipulation — any unauthorized weir change
+        ::  gets immediately overwritten with the correct computed
+        ::  weir. set-weir is idempotent (no-op if weir unchanged),
+        ::  so our own sanding triggers a second no-op sync.
+        ::  TODO: consider making this more granular (e.g. use
+        ::  diff-born to scope work to changed ships only) to avoid
+        ::  the redundant pass.
         ::
           [~ %main]
         ?>  ?=(%sig mark)
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%peers /main: failed, staying inert" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed, poke to restart")
         ~&  >  "%peers /main: starting"
-        ;<  our=@p  bind:m  get-our:io
-        ;<  ~  bind:m  (keep:io /watch-usergroups [%| 0 %| /usergroups])
+        ;<  ~  bind:m  (keep:io /watch-who [%| 0 %| /usergroups/who])
+        ;<  ~  bind:m  (keep:io /watch-how [%| 0 %| /usergroups/how])
         ;<  ~  bind:m  (keep:io /watch-ships [%| 0 %| /ships])
         |-
         ;<  =main-event  bind:m  take-main-event
@@ -102,32 +96,35 @@
             %poke
           =/  =from:fiber:nexus  from.main-event
           =/  =cage  cage.main-event
-          ?:  =(%peers-sync p.cage)
+          ?+    p.cage  $
+              %peers-sync
             ~&  >  [%peers-main %sync]
-            ;<  ~  bind:m  (sync-all-weirs our)
+            ;<  ~  bind:m  sync-all-weirs
             $
-          ?.  ?=(%peer-poke p.cage)
-            ~&  >  [%peers-main %unknown-mark p.cage]
+              %peer-poke
+            ?.  ?=(%| -.from)
+              ~&  >  [%peers-main %internal-poke-rejected]
+              $
+            =/  src=@p  src.p.from
+            ~&  >  [%peers-main %routing (scot %p src)]
+            ;<  ~  bind:m  (ensure-ship-dir src)
+            ;<  ~  bind:m
+              (poke:io /forward [%| 0 %& [/ships/[(scot %p src)] %main]] cage)
             $
-          ?.  ?=(%| -.from)
-            ~&  >  [%peers-main %internal-poke-rejected]
-            $
-          =/  src=@p  src.p.from
-          ~&  >  [%peers-main %routing (scot %p src)]
-          ;<  ~  bind:m  (ensure-ship-dir src our)
-          ;<  ~  bind:m
-            (poke:io /forward [%| 0 %& [/ships/[(scot %p src)] %main]] cage)
-          $
+          ==
         ::
             %news
           ~&  >  [%peers-main %change-detected wire.main-event]
-          ;<  ~  bind:m  (sync-all-weirs our)
+          ;<  ~  bind:m  sync-all-weirs
           $
         ::
             %fell
           ~&  >  [%peers-main %fell-resubscribe wire.main-event]
           ;<  ~  bind:m
-            (keep:io wire.main-event [%| 0 %| ?:(=(/watch-usergroups wire.main-event) /usergroups /ships)])
+            %+  keep:io  wire.main-event
+            ?:  =(/watch-who wire.main-event)  [%| 0 %| /usergroups/who]
+            ?:  =(/watch-how wire.main-event)  [%| 0 %| /usergroups/how]
+            [%| 0 %| /ships]
           $
         ==
         ::  /ships/*/main: per-ship gateway
@@ -136,9 +133,7 @@
         ::
           [[%ships @ ~] %main]
         ?>  ?=(%sig mark)
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%peers /ships/*/main: failed, staying inert" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%peers /ships/*/main: failed, poke to restart")
         =/  ship-name=@ta  i.t.path.rail
         ~&  >  [%peers-gateway ship-name %ready]
         |-
@@ -152,60 +147,10 @@
         =/  payload=^cage  [p.page !>(q.page)]
         ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
         $
-        ::  /usergroups/who/*: group membership
-        ::  State: (set @p). Pokes: %put-members, %add-member, %del-member
-        ::
           [[%usergroups %who ~] @]
-        ?>  ?=(%ships mark)
-        |=  =input:fiber:nexus
-        ^-  output:m
-        ?+  in.input  [~ state.input %skip ~]
-            ~  [~ state.input %wait ~]
-            [~ %poke * *]
-          ?+  p.cage.u.in.input  [~ state.input %skip ~]
-              %put-members  [~ q.cage.u.in.input %wait ~]
-              %add-member
-            =/  members  !<((set @p) state.input)
-            [~ !>((~(put in members) !<(@p q.cage.u.in.input))) %wait ~]
-              %del-member
-            =/  members  !<((set @p) state.input)
-            [~ !>((~(del in members) !<(@p q.cage.u.in.input))) %wait ~]
-          ==
-        ==
-        ::  /usergroups/how/*: weir templates
-        ::  State: weir:nexus. Pokes: %put-weir
-        ::
+        ?>  ?=(%ships mark)  who-file
           [[%usergroups %how ~] @]
-        ?>  ?=(%weir mark)
-        |=  =input:fiber:nexus
-        ^-  output:m
-        ?+  in.input  [~ state.input %skip ~]
-            ~  [~ state.input %wait ~]
-            [~ %poke * *]
-          ?.  =(%put-weir p.cage.u.in.input)
-            [~ state.input %skip ~]
-          [~ q.cage.u.in.input %wait ~]
-        ==
-        ::  /usergroups/src/*: reverse index (ship → groups)
-        ::  State: (set rail). Pokes: %put-rails, %add-rail, %del-rail
-        ::
-          [[%usergroups %src ~] @]
-        ?>  ?=(%rails mark)
-        |=  =input:fiber:nexus
-        ^-  output:m
-        ?+  in.input  [~ state.input %skip ~]
-            ~  [~ state.input %wait ~]
-            [~ %poke * *]
-          ?+  p.cage.u.in.input  [~ state.input %skip ~]
-              %put-rails  [~ q.cage.u.in.input %wait ~]
-              %add-rail
-            =/  rails  !<((set rail:tarball) state.input)
-            [~ !>((~(put in rails) !<(rail:tarball q.cage.u.in.input))) %wait ~]
-              %del-rail
-            =/  rails  !<((set rail:tarball) state.input)
-            [~ !>((~(del in rails) !<(rail:tarball q.cage.u.in.input))) %wait ~]
-          ==
-        ==
+        ?>  ?=(%weir mark)  how-file
       ==
     --
 |%
@@ -231,14 +176,49 @@
       [~ %fell *]
     [%done %fell wire.u.in.input]
   ==
+::  /usergroups/who/*: group membership
+::  State: (set @p). Pokes: %put-members, %add-member, %del-member
+::
+++  who-file
+  |=  =input:fiber:nexus
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  output:m
+  ?+  in.input  [~ state.input %skip ~]
+      ~  [~ state.input %wait ~]
+      [~ %poke * *]
+    ?+  p.cage.u.in.input  [~ state.input %skip ~]
+        %put-members  [~ q.cage.u.in.input %wait ~]
+        %add-member
+      =/  members  !<((set @p) state.input)
+      [~ !>((~(put in members) !<(@p q.cage.u.in.input))) %wait ~]
+        %del-member
+      =/  members  !<((set @p) state.input)
+      [~ !>((~(del in members) !<(@p q.cage.u.in.input))) %wait ~]
+    ==
+  ==
+::  /usergroups/how/*: weir templates
+::  State: weir:nexus. Pokes: %put-weir
+::
+++  how-file
+  |=  =input:fiber:nexus
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  output:m
+  ?+  in.input  [~ state.input %skip ~]
+      ~  [~ state.input %wait ~]
+      [~ %poke * *]
+    ?.  =(%put-weir p.cage.u.in.input)
+      [~ state.input %skip ~]
+    [~ q.cage.u.in.input %wait ~]
+  ==
 ::  Ensure /ships/~ship/ directory exists with gateway process.
 ::  Our ship: no weir (full tree access).
 ::  Foreign ship: weir computed from current usergroups.
 ::
 ++  ensure-ship-dir
-  |=  [src=@p our=@p]
+  |=  src=@p
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
   =/  ship-ta=@ta  (scot %p src)
   =/  ship-dir=path  /ships/[ship-ta]
   ;<  exists=?  bind:m  (peek-exists:io /check-ship [%| 0 %| ship-dir])
@@ -252,35 +232,16 @@
   =/  =weir:nexus  (compute-ship-weir src (build-src who) how)
   =/  ship-sand=sand:nexus  (~(put of *sand:nexus) / weir)
   (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand ship-ball])
-::  Reconcile /src files: for each ship in any group, ensure
-::  /usergroups/src/~ship exists with correct group set.
-::
-++  reconcile-src
-  |=  src=(map @p (set rail:tarball))
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  ships=(list [@p (set rail:tarball)])  ~(tap by src)
-  |-
-  ?~  ships  (pure:m ~)
-  =/  [=ship groups=(set rail:tarball)]  i.ships
-  =/  ship-ta=@ta  (scot %p ship)
-  =/  src-road=road:tarball  [%| 0 %& [/usergroups/src ship-ta]]
-  ;<  exists=?  bind:m  (peek-exists:io /check-src src-road)
-  ;<  ~  bind:m
-    ?:  exists
-      (poke:io /write-src src-road [%put-rails !>(groups)])
-    (make:io /make-src src-road |+[%rails !>(groups)])
-  $(ships t.ships)
 ::  Sand weirs for all foreign ship directories from pre-built data.
 ::
 ++  sand-all-ships
-  |=  $:  our=@p
-          src=(map @p (set rail:tarball))
+  |=  $:  src=(map @p (set rail:tarball))
           how=(map @ta weir:nexus)
           ships-ball=ball:tarball
       ==
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
   =/  ship-names=(list @ta)  ~(tap in ~(key by dir.ships-ball))
   |-
   ?~  ship-names  (pure:m ~)
@@ -289,16 +250,15 @@
   ?~  ship-p
     $(ship-names t.ship-names)
   ?:  =(u.ship-p our)
+    ;<  ~  bind:m  (sand:io /sand-weir [%| 0 %| /ships/[ship-ta]] ~)
     $(ship-names t.ship-names)
   =/  =weir:nexus  (compute-ship-weir u.ship-p src how)
   ~&  >  [%peers-main %sand-weir ship-ta]
-  ;<  ~  bind:m
-    (sand:io /sand-weir [%| 0 %| /ships/[ship-ta]] `weir)
+  ;<  ~  bind:m  (sand:io /sand-weir [%| 0 %| /ships/[ship-ta]] `weir)
   $(ship-names t.ship-names)
-::  Full sync: read usergroups, reconcile /src, sand all ship weirs.
+::  Full sync: read usergroups, sand all ship weirs.
 ::
 ++  sync-all-weirs
-  |=  our=@p
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  [who=(map @ta (set @p)) how=(map @ta weir:nexus)]  bind:m
@@ -309,8 +269,7 @@
     ~&  >  [%peers-main %no-ships-data]
     (pure:m ~)
   =/  src=(map @p (set rail:tarball))  (build-src who)
-  ;<  ~  bind:m  (reconcile-src src)
-  (sand-all-ships our src how ball.p.ships-seen)
+  (sand-all-ships src how ball.p.ships-seen)
 ::  Peek /usergroups and return parsed who + how data
 ::
 ++  read-usergroups
@@ -321,32 +280,19 @@
   ?.  ?&(?=(%& -.ug-seen) ?=(%ball -.p.ug-seen))
     (pure:m [~ ~])
   =/  ug-ball=ball:tarball  ball.p.ug-seen
-  (pure:m [(read-who ug-ball) (read-how ug-ball)])
-::  Extract group→members from /usergroups ball (/who/* files)
+  (pure:m [(read-sub ug-ball %who (set @p)) (read-sub ug-ball %how weir:nexus)])
+::  Extract typed files from a sub-directory of a ball
 ::
-++  read-who
-  |=  ug=ball:tarball
-  ^-  (map @ta (set @p))
-  =/  who-ball=ball:tarball  (~(gut by dir.ug) %who *ball:tarball)
-  ?~  fil.who-ball  ~
-  %-  ~(gas by *(map @ta (set @p)))
-  %+  murn  ~(tap by contents.u.fil.who-ball)
+++  read-sub
+  |*  [ug=ball:tarball dir=@ta =mold]
+  ^-  (map @ta mold)
+  =/  sub=ball:tarball  (~(gut by dir.ug) dir *ball:tarball)
+  ?~  fil.sub  ~
+  %-  ~(gas by *(map @ta mold))
+  %+  murn  ~(tap by contents.u.fil.sub)
   |=  [name=@ta =content:tarball]
-  ^-  (unit [@ta (set @p)])
-  =/  res  (mule |.(!<((set @p) q.cage.content)))
-  ?:(?=(%| -.res) ~ `[name p.res])
-::  Extract group→weir from /usergroups ball (/how/* files)
-::
-++  read-how
-  |=  ug=ball:tarball
-  ^-  (map @ta weir:nexus)
-  =/  how-ball=ball:tarball  (~(gut by dir.ug) %how *ball:tarball)
-  ?~  fil.how-ball  ~
-  %-  ~(gas by *(map @ta weir:nexus))
-  %+  murn  ~(tap by contents.u.fil.how-ball)
-  |=  [name=@ta =content:tarball]
-  ^-  (unit [@ta weir:nexus])
-  =/  res  (mule |.(!<(weir:nexus q.cage.content)))
+  ^-  (unit [@ta mold])
+  =/  res  (mule |.(!<(mold q.cage.content)))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::  Build reverse index: ship → group rails from who map
 ::

@@ -20,9 +20,7 @@
       ^-  process:fiber:nexus
       ?+    rail  stay:m
           [~ %main]
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%explorer /main: failed, staying inert" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~&  >  "%explorer /main: binding /mister/ball"
         ;<  ~  bind:m  (bind [~ /mister/ball])
         ;<  ~  bind:m  (bind [~ /mister/ball/stream])
@@ -46,9 +44,7 @@
           $
         ==
           [[%requests ~] @]
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%explorer /requests: failed" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io

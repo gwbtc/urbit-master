@@ -123,6 +123,20 @@
       [%skip ~]
     [%done bowl.u.in]
   ==
+::  On %rise, log the error and wait for a poke to restart.
+::  On normal startup, continue immediately.
+::  Use at the top of a process to make it restartable:
+::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
+::    ::  startup code continues here
+::
+++  rise-wait
+  |=  [=prod:fiber:nexus msg=tape]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ?.  ?=(%rise -.prod)  (pure:m ~)
+  %-  (slog leaf+msg tang.prod)
+  ;<  =cage  bind:m  take-poke
+  (pure:m ~)
 ::
 ++  take-poke
   =/  m  (fiber ,cage)

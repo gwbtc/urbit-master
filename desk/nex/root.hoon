@@ -1,4 +1,4 @@
-/+  nexus, tarball
+/+  nexus, tarball, io=fiberio
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -31,9 +31,7 @@
   ^-  process:fiber:nexus
   ?+    rail  stay:m
       [~ %main]
-    ?:  ?=(%rise -.prod)
-      %-  (slog leaf+"%root /main: failed, staying inert" tang.prod)
-      stay:m
+    ;<  ~  bind:m  (rise-wait:io prod "%root /main: failed, poke to restart")
     stay:m
   ==
 --

@@ -34,9 +34,7 @@
   ^-  process:fiber:nexus
   ?.  ?=([~ %main] rail)
     stay:m
-  ?:  ?=(%rise -.prod)
-    %-  (slog leaf+"%server /main: failed, staying inert" tang.prod)
-    stay:m
+  ;<  ~  bind:m  (rise-wait:io prod "%server /main: failed, poke to restart")
   ~&  >  "%server /main: ready"
   |-
   ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io

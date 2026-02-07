@@ -27,8 +27,7 @@
           ::  /main: counter process — ticks from 0 to 10
           ::
           [~ %main]
-        ;<  ~  bind:m  ?.  ?=(%rise -.prod)  (pure:m ~)
-          (trace:io leaf+"%counter /main: failed" tang.prod)
+        ;<  ~  bind:m  (rise-wait:io prod "%counter /main: failed, poke to restart")
         ::  Wait for a poke to start ticking
         |-
         ;<  =cage  bind:m  take-poke:io
@@ -49,9 +48,7 @@
           ::  /ui/main: bind paths and dispatch requests
           ::
           [[%ui ~] %main]
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%counter /ui/main: failed, staying inert" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed, poke to restart")
         ~&  >  "%counter /ui/main: binding paths"
         ;<  ~  bind:m  (bind [~ /mister/counter])
         ;<  ~  bind:m  (bind [~ /mister/counter/stream])
@@ -72,9 +69,7 @@
           ::  /ui/requests/*: individual request handlers
           ::
           [[%ui %requests ~] @]
-        ?:  ?=(%rise -.prod)
-          %-  (slog leaf+"%counter /ui/requests: failed" tang.prod)
-          stay:m
+        ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
