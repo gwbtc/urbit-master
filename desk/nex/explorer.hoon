@@ -22,34 +22,17 @@
           [~ %main]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~&  >  "%explorer /main: binding /mister/ball"
-        ;<  ~  bind:m  (bind [~ /mister/ball])
-        ;<  ~  bind:m  (bind [~ /mister/ball/stream])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/ball])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/ball/stream])
         ~&  >  "%explorer /main: ready"
-        |-
-        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?+    p.cage  $
-            %handle-http-request
-          =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
-            !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
-          ~&  >  [%explorer-dispatch eyre-id url.request.req]
-          ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>([src req]))
-          $
-            %send-action
-          ;<  ~  bind:m  (poke:io /send server-road cage)
-          $
-            %handle-http-cancel
-          =/  eyre-id=@ta  !<(@ta q.cage)
-          ~&  >  [%explorer-cancel eyre-id]
-          ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
-          $
-        ==
+        (http-dispatch:nex-server %explorer)
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
         ?.  =(src our)
-          ;<  ~  bind:m  (send-simple eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
@@ -65,7 +48,7 @@
           (handle-stream eyre-id req watch-path)
         ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
         ?.  ?=([%& %ball *] root-seen)
-          ;<  ~  bind:m  (send-simple eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
           (pure:m ~)
         =/  root=ball:tarball  ball.p.root-seen
         =/  root-born=born:nexus  born.p.root-seen
@@ -77,24 +60,9 @@
     --
 ::
 |%
-::  Absolute road to /server/main
+::  HTTP response door (road from /explorer/requests/* to /explorer/main)
 ::
-++  server-road  `road:tarball`[%& %& /server %main]
-::  Road from /explorer/requests/* to /explorer/main
-::
-++  main-road  `road:tarball`[%| 1 %& ~ %main]
-::
-++  bind
-  |=  =binding:eyre
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (poke:io /bind server-road bind-action+!>([%bind binding]))
-::
-++  send
-  |=  =send-action:nex-server
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (poke:io /send main-road send-action+!>(send-action))
+++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
 ::  Handle GET requests
 ::
 ++  handle-get
@@ -111,11 +79,11 @@
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (get-mark-conversions:io u.sub)
     =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born now conversions))
-    ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [/text/html bod]))
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  Not a directory — try as file
   ?~  tree-path
-    ;<  ~  bind:m  (send-simple eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   =/  parent=path  (snip `path`tree-path)
   =/  name=@ta  (rear tree-path)
@@ -124,11 +92,11 @@
     ?~  fil.parent-ball  ~
     (find-file name u.fil.parent-ball)
   ?~  content-data
-    ;<  ~  bind:m  (send-simple eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   =/  =cage  cage.u.content-data
-  ;<  =mime  bind:m  (cage-to-mime cage)
-  ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [p.mime q.mime]))
+  ;<  =mime  bind:m  (cage-to-mime:io cage)
+  ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
   (pure:m ~)
 ::  Handle POST requests (delete actions)
 ::
@@ -149,58 +117,58 @@
   =/  redirect-url=tape
     ?~(tree-path "/mister/ball" "/mister/ball{(trip (spat tree-path))}")
   ?~  action
-    ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing action')])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing action')])
     (pure:m ~)
   ?+    u.action
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
       (pure:m ~)
   ::
       %'delete-file'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
     ?:  =('' filename)
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
       (pure:m ~)
     ::  cull road: up 3 from /explorer/requests/[id] to root, then file
     ;<  ~  bind:m  (cull:io /delete [%& %& tree-path filename])
-    ;<  ~  bind:m  (send-simple eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'delete-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     ?:  =('' foldername)
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
       (pure:m ~)
     =/  folder-path=path  (snoc tree-path foldername)
     ;<  ~  bind:m  (cull:io /delete [%& %| folder-path])
-    ;<  ~  bind:m  (send-simple eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     ?:  =('' foldername)
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
       (pure:m ~)
     =/  folder-path=path  (snoc tree-path foldername)
     =/  empty-ball=ball:tarball  [`[~ ~ ~] ~]
     ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus empty-ball])
-    ;<  ~  bind:m  (send-simple eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'create-symlink'
     =/  linkname=@t  (fall (get-key:kv:html-utils 'linkname' args) '')
     ?:  =('' linkname)
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing linkname')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing linkname')])
       (pure:m ~)
     =/  target=@t  (fall (get-key:kv:html-utils 'target' args) '')
     ?:  =('' target)
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Missing target')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing target')])
       (pure:m ~)
     =/  sym=(unit symlink:tarball)  (parse-symlink:tarball target)
     ?~  sym
-      ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
     ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%symlink !>(u.sym)])
-    ;<  ~  bind:m  (send-simple eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ==
 ::  Handle multipart file upload
@@ -212,7 +180,7 @@
   =/  parts=(unit (list [@t part:multipart]))
     (de-request:multipart header-list.request.req body.request.req)
   ?~  parts
-    ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
     (pure:m ~)
   ::  Build mime→mark tubes for uploaded file extensions
   ;<  now=@da  bind:m  get-time:io
@@ -260,32 +228,8 @@
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/mister/ball" "/mister/ball{(trip (spat tree-path))}")
-  ;<  ~  bind:m  (send-simple eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+  ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
   (pure:m ~)
-::  Convert cage to mime using mark conversion tube
-::
-++  cage-to-mime
-  |=  =cage
-  =/  m  (fiber:fiber:nexus ,mime)
-  ^-  form:m
-  ?:  =(%mime p.cage)
-    (pure:m !<(mime q.cage))
-  ;<  our=@p  bind:m  get-our:io
-  ;<  =desk  bind:m  get-desk:io
-  ;<  now=@da  bind:m  get-time:io
-  =/  =mars:clay  [p.cage %mime]
-  ;<  tube=(unit tube:clay)  bind:m
-    (try-build-tube:io our desk [%da now] mars)
-  ?~  tube
-    ::  No conversion, fall back to jam
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
-  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
-  ?:  ?=(%| -.result)
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
-  =/  extracted  (mule |.(!<(mime p.result)))
-  ?:  ?=(%| -.extracted)
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
-  (pure:m p.extracted)
 ::  Serve a directory as a tarball download
 ::
 ++  serve-tarball
@@ -305,7 +249,7 @@
     :~  ['content-type' 'application/x-tar']
         ['content-disposition' (crip "attachment; filename=\"{dir-name}.tar\"")]
     ==
-  ;<  ~  bind:m  (send-simple eyre-id [[200 headers] `tar-data])
+  ;<  ~  bind:m  (send-simple:srv eyre-id [[200 headers] `tar-data])
   (pure:m ~)
 ::  Find a file by URL segment in a lump
 ::  Matches exact name first, then tries name.mark pattern
@@ -329,9 +273,9 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?.  (is-sse-request:http-utils req)
-    ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
-  ;<  ~  bind:m  (send-header eyre-id sse-header:http-utils)
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
   ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial [%& %| ~])
   =/  prev-born=born:nexus
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
@@ -344,7 +288,7 @@
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
   ?-    -.nw
       %wake
-    ;<  ~  bind:m  (send-data eyre-id `sse-keep-alive:http-utils)
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
     ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
     $
@@ -397,7 +341,7 @@
         ==
       =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
       =/  data=octs  (sse-encode:http-utils ~[sse-event])
-      ;<  ~  bind:m  (send-data eyre-id `data)
+      ;<  ~  bind:m  (send-data:srv eyre-id `data)
       $(lanes t.lanes)
     ::  Delete: send name
     =/  =json
@@ -407,7 +351,7 @@
       ==
     =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
     =/  data=octs  (sse-encode:http-utils ~[sse-event])
-    ;<  ~  bind:m  (send-data eyre-id `data)
+    ;<  ~  bind:m  (send-data:srv eyre-id `data)
     $(lanes t.lanes)
   ==
 ::  Walk root ball along path, collecting neck for each directory
@@ -476,24 +420,6 @@
     ?~  nk  "/{(trip i.pax)}"
     "/{(trip i.pax)}.{(trip u.nk)}"
   $(pax t.pax, acc (weld acc seg))
-::
-++  send-simple
-  |=  [eyre-id=@ta =simple-payload:http]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %simple simple-payload])
-::
-++  send-header
-  |=  [eyre-id=@ta =response-header:http]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %header response-header])
-::
-++  send-data
-  |=  [eyre-id=@ta data=(unit octs)]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %data data])
 ::
 ++  page-head
   |=  title=tape

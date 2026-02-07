@@ -50,22 +50,10 @@
           [[%ui ~] %main]
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed, poke to restart")
         ~&  >  "%counter /ui/main: binding paths"
-        ;<  ~  bind:m  (bind [~ /mister/counter])
-        ;<  ~  bind:m  (bind [~ /mister/counter/stream])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/counter])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/counter/stream])
         ~&  >  "%counter /ui/main: ready"
-        |-
-        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?+    p.cage  $
-            %handle-http-request
-          =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
-            !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
-          ~&  >  [%counter-dispatch eyre-id url.request.req]
-          ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>([src req]))
-          $
-            %send-action
-          ;<  ~  bind:m  (poke:io /send server-road cage)
-          $
-        ==
+        (http-dispatch:nex-server %counter)
           ::  /ui/requests/*: individual request handlers
           ::
           [[%ui %requests ~] @]
@@ -74,32 +62,32 @@
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
         ?.  =(src our)
-          ;<  ~  bind:m  (send-simple eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         ~&  >  [%counter-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
         ?+    site.request-line
           ~&  >  [%counter-unknown site.request-line]
-          ;<  ~  bind:m  (send-simple eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
           (pure:m ~)
         ::
             [%mister %counter ~]
           ?:  ?=(%'POST' method.request.req)
             ::  Start the counter
             ;<  ~  bind:m  (poke:io /start req-counter-road counter-start+!>(~))
-            ;<  ~  bind:m  (send-simple eyre-id two-oh-four:http-utils)
+            ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
           ::  Serve counter page
           =/  bod=octs  (manx-to-octs:server counter-page)
-          ;<  ~  bind:m  (send-simple eyre-id (mime-response:http-utils [/text/html bod]))
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
           (pure:m ~)
         ::
             [%mister %counter %stream ~]
           ::  SSE stream: subscribe to counter and forward updates
           ?.  (is-sse-request:http-utils req)
-            ;<  ~  bind:m  (send-simple eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
             (pure:m ~)
-          ;<  ~  bind:m  (send-header eyre-id sse-header:http-utils)
+          ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
           ;<  ~  bind:m  (keep:io /counter req-counter-road)
           ::  Start keep-alive timer
           ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
@@ -108,71 +96,33 @@
           ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /counter)
           ?-  -.nw
               %wake
-            ;<  ~  bind:m  (send-data eyre-id `sse-keep-alive:http-utils)
+            ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
             ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
             ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
             $
               %news
             =/  =sse-event:http-utils  [~ `'counter-update' (manx-to-wain:http-utils (counter-update view.nw))]
             =/  data=octs  (sse-encode:http-utils ~[sse-event])
-            ;<  ~  bind:m  (send-data eyre-id `data)
+            ;<  ~  bind:m  (send-data:srv eyre-id `data)
             $
           ==
         ==
       ==
     --
 |%
-::  Absolute road to /server/main
-::
-++  server-road  `road:tarball`[%& %& /server %main]
 ::  Road from /counter/ui/requests/* to /counter/main
 ::
 ++  req-counter-road  `road:tarball`[%| 2 %& ~ %main]
-::  Road from /counter/ui/requests/* to /counter/ui/main
+::  HTTP response door (road from /counter/ui/requests/* to /counter/ui/main)
 ::
-++  main-road  `road:tarball`[%| 1 %& ~ %main]
-::
-++  bind
-  |=  =binding:eyre
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (poke:io /bind server-road bind-action+!>([%bind binding]))
-::
-++  send
-  |=  =send-action:nex-server
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (poke:io /send main-road send-action+!>(send-action))
-::
-++  send-simple
-  |=  [eyre-id=@ta =simple-payload:http]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %simple simple-payload])
-::
-++  send-header
-  |=  [eyre-id=@ta =response-header:http]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %header response-header])
-::
-++  send-data
-  |=  [eyre-id=@ta data=(unit octs)]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %data data])
-::
-++  send-kick
-  |=  eyre-id=@ta
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  (send [eyre-id %kick ~])
+++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
 ::
 ++  counter-update
   |=  =view:nexus
   ^-  manx
   =/  count=@ud
-    ?.  ?=(%file -.view)  0
+    ?.  ?=(%file -.view)
+      0
     !<(@ud q.cage.view)
   ;span: {(scow %ud count)}
 ::

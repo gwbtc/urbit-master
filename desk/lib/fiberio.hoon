@@ -536,6 +536,29 @@
   =?  conversions  ?=(^ tube-result)
     (~(put by conversions) mars u.tube-result)
   $(marks t.marks)
+::  +cage-to-mime: convert cage to mime, falling back to jam
+::
+++  cage-to-mime
+  |=  =cage
+  =/  m  (fiber ,mime)
+  ^-  form:m
+  ?:  =(%mime p.cage)
+    (pure:m !<(mime q.cage))
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  =/  =mars:clay  [p.cage %mime]
+  ;<  tube=(unit tube:clay)  bind:m
+    (try-build-tube our desk [%da now] mars)
+  ?~  tube
+    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  ?:  ?=(%| -.result)
+    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+  =/  extracted  (mule |.(!<(mime p.result)))
+  ?:  ?=(%| -.extracted)
+    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+  (pure:m p.extracted)
 ::  Gall agent operations (via syscalls)
 ::
 ++  gall-poke
@@ -734,6 +757,7 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   (gall-poke /poke [our dude] cage)
+::
 ++  give-response-header
   |=  [eyre-id=@ta =response-header:http]
   =/  m  (fiber ,~)
