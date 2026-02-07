@@ -41,7 +41,7 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
 - `pool` - running processes: `(axal pipe)` where pipe is `(map @ta proc:fiber)`
 - `nexi` - compiled nexus definitions: `(map neck nexus)`
 - `sand` - sandboxing filters: `(axal weir)`
-- `born` - version tracking: `(axal [=cass:clay bags=(map @ta sack)])` where `sack = [proc=cass:clay file=cass:clay]`
+- `born` - version tracking: `(axal [=tote bags=(map @ta sack)])` where `tote = [weir=cass:clay fold=cass:clay]` and `sack = [proc=cass:clay file=cass:clay]`
 - `subs` - internal subscriptions: `[fwd=(map lane (map rail wire)) rev=(jug rail lane)]`
 
 ### Nexus
@@ -104,7 +104,7 @@ This is distinct from grubbery's per-poke model where each poke spawns a transie
       [%load =wire err=(unit tang)]    :: response to %load (nexus reload)
       [%bond =wire err=(unit tang)]    :: subscription established/failed
       [%fell =wire]                    :: subscription canceled (weir change)
-      [%news =wire what=(set lane) =view]  :: change notification
+      [%news =wire =view]                    :: change notification
       [%veto =dart]                    :: dart was sandboxed
       [%scry =wire =vase]              :: scry result
       [%bowl =wire =bowl]              :: bowl result
@@ -196,14 +196,16 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] `++sync-metadata` (lib/tarball) - preserve mtime for unchanged files, update for changed
 
 ### Version Tracking (++bo door in lib/nexus.hoon)
-- [x] `born=(axal [=cass:clay bags=(map @ta sack)])` - version tree (high-water mark, never shrinks)
+- [x] `born=(axal [=tote bags=(map @ta sack)])` - version tree (high-water mark, never shrinks)
+- [x] `tote=[weir=cass:clay fold=cass:clay]` - per-directory version info (weir changes + content changes)
 - [x] `sack=[proc=cass:clay file=cass:clay]` - per-file version info
 - [x] `proc.cass` bumped on process spawn/restart (stale response detection)
 - [x] `file.cass` bumped on content change (subscription notifications)
-- [x] Directory `cass` propagates up from file changes to root
-- [x] `++bo` door: `get`, `put`, `init`, `bump-proc`, `bump-file`, `bump-dir`, `diff-balls`
+- [x] `fold.tote` propagates up from file changes to root
+- [x] `weir.tote` bumped on weir changes (via `++bump-weir`), propagates up
+- [x] `++bo` door: `get`, `put`, `init`, `bump-proc`, `bump-file`, `bump-dir`, `bump-weir`, `diff-balls`, `diff-born`
 - [x] `++diff-balls` - unified change detection: new/changed/deleted files + empty dir edge cases
-- [x] `bumped=(set lane:tarball)` tracks what changed for subscription notifications
+- [x] `++diff-born` - compare old and new born trees, return set of changed lanes (replaces `bumped`)
 - [x] Instance ID (`proc.cass`) included in wrapped wires
 - [x] `++take-arvo` / `++take-agent` - check instance ID, discard stale responses
 - [x] Comprehensive tests in tests/nexus.hoon (40+ test cases)
@@ -283,15 +285,53 @@ Both outgoing wires and incoming watch paths use the `%proc` prefix:
 - [x] `subs` state with dual indices: `fwd` (target→watchers) and `rev` (watcher→targets)
 - [x] `%keep` dart → `sub-put`, check peek permission, send `%bond`
 - [x] `%drop` dart → `sub-del`, send `%fell`
-- [x] `++notify` - send `%news` to watchers when lanes change
-- [x] `bumped` set from `++bo` wired through `bump-file` and `diff-balls` to `notify`
-- [x] `what` contains relative paths of changed descendants
-- [x] `view` contains current state of watched location
+- [x] `++notify` - send `%news` to watchers when lanes change (uses `diff-born` to find changed lanes)
+- [x] `%news` contains `view` only (subscribers use `diff-born` locally if they need change details)
 - [x] `++sub-wipe` - clean up outgoing subscriptions when watcher dies
 - [x] `++fell-sub` - forcibly end subscription + send `%fell`
 - [x] `++audit-weir` - re-check subscriptions after weir change
 - [x] Audit on `set-weir`, `reload`, and `reload-nexus`
+- [x] `set-weir` is idempotent (no-op if sand unchanged, prevents notification cascades)
 - [x] Subscriptions persist through target deletion (watcher gets `%news` with `[%none ~]`)
+
+### Usergroups (Peers Nexus)
+
+Role-based weir management via tree state. Implemented in `nex/peers.hoon`.
+
+```
+/peers/
+  /main              poke router + weir manager
+  /usergroups/
+    /who/            group → members (hierarchical paths supported)
+      /admins                  (set @p)
+      /acme/eng/leads          (set @p)
+    /how/            group → weir template (matches who structure)
+      /admins                  weir:nexus
+      /acme/eng/leads          weir:nexus
+      /public                  weir applied to ALL ships
+  /ships/            per-ship directories, created lazily
+    /~zod/           weir = union of templates from all groups ~zod belongs to
+      /main          gateway: page → cage, forward to dest
+```
+
+- [x] Hierarchical group paths: `/who/acme/eng/leads` works the same as `/who/admins`
+- [x] `read-tree` recursively walks subtree via `~(tap ba:tarball sub)` for group/template data
+- [x] `build-src` computes reverse index (ship → group rails) on the fly (no persisted `/src`)
+- [x] `compute-ship-weir` unions weir templates from all groups + `/how/public`
+- [x] Reactive sync: `/main` watches `/who`, `/how`, and `/ships`, re-syncs all weirs on change
+- [x] `/ships` watch prevents rogue weir manipulation (unauthorized changes get overwritten)
+- [x] `set-weir` idempotency prevents notification cascades from own sanding
+- [x] Our ship gets no weir (full tree access), foreign ships get computed weirs
+- [x] `who-file`/`how-file` process handlers: `%put-members`, `%add-member`, `%del-member`, `%put-weir`
+- [x] `rise-wait` pattern: crashed processes log error, wait for poke to restart
+- [x] Groups have no inheritance — membership is explicit per group
+
+### Process Recovery (rise-wait)
+
+- [x] `rise-wait:io` helper in `lib/fiberio.hoon`
+- [x] On `%rise`: logs error tang, waits for any poke, then continues
+- [x] On normal startup (`%make`/`%load`): passes through immediately
+- [x] Applied to all nexus processes (peers, server, counter, explorer, root)
 
 ### Name Uniqueness (Unix Semantics) - COMPLETE
 
@@ -345,10 +385,12 @@ request is its own process. The `/main` process just dispatches and forwards.
 - Responses route through the same `/main` that registered the binding
 - Server checks `=(p.from u.expected-bend)` — only the nexus that claimed the binding can respond on it
 
-**Reference implementation:** `lib/nex/counter.hoon` — self-contained counter app with:
-- `counter` nexus at `/counter`: ticking state, responds to `%counter-start`
-- `counter-ui` nexus at `/counter/ui`: HTTP handling, SSE streaming
-- Roads: `server-road` (up 2 to `/server/main`), `req-counter-road` (up 2 to `/counter/main`), `main-road` (up 1 to `/counter/ui/main`)
+**Reference implementation:** `nex/counter.hoon` — self-contained counter app with:
+- Single `counter` nexus at `/counter`: ticking state + HTTP UI
+- `/main` — counter process (ticks 0→10 on `%counter-start` poke)
+- `/ui/main` — HTTP dispatcher (binds paths, routes requests)
+- `/ui/requests/*` — per-request handlers (serve page, SSE streams)
+- Roads: `server-road` (absolute `/server/main`), `req-counter-road` (up 2 to `/counter/main`), `main-road` (up 1 to `/counter/ui/main`)
 
 ## Not Yet Implemented
 
@@ -360,7 +402,7 @@ request is its own process. The `/main` process just dispatches and forwards.
 - [ ] Keen tracking - track outgoing `%keen` per-process, `%yawn` on death/crash
 - [ ] Versioning - may need custom scheme if historical versions need different permissions (coops apply to all versions)
 
-### Internal Subscriptions (%keep) - COMPLETE
+## Internal Subscriptions (%keep)
 
 Process subscribes to tree locations, receives `%news` when content changes.
 
@@ -374,7 +416,7 @@ Process subscribes to tree locations, receives `%news` when content changes.
 :: intake (incoming to process)
 [%bond =wire err=(unit tang)]  :: subscription established/failed
 [%fell =wire]                  :: subscription canceled (weir change only)
-[%news =wire what=(set lane:tarball) =view]  :: change notification
+[%news =wire =view]            :: change notification
 ```
 
 #### State
@@ -398,13 +440,10 @@ Dual-indexed for fast lookup both ways:
 - Only permission changes (`%fell`) forcibly end subscriptions
 
 **Notification flow:**
-1. Content changes → `++bo` tracks in `bumped=(set lane:tarball)`
-2. `bump-file` / `diff-balls` call `++notify` with bumped set
-3. `notify` finds watchers, relativizes paths, sends `%news`
-
-**`what` set in `%news`:**
-- For file subscription: always empty (nothing changes "inside" a file)
-- For directory subscription: relative paths of changed descendants
+1. Content changes → `++bo` produces new `born` tree
+2. `++diff-born` compares old and new born → `(set lane:tarball)` of changed lanes
+3. `++notify` finds watchers with relevant changes, sends `%news` with `view` only
+4. Subscribers can call `diff-born` locally to determine what changed within a directory
 
 #### Management Arms (app/mister.hoon)
 
@@ -421,14 +460,15 @@ Dual-indexed for fast lookup both ways:
 |-------|---------|--------|
 | `%keep` dart | `++handle-dart` | `sub-put`, send `%bond` |
 | `%drop` dart | `++handle-dart` | `sub-del`, send `%fell` |
-| File changes | `++bump-file` | `notify` via bumped set |
-| Bulk changes | `++diff-balls` | `notify` via bumped set |
+| File changes | `++bump-file` | `notify` via `diff-born` |
+| Bulk changes | `++diff-balls` | `notify` via `diff-born` |
+| Weir bumps | `++set-weir` | `bump-weir` in born, `notify` via `diff-born` |
 | Watcher dies | `++delete` | `sub-wipe` |
 | Weir changes | `++set-weir` | `audit-weir` |
 | Reload | `++reload` | `audit-weir /` |
 | Nexus reload | `++reload-nexus` | `audit-weir dest` |
 
-## Mark Validation (COMPLETE)
+## Mark Validation
 
 Validation lives in app/mister.hoon, not lib/tarball.hoon. Tarball is a pure data structure; mister is the runtime that can scry for daises.
 
@@ -495,42 +535,6 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 - `clam-cage`: returns error tang (trust boundary, graceful rejection)
 
 ## Future Work
-- [ ] Tarball explorer — universal tree browser and structural editor
-
-  A nexus that serves an HTML UI for browsing and manipulating any part of the
-  tarball tree. Like the explorer in `app/master.hoon`, but built as a nexus using
-  the server/requests pattern.
-
-  **Key insight: the tree is the app.** The explorer doesn't need to understand what
-  any nexus does. It operates at the structural level using three primitives:
-
-  - `peek:io` — read any node. Returns `view:nexus`: `[%ball =sand ball=ball:tarball]`
-    for directories, `[%file =cage]` for files, `[%none ~]` for absent nodes.
-  - `make:io` — create a file or entire subtree anywhere. The nexus at that location
-    handles the rest via `on-file`. `make` takes `(each [=sand =ball:tarball] cage)`,
-    so a single make can drop a full directory tree with files, permissions, and necks.
-  - `cull:io` — delete a file or directory. Process dies, subscriptions clean up.
-
-  The explorer becomes the universal admin UI for any mister app. No custom admin pages
-  needed. Want to start the counter? Make a file at the right path. Kill an SSE
-  connection? Cull its request file. Unbind a URL? Poke the server to unbind it. It's
-  all tree operations.
-
-  **Architecture:** Same pattern as counter-ui:
-  - Explorer nexus at `/explorer/ui`, bind URL paths (e.g. `/mister/ball/**`)
-  - Each request gets its own file at `/explorer/ui/requests/[eyre-id]`
-  - Request process peeks the target path based on URL, renders HTML
-  - Road from request file to target: up N to root, down to target path
-
-  **Phases:**
-  1. Read-only browser: directory listing, file display, tarball download
-  2. Structural writes: make (create files/dirs), cull (delete), upload
-  3. Guardrails: sand/weir already controls what's allowed where
-
-  **File uploads** work naturally: upload a file → explorer does `make:io` at the
-  target path → nexus `on-file` handles it. Upload a tarball → unpack → `make:io`
-  with the full subtree.
-
 - [ ] Nexuses and marks in the tree - could nexuses and marks live inside the ball?
 
   Currently nexuses are compiled code in `nexi=(map neck nexus)` and marks come from
@@ -617,69 +621,6 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
   - Versioning: semantic versions vs tree state?
   - Rollback: keep old versions in tree history?
 
-- [ ] Usergroup pattern - role-based weir management via tree state
-
-  Usergroups are a **weir management layer** built on mister primitives, not core changes.
-  Groups control what weirs get applied to `/peers/~ship` and `/public`.
-
-  ```
-  /grp
-    /main      :: weir manager process (keeps everything in sync)
-    /who
-      /admins              :: (set @p) - global admins
-      /acme
-        /engineering       :: (set @p) - acme engineering team
-        /engineering
-          /leads           :: (set @p) - acme engineering leads
-    /how
-      /admins              :: weir - what admins can do
-      /acme
-        /engineering       :: weir - what acme engineers can do
-        /engineering
-          /leads           :: weir - what leads can do
-    /src
-      /~zod    :: (set path) - {/admins /acme/engineering/leads}
-      /~bus    :: (set path) - {/acme/engineering}
-    /pub       :: weir - what public (non-grouped) can do
-  ```
-
-  **Groups are paths, no inheritance:**
-  - Paths provide organizational structure: `/acme/engineering/leads`
-  - No automatic inheritance - membership is explicit
-  - Being in `/acme/engineering/leads` does NOT imply `/acme/engineering`
-  - If you want both, add to both explicitly
-
-  **Bidirectional index:**
-  - `/grp/who/acme/engineering` → "who is in this group?" (for management UI)
-  - `/grp/src/~zod` → "what groups is this ship in?" (set of paths, for fast weir lookup)
-
-  **The `/grp/main` process:**
-  1. `%keep` subscribes to `/grp` (ball subscription)
-  2. Receives `%news` when membership or templates change
-  3. Keeps `/who/*` and `/src/*` in sync (bidirectional index)
-  4. Recalculates weirs:
-     - For each ship with a `/peers/~ship` entry:
-       - Peek `/grp/src/~ship` → get group set
-       - Peek `/grp/how/[group]` for each group
-       - Union the weirs
-       - `%sand` to `/peers/~ship`
-     - Apply `/grp/pub` to `/public` via `%sand`
-
-  **Benefits:**
-  - No core changes - pure application pattern
-  - Reactive - weirs update automatically when groups change
-  - Auditable - group membership and permissions are tree state
-  - Composable - ships can be in multiple groups, weirs union
-
-  **Example flow:**
-  1. Admin adds `~zod` to leads: poke `/grp/who/acme/engineering/leads` to add `~zod`
-  2. `/grp/main` receives `%news`, updates `/grp/src/~zod` to include `/acme/engineering/leads`
-  3. `/grp/main` recalculates weir for `~zod`: union of weirs from all groups in `/grp/src/~zod`
-  4. `/grp/main` sends `%sand` to `/peers/~zod` with new weir
-  5. `~zod`'s next dart is filtered with updated permissions
-
-  This is role-based access control as tree structure, managed reactively.
-
 - [ ] Explorer cleanup: consolidate `cage-to-mime` in explorer with `gen:tarball`'s version (avoid duplicating tube-building logic)
 - [ ] Testing - exercise the flows end-to-end
 
@@ -695,88 +636,27 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 
 5. **Subscriptions**: Watch paths use `%proc` prefix like wires. `%give %fact` and `%give %kick` paths are wrapped automatically.
 
-## Planned: Explicit File/Directory Type Distinction
+## Explicit File/Directory Type Distinction (COMPLETE)
 
-Make the file vs directory distinction explicit at the type level throughout the codebase.
+File vs directory is explicit at the type level:
 
-### Current Types
 ```hoon
+:: lib/tarball.hoon
 +$  rail  [=path name=@ta]         :: always a file
 +$  fold  path                     :: always a directory
-+$  lane  [=path file=(unit @ta)]  :: file or directory (implicit)
-+$  bend  (pair @ud path)          :: relative: steps + subpath
-+$  road  (each path bend)         :: absolute or relative path
-+$  from  (each path prov)         :: source location
++$  lane  (each rail fold)         :: [%& rail] file or [%| fold] directory
++$  bend  (pair @ud lane)          :: relative: steps up + destination lane
++$  road  (each lane bend)         :: [%& lane] absolute or [%| bend] relative
+
+:: lib/nexus.hoon
++$  from  (each rail:tarball prov)  :: source: internal file or external
+
+:: inside ++fiber (sandboxed view)
++$  bend  (pair @ud rail:tarball)   :: fiber bends always target files
++$  from  (each bend prov)          :: relative file source or external
 ```
 
-### Proposed Types
-```hoon
-+$  rail  [=path name=@ta]         :: always a file
-+$  fold  path                     :: always a directory
-+$  lane  (each rail fold)         :: explicit discrimination: [%& rail] or [%| fold]
-+$  bend  (pair @ud lane)          :: relative: steps + lane (file or dir)
-+$  road  (each lane bend)         :: absolute or relative lane
-+$  from  (each rail prov)         :: source is always a file (pokes come from processes)
-```
-
-Inside `++fiber` (sandboxed view):
-```hoon
-+$  bend  (pair @ud rail)          :: fiber bends always target files
-+$  from  (each bend prov)         :: relative file source or external
-```
-
-### Rationale
-
-1. **Type safety** - can't accidentally pass a directory where a file is expected
-2. **Self-documenting** - clearer what each path represents
-3. **Compiler catches errors** - e.g., pokes must target files, not directories
-4. **Explicit discrimination** - `lane = (each rail fold)` makes the choice visible
-
-### Validation at Dispatch
-
-Keep destination in `road` (single source of truth), validate per operation:
-- `%poke` → must resolve to `rail`
-- `%make` → `lane` ok (can create file or dir)
-- `%cull` → `lane` ok (can delete file or dir)
-- `%peek` → must resolve to `rail` (peek file state)
-
-### Implementation Strategy
-
-1. Update type definitions in `lib/nexus.hoon`
-2. Update path helpers (`make-bend`, `path-from-bend`, `relativize-from`, etc.)
-3. Propagate changes through `app/mister.hoon`
-4. Update `lib/fiberio.hoon`
-5. Update nexuses (`lib/nex/*.hoon`)
-6. Update server validation pattern in `nex/server.hoon`:
-   ```hoon
-   ::  Old: ?>  ?=([%& %1 %requests @ ~] from)
-   ::  New: ?>  ?=([%& %1 [%requests ~] @] from)
-   ::       ?>  =(name.q.p.from eyre-id)
-   ```
-
-### Implementation Notes
-
-**Key principle: File paths are always `rail`, never bare `path`.**
-
-Every function that deals with a file location should use `rail = [=path name=@ta]`, not `path`. This means:
-
-1. `here` parameters throughout mister.hoon become `here=rail`
-2. `++enqu-take`, `++process-dart`, `++handle-dart`, etc. all take `rail`
-3. `take:nexus` has `here=rail` (already done)
-4. `from:nexus` is `(each rail prov)` (already done)
-5. Pool indexing may need adjustment
-
-Only use bare `path` for:
-- Directory references (`fold`)
-- Intermediate computations where you genuinely need just the directory portion
-
-### Helpers Added
-
-- `++rail-from-path` - convert file path to rail: `/a/b/c` → `[path=/a/b name=%c]`
-- `++path-from-lane` - get full path from lane
-- `++dir-from-lane` - get directory path from lane
-- `++lane-from-bend` - resolve relative bend to absolute lane
-- `++lane-from-road` - resolve road to absolute lane
+Helpers: `rail-from-path`, `path-from-lane`, `dir-from-lane`, `lane-from-bend`, `lane-from-road`
 
 ## Weir Sandboxing (Design Notes)
 

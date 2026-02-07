@@ -10,6 +10,7 @@
 ::    /main          poke router + weir manager
 ::    /usergroups/   role-based access data
 ::      /who/        group → members: /who/admins → (set @p)
+::                     hierarchical: /who/acme/eng/leads → (set @p)
 ::      /how/        group → weir template: /how/admins → weir
 ::                     /how/public weir is applied to ALL ships
 ::    /ships/        per-ship directories, created lazily on first poke
@@ -147,9 +148,9 @@
         =/  payload=^cage  [p.page !>(q.page)]
         ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
         $
-          [[%usergroups %who ~] @]
+          [[%usergroups %who *] @]
         ?>  ?=(%ships mark)  who-file
-          [[%usergroups %how ~] @]
+          [[%usergroups %how *] @]
         ?>  ?=(%weir mark)  how-file
       ==
     --
@@ -176,7 +177,7 @@
       [~ %fell *]
     [%done %fell wire.u.in.input]
   ==
-::  /usergroups/who/*: group membership
+::  /usergroups/who/**:  group membership (hierarchical paths supported)
 ::  State: (set @p). Pokes: %put-members, %add-member, %del-member
 ::
 ++  who-file
@@ -196,7 +197,7 @@
       [~ !>((~(del in members) !<(@p q.cage.u.in.input))) %wait ~]
     ==
   ==
-::  /usergroups/how/*: weir templates
+::  /usergroups/how/**:  weir templates (hierarchical paths supported)
 ::  State: weir:nexus. Pokes: %put-weir
 ::
 ++  how-file
@@ -227,7 +228,7 @@
     (~(put ba:tarball *ball:tarball) [/ %main] [~ %sig !>(~)])
   ?:  =(src our)
     (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus ship-ball])
-  ;<  [who=(map @ta (set @p)) how=(map @ta weir:nexus)]  bind:m
+  ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   =/  =weir:nexus  (compute-ship-weir src (build-src who) how)
   =/  ship-sand=sand:nexus  (~(put of *sand:nexus) / weir)
@@ -236,7 +237,7 @@
 ::
 ++  sand-all-ships
   |=  $:  src=(map @p (set rail:tarball))
-          how=(map @ta weir:nexus)
+          how=(map rail:tarball weir:nexus)
           ships-ball=ball:tarball
       ==
   =/  m  (fiber:fiber:nexus ,~)
@@ -261,7 +262,7 @@
 ++  sync-all-weirs
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  [who=(map @ta (set @p)) how=(map @ta weir:nexus)]  bind:m
+  ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   ;<  ships-seen=seen:nexus  bind:m
     (peek:io /read-ships [%| 0 %| /ships])
@@ -273,38 +274,36 @@
 ::  Peek /usergroups and return parsed who + how data
 ::
 ++  read-usergroups
-  =/  m  (fiber:fiber:nexus ,[(map @ta (set @p)) (map @ta weir:nexus)])
+  =/  m  (fiber:fiber:nexus ,[(map rail:tarball (set @p)) (map rail:tarball weir:nexus)])
   ^-  form:m
   ;<  ug-seen=seen:nexus  bind:m
     (peek:io /read-usergroups [%| 0 %| /usergroups])
   ?.  ?&(?=(%& -.ug-seen) ?=(%ball -.p.ug-seen))
     (pure:m [~ ~])
   =/  ug-ball=ball:tarball  ball.p.ug-seen
-  (pure:m [(read-sub ug-ball %who (set @p)) (read-sub ug-ball %how weir:nexus)])
-::  Extract typed files from a sub-directory of a ball
+  (pure:m [(read-tree ug-ball %who (set @p)) (read-tree ug-ball %how weir:nexus)])
+::  Extract typed files from a sub-directory of a ball (recursive)
 ::
-++  read-sub
-  |*  [ug=ball:tarball dir=@ta =mold]
-  ^-  (map @ta mold)
-  =/  sub=ball:tarball  (~(gut by dir.ug) dir *ball:tarball)
-  ?~  fil.sub  ~
-  %-  ~(gas by *(map @ta mold))
-  %+  murn  ~(tap by contents.u.fil.sub)
-  |=  [name=@ta =content:tarball]
-  ^-  (unit [@ta mold])
+++  read-tree
+  |*  [=ball:tarball dir=@ta =mold]
+  ^-  (map rail:tarball mold)
+  =/  sub=ball:tarball  (~(gut by dir.ball) dir *ball:tarball)
+  %-  ~(gas by *(map rail:tarball mold))
+  %+  murn  ~(tap ba:tarball sub)
+  |=  [=rail:tarball =content:tarball]
+  ^-  (unit [rail:tarball mold])
   =/  res  (mule |.(!<(mold q.cage.content)))
-  ?:(?=(%| -.res) ~ `[name p.res])
+  ?:(?=(%| -.res) ~ `[rail p.res])
 ::  Build reverse index: ship → group rails from who map
 ::
 ++  build-src
-  |=  who=(map @ta (set @p))
+  |=  who=(map rail:tarball (set @p))
   ^-  (map @p (set rail:tarball))
-  =/  groups=(list [@ta (set @p)])  ~(tap by who)
+  =/  groups=(list [rail:tarball (set @p)])  ~(tap by who)
   =|  acc=(map @p (set rail:tarball))
   |-
   ?~  groups  acc
-  =/  [group=@ta members=(set @p)]  i.groups
-  =/  =rail:tarball  [/ group]
+  =/  [=rail:tarball members=(set @p)]  i.groups
   =/  ships=(list @p)  ~(tap in members)
   =.  acc
     |-
@@ -325,16 +324,16 @@
 ++  compute-ship-weir
   |=  $:  =ship
           src=(map @p (set rail:tarball))
-          how=(map @ta weir:nexus)
+          how=(map rail:tarball weir:nexus)
       ==
   ^-  weir:nexus
   =/  public-weir=weir:nexus
-    (fall (~(get by how) %public) *weir:nexus)
+    (fall (~(get by how) [/ %public]) *weir:nexus)
   =/  ship-rails=(set rail:tarball)
     (fall (~(get by src) ship) ~)
   =/  ship-weir=weir:nexus
     %+  roll  ~(tap in ship-rails)
     |=  [=rail:tarball acc=weir:nexus]
-    (union-weirs acc (fall (~(get by how) name.rail) *weir:nexus))
+    (union-weirs acc (fall (~(get by how) rail) *weir:nexus))
   (union-weirs ship-weir public-weir)
 --
