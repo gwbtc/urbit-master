@@ -1,6 +1,7 @@
 ::  server-state: mark for server nexus state
 ::
 /+  nexus, tarball, nex-server
+!: :: turn on stack trace
 |_  state=server-state:nex-server
 ++  grad  %noun
 ++  grow

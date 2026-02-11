@@ -6,6 +6,7 @@
 ::    /tools/{name}     user .hoon tool files (compiled to $tool)
 ::
 /+  nexus, tarball, io=fiberio, tools=nex-tools
+!: :: turn on stack trace
 ^-  nexus:nexus
 |%
 ++  on-load

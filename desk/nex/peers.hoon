@@ -34,6 +34,7 @@
 ::    /ships, recalculating and %sand'ing weirs reactively.
 ::
 /+  nexus, tarball, io=fiberio
+!: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load

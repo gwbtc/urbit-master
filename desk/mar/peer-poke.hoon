@@ -5,6 +5,7 @@
 ::  to a cage and forwards to the destination.
 ::
 /+  tarball
+!: :: turn on stack trace
 |_  [dest=rail:tarball =page]
 ++  grab
   |%

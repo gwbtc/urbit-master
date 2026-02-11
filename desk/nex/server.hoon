@@ -27,6 +27,7 @@
 ::    2. Server removes connection, forwards cancel to handler rail
 ::
 /+  nexus, tarball, io=fiberio, server, http-utils, nex-server
+!: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load

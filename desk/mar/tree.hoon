@@ -2,6 +2,7 @@
 ::  Represents ball structure with just marks, no content
 ::
 /+  tarball
+!: :: turn on stack trace
 |_  =tree:tarball
 ++  grad  %noun
 ++  grow

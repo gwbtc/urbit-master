@@ -1,6 +1,7 @@
 ::  counter nexus: many auto-incrementing counters identified by @da
 ::
 /+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server
+!: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load

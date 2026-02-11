@@ -3,6 +3,7 @@
 /-  claude
 /+  nexus, tarball, io=fiberio, server, hu=http-utils, feather, nex-server, html-utils,
     claude-lib=nex-claude, chat-index, tools=nex-tools
+!: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load

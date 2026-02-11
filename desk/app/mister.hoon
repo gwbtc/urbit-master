@@ -1,20 +1,6 @@
 /+  default-agent, dbug, tarball, nexus, server
-/=  m-  /mar/server-state
-/=  m-  /mar/tree
-/=  m-  /mar/sand
-/=  m-  /mar/kids
-/=  m-  /mar/mister-action
-/=  m-  /mar/mister-ack
-/=  m-  /mar/http-request
-/=  m-  /mar/peer-poke
-/=  m-  /nex/root
-/=  m-  /nex/counter
-/=  m-  /nex/server
-/=  m-  /nex/explorer
-/=  m-  /nex/peers
-/=  m-  /nex/claude
-/=  m-  /nex/tools
-/=  m-  /tests/nexus
+/=  t-  /tests/nexus
+/=  t-  /tests/tarball
 |%
 +$  versioned-state
   $%  state-0

@@ -1,6 +1,7 @@
 ::  explorer nexus: tarball tree browser
 ::
 /+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, iso-8601, html-utils, multipart
+!: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load

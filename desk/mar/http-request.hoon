@@ -1,5 +1,6 @@
 ::  HTTP request state for request files
 ::
+!: :: turn on stack trace
 |_  [src=@p req=inbound-request:eyre]
 ++  grab
   |%

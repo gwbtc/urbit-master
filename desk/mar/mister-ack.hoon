@@ -1,6 +1,7 @@
 ::  mister-ack: poke response mark
 ::
 /+  nexus
+!: :: turn on stack trace
 |_  =ack:nexus
 ++  grad  %noun
 ++  grow

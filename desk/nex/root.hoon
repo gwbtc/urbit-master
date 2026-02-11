@@ -1,5 +1,6 @@
 /+  nexus, tarball, io=fiberio
 ^-  nexus:nexus
+!: :: turn on stack trace
 |%
 ++  on-load
   |=  [=sand:nexus =ball:tarball]
