@@ -123,7 +123,7 @@
       [%skip ~]
     [%done bowl.u.in]
   ==
-::  On %rise, log the error and wait for a poke to restart.
+::  On %rise, log the error and wait for a poke to restart (expect %sig).
 ::  On normal startup, continue immediately.
 ::  Use at the top of a process to make it restartable:
 ::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
@@ -136,7 +136,9 @@
   ?.  ?=(%rise -.prod)  (pure:m ~)
   %-  (slog leaf+msg tang.prod)
   ;<  =cage  bind:m  take-poke
-  (pure:m ~)
+  ?:  ?=(%sig p.cage)
+    (pure:m ~)
+  (trace leaf+"strange restart mark: {<p.cage>}")
 ::
 ++  take-poke
   =/  m  (fiber ,cage)
@@ -493,7 +495,146 @@
   ?^  tube
     (pure:m tube)
   (build-tube-soft [our %base case] mars)
-::  +collect-marks: collect all marks used in cages within a ball
+::  +build-file-soft: compile a source file, return unit vase
+::
+++  build-file-soft
+  |=  [[=ship =desk =case] =spur]
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %a case spur)
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%vase p.r.u.riot)
+  (pure:m `!<(vase q.r.u.riot))
+::  +build-dais-soft: build a dais for a mark, return unit
+::
+++  build-dais-soft
+  |=  [[=ship =desk =case] mak=mark]
+  =/  m  (fiber ,(unit dais:clay))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %b case /[mak])
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%dais p.r.u.riot)
+  (pure:m `!<(dais:clay q.r.u.riot))
+::  +list-marks: list mark files from desk's /mar directory
+::
+++  list-marks
+  |=  [=ship =desk =case]
+  =/  m  (fiber ,(list path))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %t case /mar)
+  ?~  riot
+    (pure:m ~)
+  (pure:m !<((list path) q.r.u.riot))
+::  +en-fit: convert /mar/foo/.../bar/hoon path to mark name
+::
+++  en-fit
+  |=  =path
+  ^-  @tas
+  =.  path  ?>(?=([%mar *] path) (flop t.path))
+  =.  path  ?>(?=([%hoon *] path) (flop t.path))
+  (rap 3 (join '-' path))
+::  +get-mark-arms: inspect a mark core vase for grab/grow arm names
+::
+++  get-mark-arms
+  |=  =vase
+  ^-  [grab=(list mark) grow=(list mark)]
+  :-  ?.  (slob %grab -:vase)  ~
+      (sloe -:(slap vase [%limb %grab]))
+  ?.  (slob %grow -:vase)  ~
+  (sloe -:(slap vase [%limb %grow]))
+::  +mark-pairs: discover all conversion pairs from a mark core
+::
+++  mark-pairs
+  |=  all-marks=(set mark)
+  |=  [=path =vase]
+  ^-  (list mars:clay)
+  =/  fit=mark  (en-fit path)
+  =/  [grab=(list mark) grow=(list mark)]
+    (get-mark-arms vase)
+  ;:  weld  [fit fit]~
+    (murn grab |=(=mark ?.((~(has in all-marks) mark) ~ `[mark fit])))
+    (murn grow |=(=mark ?.((~(has in all-marks) mark) ~ `[fit mark])))
+  ==
+::  +build-all-files: compile all mark cores from a list of paths
+::
+++  build-all-files
+  |=  [verb=? =ship =desk =case paths=(list path)]
+  =/  cores=(map path vase)  ~
+  |-
+  =/  m  (fiber ,(map path vase))
+  ^-  form:m
+  =*  loop  $
+  ?~  paths  (pure:m cores)
+  ;<  vus=(unit vase)  bind:m
+    (build-file-soft [ship desk case] i.paths)
+  ?~  vus
+    ~?  >>>  verb  [%warm-build-failed i.paths]
+    loop(paths t.paths)
+  ~?  >  verb  [%warm-built i.paths]
+  loop(paths t.paths, cores (~(put by cores) i.paths u.vus))
+::  +build-all-tubes: warm all tube conversions
+::
+++  build-all-tubes
+  |=  [verb=? =ship =desk =case mars=(list mars:clay)]
+  |-
+  =/  m  (fiber ,~)
+  ^-  form:m
+  =*  loop  $
+  ?~  mars  (pure:m ~)
+  ;<  tub=(unit tube:clay)  bind:m
+    (build-tube-soft [ship desk case] i.mars)
+  ~?  >  verb  ?~(tub [%warm-tube-failed i.mars] [%warm-tube i.mars])
+  loop(mars t.mars)
+::  +build-all-dais: warm all dais validators
+::
+++  build-all-dais
+  |=  [verb=? =ship =desk =case marks=(list mark)]
+  |-
+  =/  m  (fiber ,~)
+  ^-  form:m
+  =*  loop  $
+  ?~  marks  (pure:m ~)
+  ;<  das=(unit dais:clay)  bind:m
+    (build-dais-soft [ship desk case] i.marks)
+  ~?  >  verb  ?~(das [%warm-dais-failed i.marks] [%warm-dais i.marks])
+  loop(marks t.marks)
+::  +warm-tubes: pre-warm all tube and dais caches for a desk
+::  Call from root nexus on-load to ensure Clay caches are hot
+::
+++  warm-tubes
+  |=  verb=?
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  our=@p   bind:m  get-our
+  ;<  =desk    bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  ::  List mark files from /mar
+  ;<  paths=(list path)  bind:m  (list-marks our desk %da now)
+  =.  paths  (turn (skim (turn paths flop) |=(=path ?=([%hoon *] path))) flop)
+  ::  Build all mark cores
+  ;<  cores=(map path vase)  bind:m
+    (build-all-files verb our desk da+now paths)
+  ::  Discover all mark conversion pairs
+  =/  marks=(list mark)  (turn paths en-fit)
+  =/  all-marks=(set mark)  (sy marks)
+  =/  mars=(list mars:clay)
+    %~  tap  in
+    %-  ~(gas in *(set mars:clay))
+    %-  zing
+    %+  turn  ~(tap by cores)
+    (mark-pairs all-marks)
+  ::  Warm all tubes
+  ;<  ~  bind:m  (build-all-tubes verb our desk da+now mars)
+  ::  Warm all dais
+  ;<  ~  bind:m  (build-all-dais verb our desk da+now marks)
+  ~&  >  [%warm-complete tubes+(lent mars) dais+(lent marks)]
+  (pure:m ~)
+::  +collect-marks: collect all marks used in cages within a ball (deep)
 ::
 ++  collect-marks
   |=  =ball:tarball
@@ -513,29 +654,53 @@
   ?~  subdirs  marks
   =/  submarks=(set mark)  ^$(ball q.i.subdirs)
   $(subdirs t.subdirs, marks (~(uni in marks) submarks))
-::  +get-mark-conversions: build mark conversions map for all marks in ball
+::  +collect-marks-shallow: collect marks only from immediate files (no recurse)
 ::
-++  get-mark-conversions
+++  collect-marks-shallow
   |=  =ball:tarball
+  ^-  (set mark)
+  ?~  fil.ball  ~
+  =/  entries=(list (pair @ta content:tarball))
+    ~(tap by contents.u.fil.ball)
+  =/  marks=(set mark)  ~
+  |-  ^-  (set mark)
+  ?~  entries  marks
+  =*  ct  q.i.entries
+  $(entries t.entries, marks (~(put in marks) p.cage.ct))
+::  +build-mark-conversions: build conversions map for a set of marks
+::
+++  build-mark-conversions
+  |=  marks=(set mark)
   =/  m  (fiber ,(map mars:clay tube:clay))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   ;<  =desk  bind:m  get-desk
   ;<  now=@da  bind:m  get-time
-  =/  =case  [%da now]
-  =/  marks=(list mark)  ~(tap in (collect-marks ball))
+  =/  mark-list=(list mark)  ~(tap in marks)
   =/  conversions=(map mars:clay tube:clay)  ~
   |-  ^-  form:m
-  ?~  marks
+  ?~  mark-list
     (pure:m conversions)
-  =/  from=mark  i.marks
-  =/  to=mark  %mime
-  =/  =mars:clay  [from to]
+  =/  =mars:clay  [i.mark-list %mime]
   ;<  tube-result=(unit tube:clay)  bind:m
-    (try-build-tube our desk case mars)
+    (try-build-tube our desk da+now mars)
   =?  conversions  ?=(^ tube-result)
     (~(put by conversions) mars u.tube-result)
-  $(marks t.marks)
+  $(mark-list t.mark-list)
+::  +get-mark-conversions: build mark conversions for all marks in ball (deep)
+::
+++  get-mark-conversions
+  |=  =ball:tarball
+  =/  m  (fiber ,(map mars:clay tube:clay))
+  ^-  form:m
+  (build-mark-conversions (collect-marks ball))
+::  +get-mark-conversions-shallow: build conversions for immediate files only
+::
+++  get-mark-conversions-shallow
+  |=  =ball:tarball
+  =/  m  (fiber ,(map mars:clay tube:clay))
+  ^-  form:m
+  (build-mark-conversions (collect-marks-shallow ball))
 ::  +cage-to-mime: convert cage to mime, falling back to jam
 ::
 ++  cage-to-mime
@@ -749,6 +914,45 @@
   ^-  form:m
   ;<  =bowl:nexus  bind:m  (get-bowl /get-case)
   (pure:m r.byk.bowl)
+::  HTTP client (iris) helpers
+::
+++  send-request
+  |=  =request:http
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card %pass /request %arvo %i %request request *outbound-config:iris)
+::
+++  take-client-response
+  =/  m  (fiber ,client-response:iris)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %arvo [%request ~] %iris %http-response %cancel *]
+    [%fail leaf+"http-request-cancelled" ~]
+      [~ %arvo [%request ~] %iris %http-response %finished *]
+    [%done client-response.sign.u.in]
+  ==
+::
+++  extract-body
+  |=  =client-response:iris
+  =/  m  (fiber ,@t)
+  ^-  form:m
+  ?>  ?=(%finished -.client-response)
+  %-  pure:m
+  ?~  full-file.client-response  ''
+  q.data.u.full-file.client-response
+::
+++  fetch
+  |=  =request:http
+  =/  m  (fiber ,@t)
+  ^-  form:m
+  ;<  ~                      bind:m  (send-request request)
+  ;<  =client-response:iris  bind:m  take-client-response
+  (extract-body client-response)
 ::  Poke our own ship
 ::
 ++  gall-poke-our

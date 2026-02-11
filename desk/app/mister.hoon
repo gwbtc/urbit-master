@@ -12,6 +12,8 @@
 /=  m-  /nex/server
 /=  m-  /nex/explorer
 /=  m-  /nex/peers
+/=  m-  /nex/claude
+/=  m-  /nex/tools
 /=  m-  /tests/nexus
 |%
 +$  versioned-state

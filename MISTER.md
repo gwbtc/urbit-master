@@ -623,6 +623,106 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 
 - [ ] Explorer cleanup: consolidate `cage-to-mime` in explorer with `gen:tarball`'s version (avoid duplicating tube-building logic)
 - [ ] Testing - exercise the flows end-to-end
+- [ ] Tools & MCP nexus (see below)
+
+## Tools & MCP Nexus (Port Plan)
+
+Port lib/tools.hoon, lib/mcp.hoon, lib/routes/claude.hoon, and lib/sse-helpers.hoon
+from master/sailbox to mister/nexus.
+
+### Why
+
+master's tools use sailboxio fibers — sandboxed, stateful, killable. urbit-mcp-server
+uses Khan threads — full system access, no state management, not sandboxed.
+
+### Key Architecture Difference: State Access
+
+In sailbox, `get-state:io` returns the whole `ball:tarball`. In fiberio, `get-state:io`
+returns only the cage of the file the process lives in. Tools that need to read other
+parts of the tree (config, chat state, etc.) must use `peek:io` with roads.
+
+### Tree Layout
+
+```
+/claude/          chats, conversation state, UI
+  /main           HTTP dispatcher, route binding
+  /config/
+    /main         API key, model, system instructions, allowed-tools
+  /chats/
+    /{chat-id}    per-chat file (messages, pending-tools, title)
+  /ui/
+    /main         HTTP dispatcher for /mister/claude/*
+    /requests/
+      /{eyre-id}  per-request handler (page serve, SSE streams)
+
+/tools/           tool execution
+  /{tool-name}/
+    /main         tool manager (enabled?, config, approval policy, schema)
+    /requests/
+      /{call-id}  active execution (ephemeral, %done when finished)
+
+/mcp/             JSON-RPC 2.0 endpoint (external access)
+  /main           HTTP dispatcher, binds /mister/mcp
+  /requests/
+    /{eyre-id}    per-request handler
+```
+
+### Per-Tool Manager Pattern
+
+Each tool has its own subtree. `/tools/{name}/main` is the persistent manager that:
+- Holds tool config (enabled, description, parameter schema, approval policy)
+- Receives execution requests as pokes
+- Creates `/requests/{call-id}` files via `make:io` for each execution
+- Request processes do the actual work, then `%done` when complete
+
+From a request process at `/tools/{name}/requests/{call-id}`:
+- Depth 3 up reaches `/tools/{name}/` (tool root)
+- Depth 4 up reaches `/tools/` (all tools)
+- Use `peek:io` with roads to reach `/claude/config/main` for API keys, etc.
+
+### SSE Flow (No Direct SSE From Tools)
+
+Tools never touch SSE directly. Instead:
+1. Tool modifies chat state (writes to `/claude/chats/{id}`)
+2. Chat SSE stream process watches the chat file via `keep:io`
+3. On `%news`, SSE stream reads updated state and pushes event to client
+
+This is cleaner than sailbox where tools call `send-sse-event:io` directly.
+
+### Agentic Loop (Claude Nexus)
+
+The Claude chat process handles the conversation loop:
+1. User sends message → save to chat → call Claude API
+2. If response has `tool_use` blocks → save as pending-tools → SSE tool-approval event
+3. User approves/denies each tool → poke execution to `/tools/{name}/main`
+4. Tool creates request file, executes, writes result back to chat file
+5. If all tools resolved → format tool_result messages → continue conversation with Claude
+6. Repeat until Claude responds with only text (no tool_use)
+
+### Interrupt Support
+
+Need equivalent of `fiber-kill:io` (sailboxio) which doesn't exist in fiberio.
+Options: `cull:io` to delete the in-flight request file (process dies on %done),
+or add a kill mechanism to fiberio.
+
+### MCP Nexus (External Access)
+
+Thin JSON-RPC 2.0 adapter. Binds `/mister/mcp` via server nexus.
+Routes `tools/list` → enumerate `/tools/*/main` configs.
+Routes `tools/call` → poke appropriate tool manager → wait for result.
+This is how external MCP clients (Claude Code, etc.) access tools.
+
+### Port Checklist
+
+- [ ] Create `/tools/` tree structure in root nexus on-load
+- [ ] Port lib/tools.hoon tool definitions to per-tool manager nexus
+- [ ] Create tool request process pattern (monad swap: sailboxio → fiberio)
+- [ ] Create `/mcp/` nexus with JSON-RPC handler
+- [ ] Add agentic loop to `/claude/` (tool_use parsing, pending-tools, approval)
+- [ ] Add tool approval endpoints (approve/deny/always-allow)
+- [ ] Add interrupt support (kill in-flight API requests)
+- [ ] SSE stream: detect pending-tools changes, push approval events
+- [ ] Port alarms (scheduled tool execution)
 
 ## Open Questions (Resolved)
 

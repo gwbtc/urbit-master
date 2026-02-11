@@ -89,8 +89,16 @@ update_claude() {
 
     urbit_auth || return 1
 
-    update_creds "Claude API" "/master/update-claude-creds" \
-        --data-urlencode "api-key=$api_key"
+    log_info "Updating Claude API credentials..."
+
+    if urbit_post_json "/mister/claude/config" "{\"api-key\":\"$api_key\"}"; then
+        log_success "Claude API credentials updated successfully"
+        return 0
+    else
+        log_error "Failed to update Claude API credentials"
+        log_warn "Check that your ship is running and the endpoint is correct"
+        return 1
+    fi
 }
 
 # Update Brave Search API credentials

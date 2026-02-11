@@ -21,6 +21,12 @@
   ::  Peers nexus manages gateway processes, usergroups, and weirs.
   =?  ball  =(~ (~(get of ball) /peers))
     (~(put of ball) /peers [~ `%peers ~])
+  ::  Create /claude directory with neck=%claude
+  =?  ball  =(~ (~(get of ball) /claude))
+    (~(put of ball) /claude [~ `%claude ~])
+  ::  Create /tools directory with neck=%tools
+  =?  ball  =(~ (~(get of ball) /tools))
+    (~(put of ball) /tools [~ `%tools ~])
   [sand ball]
 ::
 ++  on-file
@@ -32,6 +38,9 @@
   ?+    rail  stay:m
       [~ %main]
     ;<  ~  bind:m  (rise-wait:io prod "%root /main: failed, poke to restart")
+    ~&  >  "%root /main: warming tube cache"
+    ;<  ~  bind:m  (warm-tubes:io &)
+    ~&  >  "%root /main: tube cache warm"
     stay:m
   ==
 --

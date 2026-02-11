@@ -77,7 +77,7 @@
       (serve-tarball eyre-id tree-path u.sub (~(dip of root-born) tree-path))
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map mars:clay tube:clay)  bind:m
-      (get-mark-conversions:io u.sub)
+      (get-mark-conversions-shallow:io u.sub)
     =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born now conversions))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
@@ -148,9 +148,16 @@
     ?:  =('' foldername)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
       (pure:m ~)
-    =/  folder-path=path  (snoc tree-path foldername)
-    =/  empty-ball=ball:tarball  [`[~ ~ ~] ~]
-    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus empty-ball])
+    =/  dir-ext=(unit @ta)  (parse-extension:tarball foldername)
+    =/  [dir-name=@ta dir-neck=(unit neck:tarball)]
+      ?~  dir-ext  [foldername ~]
+      =/  ext-text=tape  (trip u.dir-ext)
+      =/  full-text=tape  (trip foldername)
+      =/  name-len=@ud  (sub (lent full-text) (add 1 (lent ext-text)))
+      [(crip (scag name-len full-text)) `u.dir-ext]
+    =/  folder-path=path  (snoc tree-path dir-name)
+    =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
+    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -303,8 +310,20 @@
     =/  necks=(map path @ta)  (get-necks watch-path root)
     =/  url-prefix=tape  (build-url watch-path necks)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ::  Only build tubes for marks of files that changed in watched dir
+    =/  changed-marks=(set mark)
+      %-  ~(gas in *(set mark))
+      %+  murn  ~(tap in what)
+      |=  =lane:tarball
+      ^-  (unit mark)
+      ?.  ?=(%& -.lane)  ~
+      ?.  =(path.p.lane watch-path)  ~
+      ?~  fil.par  ~
+      =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) name.p.lane)
+      ?~  ct  ~
+      `p.cage.u.ct
     ;<  conversions=(map mars:clay tube:clay)  bind:m
-      (get-mark-conversions:io par)
+      (build-mark-conversions:io changed-marks)
     =/  lanes=(list lane:tarball)  ~(tap in what)
     |-
     ?~  lanes  ^$
@@ -428,6 +447,7 @@
     ;title: {title}
     ;meta(charset "utf-8");
     ;meta(name "viewport", content "width=device-width, initial-scale=1");
+    ;link(rel "icon", href "data:,");
     ;style
       ; body { font-family: monospace; margin: 20px; }
       ; h1 { font-size: 18px; }
@@ -642,6 +662,7 @@
       if (row) row.remove();
       if (d.action === 'add' && d.html) tb.insertAdjacentHTML('beforeend', d.html);
     });
+    window.addEventListener('beforeunload', function() \{ es.close(); });
   })();
   '''
 ::
