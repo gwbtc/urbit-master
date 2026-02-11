@@ -4,27 +4,27 @@
 ::  Other nexuses poke to register/unregister URL path bindings,
 ::  receive forwarded requests, and poke back with responses.
 ::  Server authorizes every response to ensure it came from the
-::  nexus that owns the binding.
+::  process that owns the binding.
 ::
 ::  /server/
 ::    /main    binding registry + request router + response proxy
 ::
 ::  State (server-state in nex-server):
-::    bindings:    (map binding:eyre bend) — URL prefix → tree location
+::    bindings:     (map binding:eyre rail) — URL prefix → handler location
 ::    connections:  (map @ta binding:eyre) — eyre-id → owning binding
 ::
 ::  Request flow:
 ::    1. Eyre sends %handle-http-request to mister
 ::    2. Mister forwards to /server/main
 ::    3. Server finds longest-prefix binding match
-::    4. Records connection (eyre-id → binding), forwards to bound nexus
+::    4. Records connection (eyre-id → binding), forwards to handler rail
 ::    5. Handler pokes back %send-action with [eyre-id update]
-::    6. Server verifies sender matches binding owner, sends to eyre
+::    6. Server verifies sender matches handler rail, sends to eyre
 ::    7. On %kick or %simple, connection is cleaned up
 ::
 ::  Cancel flow:
 ::    1. Eyre on-leave sends %handle-http-cancel
-::    2. Server removes connection, forwards cancel to bound nexus
+::    2. Server removes connection, forwards cancel to handler rail
 ::
 /+  nexus, tarball, io=fiberio, server, http-utils, nex-server
 =<  ^-  nexus:nexus
@@ -52,6 +52,7 @@
       |-
       ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
       ;<  st=server-state:nex-server  bind:m  (get-state-as:io server-state:nex-server)
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ?+    p.cage  $
           ::  Binding management
           ::
@@ -60,8 +61,17 @@
         ?.  ?=(%& -.from)  $
         ?-    -.act
             %bind
-          ~&  >  [%server-bind binding.act p.from]
-          =.  bindings.st  (~(put by bindings.st) binding.act p.from)
+          ::  Resolve the target to an absolute rail.
+          ::  If target is ~, the sender itself is the handler.
+          ::  Otherwise, resolve the target bend relative to the sender.
+          ::
+          =/  sender-rail=rail:tarball
+            (resolve-rail:nex-server here.bowl p.from)
+          =/  handler-rail=rail:tarball
+            ?~  target.act  sender-rail
+            (resolve-rail:nex-server sender-rail u.target.act)
+          ~&  >  [%server-bind binding.act handler-rail]
+          =.  bindings.st  (~(put by bindings.st) binding.act handler-rail)
           ;<  ~  bind:m  (replace:io !>(st))
           ::  Register with eyre
           ;<  =dude:gall  bind:m  get-agent:io
@@ -91,7 +101,7 @@
           ;<  ~  bind:m  (replace:io !>(st))
           $
         ==
-          ::  Reset: kick all eyre connections, cancel to bound nexuses
+          ::  Reset: kick all eyre connections, cancel to bound handlers
           ::
           %server-reset
         ~&  >  "%server: resetting all connections"
@@ -105,8 +115,9 @@
           |-
           ?~  conns  (pure:m ~)
           =/  [eid=@ta =binding:eyre]  i.conns
-          =/  =bend:fiber:nexus  (fall (~(get by bindings.st) binding) *bend:fiber:nexus)
-          =/  =road:tarball  [%| p.bend %& q.bend]
+          =/  handler=rail:tarball
+            (fall (~(get by bindings.st) binding) *rail:tarball)
+          =/  =road:tarball  [%& %& handler]
           ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eid))
           $(conns t.conns)
         =.  connections.st  ~
@@ -119,7 +130,7 @@
           !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
         ~&  >  [%server-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
-        =/  match=(unit [=binding:eyre =bend:fiber:nexus])
+        =/  match=(unit [=binding:eyre handler=rail:tarball])
           (find-binding bindings.st request-line)
         ?~  match
           ~&  >  [%server-no-binding site.request-line]
@@ -127,35 +138,42 @@
             %-  send-cards:io
             (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
           $
-        ~&  >  [%server-found-binding binding.u.match bend.u.match]
+        ~&  >  [%server-found-binding binding.u.match handler.u.match]
         =.  connections.st  (~(put by connections.st) eyre-id binding.u.match)
         ;<  ~  bind:m  (replace:io !>(st))
-        ::  Convert bend to road: [%| steps %& rail]
-        =/  =road:tarball  [%| p.bend.u.match %& q.bend.u.match]
+        ::  Forward request to handler via absolute road
+        =/  =road:tarball  [%& %& handler.u.match]
         ;<  ~  bind:m  (poke:io /forward road handle-http-request+!>([eyre-id src req]))
         $
           ::  Response from handler
           ::
           %send-action
         =/  [eyre-id=@ta upd=eyre-update:nex-server]  !<(send-action:nex-server q.cage)
-        ::  Validate sender
+        ::  Authorize: sender must be the handler that owns this binding.
+        ::  Resolve sender's from to an absolute rail and compare to the
+        ::  stored handler rail.
+        ::
         =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id)
         ?~  conn-binding
           ~&  >  [%server-unknown-connection eyre-id]
           ::  Forward cancel to sender so it can clean up
           ?.  ?=(%& -.from)  $
-          =/  =road:tarball  [%| p.p.from %& q.p.from]
+          =/  sender-rail=rail:tarball
+            (resolve-rail:nex-server here.bowl p.from)
+          =/  =road:tarball  [%& %& sender-rail]
           ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
           $
-        =/  expected-bend=(unit bend:fiber:nexus)  (~(get by bindings.st) u.conn-binding)
-        ?~  expected-bend
+        =/  expected-rail=(unit rail:tarball)  (~(get by bindings.st) u.conn-binding)
+        ?~  expected-rail
           ~&  >  [%server-binding-gone u.conn-binding]
           $
         ?.  ?=(%& -.from)
           ~&  >  [%server-external-from eyre-id]
           $
-        ?.  =(p.from u.expected-bend)
-          ~&  >  [%server-unauthorized eyre-id p.from u.expected-bend]
+        =/  sender-rail=rail:tarball
+          (resolve-rail:nex-server here.bowl p.from)
+        ?.  =(sender-rail u.expected-rail)
+          ~&  >  [%server-unauthorized eyre-id sender-rail u.expected-rail]
           $
         =/  cards=(list card:agent:gall)  (eyre-update-cards eyre-id upd)
         ?:  ?=(?(%kick %simple) -.upd)
@@ -173,10 +191,11 @@
         =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id)
         =.  connections.st  (~(del by connections.st) eyre-id)
         ;<  ~  bind:m  (replace:io !>(st))
-        ::  Forward cancel to bound nexus
+        ::  Forward cancel to handler
         ?~  conn-binding  $
-        =/  =bend:fiber:nexus  (fall (~(get by bindings.st) u.conn-binding) *bend:fiber:nexus)
-        =/  =road:tarball  [%| p.bend %& q.bend]
+        =/  handler=rail:tarball
+          (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)
+        =/  =road:tarball  [%& %& handler]
         ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
         $
       ==
@@ -213,10 +232,10 @@
 ::  +find-binding: longest-prefix match against registered bindings
 ::
 ++  find-binding
-  |=  [bindings=(map binding:eyre bend:fiber:nexus) =request-line:server]
-  ^-  (unit [=binding:eyre =bend:fiber:nexus])
-  =|  best=(unit [=binding:eyre =bend:fiber:nexus])
-  =/  entries=(list [=binding:eyre =bend:fiber:nexus])
+  |=  [bindings=(map binding:eyre rail:tarball) =request-line:server]
+  ^-  (unit [=binding:eyre handler=rail:tarball])
+  =|  best=(unit [=binding:eyre handler=rail:tarball])
+  =/  entries=(list [=binding:eyre handler=rail:tarball])
     ~(tap by bindings)
   |-
   ?~  entries  best

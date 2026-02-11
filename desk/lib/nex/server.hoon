@@ -7,8 +7,15 @@
 |%
 ::  Binding actions: sent to server nexus to register/unregister eyre paths
 ::
+::  %bind: register a URL prefix → handler mapping.  The target bend
+::    is resolved relative to the sender's position to produce an
+::    absolute rail stored in the bindings map.  If target is ~,
+::    the sender itself is the handler.
+::
+::  %unbind: remove a URL prefix binding.
+::
 +$  bind-action
-  $%  [%bind =binding:eyre]
+  $%  [%bind =binding:eyre target=(unit bend:fiber:nexus)]
       [%unbind =binding:eyre]
   ==
 ::  Response actions: eyre-id + update, sent back through server nexus
@@ -23,21 +30,41 @@
   ==
 ::  Server state (versioned for migration)
 ::
+::  bindings: URL prefix → absolute rail of the handler process.
+::    Computed at bind time by resolving the sender's from + target bend
+::    into an absolute position in the tree.
+::
+::  connections: eyre-id → the binding that owns it.  Used to
+::    (1) authorize responses — the server checks that a %send-action
+::    came from the process that owns the binding, preventing one nexus
+::    from responding to another's connections — and (2) clean up on
+::    unbind or cancel by knowing which connections to kick and which
+::    handler to notify.
+::
 +$  server-state
   $:  %0
-      bindings=(map binding:eyre bend:fiber:nexus)
+      bindings=(map binding:eyre rail:tarball)
       connections=(map @ta binding:eyre)
   ==
 ::  Absolute road to /server/main
 ::
 ++  server-road  `road:tarball`[%& %& /server %main]
-::  Register an eyre binding with the server nexus
+::  Register an eyre binding with the server nexus.
+::  Target defaults to the sender (the calling process).
 ::
 ++  bind-http
   |=  =binding:eyre
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /bind server-road bind-action+!>([%bind binding]))
+  (poke:io /bind server-road bind-action+!>([%bind binding ~]))
+::  Register an eyre binding targeting a specific process.
+::  The target bend is relative to the calling process.
+::
+++  bind-http-to
+  |=  [=binding:eyre =bend:fiber:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (poke:io /bind server-road bind-action+!>([%bind binding `bend]))
 ::  HTTP response helpers, parameterized on dispatcher road.
 ::  Usage: =/  srv  ~(. res:nex-server [%| 1 %& ~ %main])
 ::         (send-simple:srv eyre-id payload)
@@ -99,4 +126,22 @@
     ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
     $
   ==
+::  Resolve a fiber bend to an absolute rail, given the resolver's
+::  own position (here) and the bend to resolve.
+::
+::  A bend is [steps-up=@ud =rail:tarball].  We go up steps-up
+::  directory levels from here's parent directory, then append
+::  the bend's target path and name.
+::
+++  resolve-rail
+  |=  [here=rail:tarball =bend:fiber:nexus]
+  ^-  rail:tarball
+  =/  base=path  path.here
+  =/  up=@ud  p.bend
+  =/  resolved=path
+    |-
+    ?:  =(0 up)  base
+    ?~  base  ~
+    $(up (dec up), base (snip `path`base))
+  [(weld resolved path.q.bend) name.q.bend]
 --

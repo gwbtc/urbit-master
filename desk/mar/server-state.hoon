@@ -1,6 +1,6 @@
 ::  server-state: mark for server nexus state
 ::
-/+  nexus, nex-server
+/+  nexus, tarball, nex-server
 |_  state=server-state:nex-server
 ++  grad  %noun
 ++  grow
@@ -8,7 +8,7 @@
   ++  noun  state
   ++  json
     ^-  ^json
-    =/  bindings-list=(list [=binding:eyre =bend:fiber:nexus])
+    =/  bindings-list=(list [=binding:eyre handler=rail:tarball])
       ~(tap by bindings.state)
     =/  connections-list=(list [@ta =binding:eyre])
       ~(tap by connections.state)
@@ -16,15 +16,14 @@
     :~  :-  'bindings'
         :-  %a
         %+  turn  bindings-list
-        |=  [=binding:eyre =bend:fiber:nexus]
+        |=  [=binding:eyre handler=rail:tarball]
         %-  pairs:enjs:format
         :~  ['site' ?~(site.binding s+'~' s+u.site.binding)]
             ['path' s+(spat path.binding)]
-            ['steps' (numb:enjs:format p.bend)]
-            :-  'target'
+            :-  'handler'
             %-  pairs:enjs:format
-            :~  ['path' s+(spat path.q.bend)]
-                ['name' s+name.q.bend]
+            :~  ['path' s+(spat path.handler)]
+                ['name' s+name.handler]
             ==
         ==
       ::
