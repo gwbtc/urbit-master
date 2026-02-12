@@ -1,6 +1,9 @@
 /+  default-agent, dbug, tarball, nexus, server
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
+:: add /nex to the ford build cache for fast compilation
+::
+/~  nex  nexus:nexus  /nex
 |%
 +$  versioned-state
   $%  state-0

@@ -1,6 +1,4 @@
 /+  tarball
-:: exploring the possibility of a directory-specific orchestrator agent
-::
 |%
 +$  card  card:agent:gall
 ::  Nexus-specific types
@@ -630,6 +628,22 @@
   ?-  -.mud
     %&  [%& p=$:tap]
     %|  [%| p=p.mud]
+  ==
+::
+++  mohr
+  |*  [tul=mold pul=mold]
+  |=  [tap=(trap tul) gul=$@(~ $-(^ (unit (unit))))]
+  =/  ton  (mock [tap %9 2 %0 1] gul)
+  ?-  -.ton
+    %0  [%0 p=`tul`!<(tul [-:!>(*tul) p.ton])]
+  ::
+    %1  ?@  gul  !!
+        :-  %1  ^=  p
+        ?~  pax=((soft pul) p.ton)
+          |^p.ton
+        &^u.pax
+  ::
+    %2  [%2 p=p.ton]
   ==
 ::  Convert absolute from (rail) to relative from (fiber bend)
 ::
