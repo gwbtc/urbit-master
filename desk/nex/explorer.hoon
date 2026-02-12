@@ -470,6 +470,11 @@
       ; .action-row label { font-weight: bold; min-width: 110px; }
       ; .inline-form { display: flex; gap: 4px; align-items: center; }
       ; .inline-form input[type="text"] { padding: 2px 4px; font-family: monospace; font-size: 12px; width: 120px; }
+      ; .sortable { cursor: pointer; user-select: none; }
+      ; .sortable:hover { background: #f0f0f0; }
+      ; .sortable::after { content: ' \2195'; opacity: 0.3; }
+      ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
+      ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
     ==
   ==
 ::
@@ -605,10 +610,10 @@
       ;+  (dir-info b url-prefix)
       ;table#listing(data-path (trip (spat pax)))
         ;tr
-          ;th: Name
-          ;th: Mime Type
-          ;th: Size
-          ;th: Modified
+          ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
+          ;th.sortable(data-col "1", onclick "sortTable(1)"): Mime Type
+          ;th.sortable(data-col "2", onclick "sortTable(2)"): Size
+          ;th.sortable(data-col "3", onclick "sortTable(3)"): Modified
           ;th: Actions
         ==
         ;*
@@ -652,7 +657,39 @@
 ++  sse-script
   ^-  @t
   '''
+  var sortCol = 0, sortAsc = true;
+  function getRows() {
+    var tbl = document.getElementById('listing');
+    return Array.from(tbl.querySelectorAll('tr[data-name]'));
+  }
+  function sortVal(row, col) {
+    if (col === 2) return parseInt(row.dataset.size || '0') || 0;
+    return (row.cells[col] && row.cells[col].textContent || '').toLowerCase();
+  }
+  function doSort() {
+    var tbl = document.getElementById('listing');
+    var tb = tbl.querySelector('tbody') || tbl;
+    var rows = getRows();
+    rows.sort(function(a, b) {
+      var ta = a.dataset.type || '', tb2 = b.dataset.type || '';
+      if (ta !== tb2) { var df = ta === 'dir' ? -1 : 1; return sortAsc ? df : -df; }
+      var va = sortVal(a, sortCol), vb = sortVal(b, sortCol);
+      var cmp = (typeof va === 'number') ? va - vb : (va < vb ? -1 : va > vb ? 1 : 0);
+      return sortAsc ? cmp : -cmp;
+    });
+    rows.forEach(function(r) { tb.appendChild(r); });
+    tbl.querySelectorAll('th.sortable').forEach(function(th) {
+      th.classList.remove('asc', 'desc');
+      if (parseInt(th.dataset.col) === sortCol) th.classList.add(sortAsc ? 'asc' : 'desc');
+    });
+  }
+  function sortTable(col) {
+    if (sortCol === col) { sortAsc = !sortAsc; }
+    else { sortCol = col; sortAsc = true; }
+    doSort();
+  }
   (function() {
+    doSort();
     var tbl = document.getElementById('listing');
     if (!tbl) return;
     var tb = tbl.querySelector('tbody') || tbl;
@@ -661,9 +698,12 @@
       var d = JSON.parse(e.data);
       var row = tb.querySelector('tr[data-name="' + d.name + '"]');
       if (row) row.remove();
-      if (d.action === 'add' && d.html) tb.insertAdjacentHTML('beforeend', d.html);
+      if (d.action === 'add' && d.html) {
+        tb.insertAdjacentHTML('beforeend', d.html);
+        doSort();
+      }
     });
-    window.addEventListener('beforeunload', function() \{ es.close(); });
+    window.addEventListener('beforeunload', function() { es.close(); });
   })();
   '''
 ::
@@ -755,7 +795,7 @@
     (~(cage-to-mime gen:tarball [now conversions]) cag)
   =/  mime-raw=tape  (trip (spat p.mime))
   =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-  ;tr(data-name (trip name), data-type "file")
+  ;tr(data-name (trip name), data-type "file", data-size (scow %ud p.q.mime))
     ;td
       ;a/"{file-url}": {display-name}
     ==
