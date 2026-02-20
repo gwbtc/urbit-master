@@ -625,6 +625,126 @@ If `old` vase exists and types nest, reuse old type without scrying for dais:
 - [ ] Testing - exercise the flows end-to-end
 - [ ] Tools & MCP nexus (see below)
 
+## LLM Process Architecture (Design Notes)
+
+The LLM API call is a universal primitive: send context, get back text or tool
+calls. Chat, agent, sub-agent, AI-powered tool — all the same thing: a process
+that accumulates context, thinks (API call), and acts (tool calls into the tree).
+
+### Core Idea
+
+An LLM process is a nexus file that watches a message tree, thinks when
+appropriate, and writes back. It doesn't own the messages — they live in a
+separate shared data structure. Multiple participants (human or LLM) can
+share a tree.
+
+### Message Tree
+
+Conversations are stored as a **tree** (not a flat list, not a DAG). Each
+message has exactly one parent (or none for root). Branching is free — a branch
+point is a message with multiple children. "Chats" are just named head pointers
+into the tree.
+
+```
+msg1 ← msg2 ← msg3 ← msg4        (head: "main chat")
+                 ↖
+                  msg5 ← msg6      (head: "branch A")
+```
+
+No copying, no duplication. Shared history is shared. To build context for an
+API call: walk back from the current head, collect messages into a list, reverse,
+apply sliding window.
+
+Message entry:
+- `id` — unique identifier
+- `parent` — pointer to parent message (unit, ~ for root)
+- `role` — %user or %assistant
+- `content` — list of content blocks (text, image, tool-use, tool-result)
+- `timestamp` — when created
+- `from` — provenance: who sent this (~zod, /agents/researcher, "ui", etc.)
+- `chars` — character count (for sliding window calculation)
+
+### Tool Call Branches
+
+Tool use/result exchanges live on **private branches** off the main
+conversation, not inline. The main branch stays clean text.
+
+```
+main:   msg1 ← msg2 ← msg3(user) ← msg5(assistant: "here's what I found")
+                                  ↖
+tool branch:                       msg4a(tool_use: read-file)
+                                     ← msg4b(tool_result: "contents...")
+                                     ← msg4c(tool_use: grep)
+                                     ← msg4d(tool_result: "matches...")
+```
+
+When building API context: walk main branch for conversation, include active
+tool branch if mid-loop. Once tool loop finishes, final text goes on main.
+Tool branches are preserved for auditing/debugging.
+
+### LLM Process State
+
+The process holds a reference to the tree, not the messages themselves:
+- **Tree reference** — which message tree it participates in
+- **Head** — which branch it's looking at
+- **Config** — model, system prompt builder, max tokens, temperature, etc.
+- **Tools** — dynamic per request, can widen/narrow each iteration
+- **Runtime** — iteration count, max iterations, waiting-for-tool state
+
+### Think Loop
+
+1. New message appears in tree (not from me)
+2. Walk from head, build flat context
+3. Build system prompt (live info, instructions, whatever)
+4. Build tool list for this iteration
+5. Call API
+6. If text response: append to tree (or drop if "ack" — silent pass)
+7. If tool use: validate against tool list, poke target, wait for response,
+   append tool result to tool branch, goto 5
+8. Final text response goes on main branch
+9. Wait for next message
+
+### Tools as Tree Pokes
+
+Tool names encode destination path + mark (e.g., `server_main__server-action`).
+The LLM process decodes the name, runs JSON input through a tube (%json →
+native mark), and pokes the target. The target file doesn't know an LLM is
+calling it — it receives a normal poke with its native mark.
+
+Tool validation happens at two levels:
+- **Tool list**: process only accepts tool_use for tools it sent in the request
+- **Weir**: backup — prevents LLMs from reaching things they shouldn't
+
+### Sliding Window
+
+Simple universal context management. Keep the most recent messages that fit
+within a configurable character limit. If the LLM needs something that fell
+off the window, it re-reads via a tool call. No scratchpad needed.
+
+### Multi-Agent
+
+Multiple LLM processes can watch the same message tree. Each has its own
+config, tools, and runtime state. The `from` field on each message identifies
+who said what. System prompt tells the LLM to respond with "ack" if it has
+nothing to add — the process silently drops it, no message written to tree.
+
+### Composition
+
+An LLM process calling another LLM process looks identical to any tool call.
+Process A pokes B with a task, B does its think loop (maybe its own tool
+calls), B pokes back with the result. A doesn't know or care that B is
+LLM-powered. Sub-agents fall out naturally from the tree.
+
+### Library Layers
+
+1. **`sur/llm.hoon`** — fundamental types. Message, entry, content-block,
+   tool-def, request-config. Provider-agnostic.
+2. **`lib/llm.hoon`** — reusable machinery. Sliding window, context
+   serialization, tool validation, think loop. Provider-agnostic.
+3. **`lib/llm/claude.hoon`** — Claude-specific adapter. Serialize to Claude
+   JSON, parse response, build HTTP request, handle errors.
+4. Application layer — chat, agent, or whatever uses the primitive.
+
 ## Tools & MCP Nexus (Port Plan)
 
 Port lib/tools.hoon, lib/mcp.hoon, lib/routes/claude.hoon, and lib/sse-helpers.hoon

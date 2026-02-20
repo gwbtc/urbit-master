@@ -138,7 +138,7 @@
   ;<  =cage  bind:m  take-poke
   ?:  ?=(%sig p.cage)
     (pure:m ~)
-  (trace leaf+"strange restart mark: {<p.cage>}")
+  (trace leaf+"strange restart mark: {<p.cage>}" ~)
 ::
 ++  take-poke
   =/  m  (fiber ,cage)

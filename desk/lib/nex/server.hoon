@@ -5,22 +5,22 @@
 ::
 /+  nexus, tarball, io=fiberio
 |%
-::  Binding actions: sent to server nexus to register/unregister eyre paths
+::  Consolidated poke type for the server nexus
 ::
 ::  %bind: register a URL prefix → handler mapping.  The target bend
 ::    is resolved relative to the sender's position to produce an
 ::    absolute rail stored in the bindings map.  If target is ~,
 ::    the sender itself is the handler.
-::
 ::  %unbind: remove a URL prefix binding.
+::  %reset: kick all eyre connections and cancel to handlers.
+::  %send: forward a response from a handler back through eyre.
 ::
-+$  bind-action
++$  server-action
   $%  [%bind =binding:eyre target=(unit bend:fiber:nexus)]
       [%unbind =binding:eyre]
+      [%reset ~]
+      [%send eyre-id=@ta =eyre-update]
   ==
-::  Response actions: eyre-id + update, sent back through server nexus
-::
-+$  send-action  (pair @ta eyre-update)
 ::
 +$  eyre-update
   $%  [%header =response-header:http]
@@ -56,7 +56,7 @@
   |=  =binding:eyre
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /bind server-road bind-action+!>([%bind binding ~]))
+  (poke:io /bind server-road server-action+!>([%bind binding ~]))
 ::  Register an eyre binding targeting a specific process.
 ::  The target bend is relative to the calling process.
 ::
@@ -64,7 +64,7 @@
   |=  [=binding:eyre =bend:fiber:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /bind server-road bind-action+!>([%bind binding `bend]))
+  (poke:io /bind server-road server-action+!>([%bind binding `bend]))
 ::  HTTP response helpers, parameterized on dispatcher road.
 ::  Usage: =/  srv  ~(. res:nex-server [%| 1 %& ~ %main])
 ::         (send-simple:srv eyre-id payload)
@@ -72,34 +72,34 @@
 ++  res
   |_  main=road:tarball
   ++  send
-    |=  =send-action
+    |=  [eyre-id=@ta =eyre-update]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (poke:io /send main send-action+!>(send-action))
+    (poke:io /send main server-action+!>([%send eyre-id eyre-update]))
   ::
   ++  send-simple
     |=  [eyre-id=@ta =simple-payload:http]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (send [eyre-id %simple simple-payload])
+    (send eyre-id %simple simple-payload)
   ::
   ++  send-header
     |=  [eyre-id=@ta =response-header:http]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (send [eyre-id %header response-header])
+    (send eyre-id %header response-header)
   ::
   ++  send-data
     |=  [eyre-id=@ta data=(unit octs)]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (send [eyre-id %data data])
+    (send eyre-id %data data)
   ::
   ++  send-kick
     |=  eyre-id=@ta
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (send [eyre-id %kick ~])
+    (send eyre-id %kick ~)
   --
 ::  Standard HTTP dispatcher loop for nexuses with /requests/ sub-dir.
 ::  Spawns per-request processes, forwards responses, handles cancels.
@@ -117,7 +117,7 @@
     ~&  >  [label %dispatch eyre-id url.request.req]
     ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+http-request+!>([src req]))
     $
-      %send-action
+      %server-action
     ;<  ~  bind:m  (poke:io /send server-road cage)
     $
       %handle-http-cancel

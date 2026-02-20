@@ -18,7 +18,7 @@
 ::    2. Mister forwards to /server/main
 ::    3. Server finds longest-prefix binding match
 ::    4. Records connection (eyre-id → binding), forwards to handler rail
-::    5. Handler pokes back %send-action with [eyre-id update]
+::    5. Handler pokes back %server-action [%send eyre-id update]
 ::    6. Server verifies sender matches handler rail, sends to eyre
 ::    7. On %kick or %simple, connection is cleaned up
 ::
@@ -46,8 +46,7 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
-      ?.  ?=([~ %main] rail)
-        stay:m
+      ?.  ?=([~ %main] rail)  stay:m
       ;<  ~  bind:m  (rise-wait:io prod "%server /main: failed, poke to restart")
       ~&  >  "%server /main: ready"
       |-
@@ -55,13 +54,13 @@
       ;<  st=server-state:nex-server  bind:m  (get-state-as:io server-state:nex-server)
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ?+    p.cage  $
-          ::  Binding management
+          ::  Server action: bind, unbind, reset, send
           ::
-          %bind-action
-        =/  act  !<(bind-action:nex-server q.cage)
-        ?.  ?=(%& -.from)  $
+          %server-action
+        =+  !<(act=server-action:nex-server q.cage)
         ?-    -.act
             %bind
+          ?.  ?=(%& -.from)  $
           ::  Resolve the target to an absolute rail.
           ::  If target is ~, the sender itself is the handler.
           ::  Otherwise, resolve the target bend relative to the sender.
@@ -80,6 +79,7 @@
             %-  send-cards:io
             [%pass /eyre-bind %arvo %e %connect binding.act dude]~
           $
+          ::
             %unbind
           ~&  >  [%server-unbind binding.act]
           ::  Kick orphaned connections for this binding
@@ -101,29 +101,64 @@
           =.  bindings.st  (~(del by bindings.st) binding.act)
           ;<  ~  bind:m  (replace:io !>(st))
           $
-        ==
-          ::  Reset: kick all eyre connections, cancel to bound handlers
           ::
-          %server-reset
-        ~&  >  "%server: resetting all connections"
-        =/  conns=(list [@ta binding:eyre])  ~(tap by connections.st)
-        ;<  ~  bind:m
-          %-  send-cards:io
-          %+  turn  conns
-          |=  [eid=@ta =binding:eyre]
-          [%give %kick ~[/http-response/[eid]] ~]
-        ;<  ~  bind:m
-          |-
-          ?~  conns  (pure:m ~)
-          =/  [eid=@ta =binding:eyre]  i.conns
-          =/  handler=rail:tarball
-            (fall (~(get by bindings.st) binding) *rail:tarball)
-          =/  =road:tarball  [%& %& handler]
-          ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eid))
-          $(conns t.conns)
-        =.  connections.st  ~
-        ;<  ~  bind:m  (replace:io !>(st))
-        $
+            %reset
+          ~&  >  "%server: resetting all connections"
+          =/  conns=(list [@ta binding:eyre])  ~(tap by connections.st)
+          ;<  ~  bind:m
+            %-  send-cards:io
+            %+  turn  conns
+            |=  [eid=@ta =binding:eyre]
+            [%give %kick ~[/http-response/[eid]] ~]
+          ;<  ~  bind:m
+            |-
+            ?~  conns  (pure:m ~)
+            =/  [eid=@ta =binding:eyre]  i.conns
+            =/  handler=rail:tarball
+              (fall (~(get by bindings.st) binding) *rail:tarball)
+            =/  =road:tarball  [%& %& handler]
+            ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eid))
+            $(conns t.conns)
+          =.  connections.st  ~
+          ;<  ~  bind:m  (replace:io !>(st))
+          $
+          ::
+            %send
+          ::  Authorize: sender must be the handler that owns this binding.
+          ::  Resolve sender's from to an absolute rail and compare to the
+          ::  stored handler rail.
+          ::
+          =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id.act)
+          ?~  conn-binding
+            ~&  >  [%server-unknown-connection eyre-id.act]
+            ::  Forward cancel to sender so it can clean up
+            ?.  ?=(%& -.from)  $
+            =/  sender-rail=rail:tarball
+              (resolve-rail:nex-server here.bowl p.from)
+            =/  =road:tarball  [%& %& sender-rail]
+            ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id.act))
+            $
+          =/  expected-rail=(unit rail:tarball)  (~(get by bindings.st) u.conn-binding)
+          ?~  expected-rail
+            ~&  >  [%server-binding-gone u.conn-binding]
+            $
+          ?.  ?=(%& -.from)
+            ~&  >  [%server-external-from eyre-id.act]
+            $
+          =/  sender-rail=rail:tarball
+            (resolve-rail:nex-server here.bowl p.from)
+          ?.  =(sender-rail u.expected-rail)
+            ~&  >  [%server-unauthorized eyre-id.act sender-rail u.expected-rail]
+            $
+          =/  cards=(list card:agent:gall)  (eyre-update-cards eyre-id.act eyre-update.act)
+          ?:  ?=(?(%kick %simple) -.eyre-update.act)
+            =.  connections.st  (~(del by connections.st) eyre-id.act)
+            ;<  ~  bind:m  (replace:io !>(st))
+            ;<  ~  bind:m  (send-cards:io cards)
+            $
+          ;<  ~  bind:m  (send-cards:io cards)
+          $
+        ==
           ::  Incoming HTTP request from eyre
           ::
           %handle-http-request
@@ -145,44 +180,6 @@
         ::  Forward request to handler via absolute road
         =/  =road:tarball  [%& %& handler.u.match]
         ;<  ~  bind:m  (poke:io /forward road handle-http-request+!>([eyre-id src req]))
-        $
-          ::  Response from handler
-          ::
-          %send-action
-        =/  [eyre-id=@ta upd=eyre-update:nex-server]  !<(send-action:nex-server q.cage)
-        ::  Authorize: sender must be the handler that owns this binding.
-        ::  Resolve sender's from to an absolute rail and compare to the
-        ::  stored handler rail.
-        ::
-        =/  conn-binding=(unit binding:eyre)  (~(get by connections.st) eyre-id)
-        ?~  conn-binding
-          ~&  >  [%server-unknown-connection eyre-id]
-          ::  Forward cancel to sender so it can clean up
-          ?.  ?=(%& -.from)  $
-          =/  sender-rail=rail:tarball
-            (resolve-rail:nex-server here.bowl p.from)
-          =/  =road:tarball  [%& %& sender-rail]
-          ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
-          $
-        =/  expected-rail=(unit rail:tarball)  (~(get by bindings.st) u.conn-binding)
-        ?~  expected-rail
-          ~&  >  [%server-binding-gone u.conn-binding]
-          $
-        ?.  ?=(%& -.from)
-          ~&  >  [%server-external-from eyre-id]
-          $
-        =/  sender-rail=rail:tarball
-          (resolve-rail:nex-server here.bowl p.from)
-        ?.  =(sender-rail u.expected-rail)
-          ~&  >  [%server-unauthorized eyre-id sender-rail u.expected-rail]
-          $
-        =/  cards=(list card:agent:gall)  (eyre-update-cards eyre-id upd)
-        ?:  ?=(?(%kick %simple) -.upd)
-          =.  connections.st  (~(del by connections.st) eyre-id)
-          ;<  ~  bind:m  (replace:io !>(st))
-          ;<  ~  bind:m  (send-cards:io cards)
-          $
-        ;<  ~  bind:m  (send-cards:io cards)
         $
           ::  Client disconnected (eyre on-leave)
           ::

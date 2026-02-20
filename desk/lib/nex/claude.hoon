@@ -3,6 +3,14 @@
 /-  claude
 /+  nexus, io=fiberio, tools=nex-tools, chat-index, pytz, hu=http-utils, time, iso-8601
 |%
++$  claude-state  claude-state-0
++$  claude-state-0
+  $:  %0
+      api-key=@t
+      model=$~('claude-sonnet-4-5-20250929' @t)
+      timezone=$~('UTC' @t)
+      active-chat=(unit @ux)
+  ==
 ::  Maximum characters for context window (as proxy for tokens)
 ::
 ++  max-context-chars  100.000

@@ -1,9 +1,11 @@
+/-  spider
 /+  default-agent, dbug, tarball, nexus, server
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 :: add /nex to the ford build cache for fast compilation
 ::
 /~  nex  nexus:nexus  /nex
+/~  ted  thread:spider  /ted
 |%
 +$  versioned-state
   $%  state-0
@@ -208,7 +210,8 @@
   ?:  =(~ takes)
     [(flop cards) state]
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
-  $(this (process-take here take))
+  =.  this  (process-take here take)
+  $(this this)
 ::  Put subtree into sand at path
 ::
 ++  put-sub-sand
@@ -533,7 +536,10 @@
   =.  ball  ~(clear-temp ba:tarball ball)
   ::  Run nexus on-loads top-down (may modify ball and sand)
   =/  pre-sand=sand:nexus  sand
-  =^  sand  ball  (run-on-loads / sand ball)
+  =/  [new-sand=sand:nexus new-ball=ball:tarball]  (run-on-loads / sand ball)
+  =:  sand  new-sand
+      ball  new-ball
+  ==
   ::  Bump weir cass in born for any directories where weir changed
   =.  this  (bump-weir-changes / pre-sand sand)
   ::  Force-validate entire ball (type of $type may have changed since state was saved)
@@ -543,7 +549,8 @@
   ::  Re-check all subscriptions against potentially changed weirs
   =.  this  (audit-weir /)
   ::  Spawn processes and sync all changes
-  (load-ball-changes / pre-ball ball)
+  =.  this  (load-ball-changes / pre-ball ball)
+  this
 :: TODO: handle outgoing keens
 ::
 ::  Clean up subscriptions for a file (%file) or subtree (%tree)
@@ -776,7 +783,6 @@
       (handle-dart here dart)
     =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
     ?:  ?=(%| -.clammed)
-      ~&  [%clam-failed here p.clammed]
       (enqu-take here (sys-give /veto) ~ %veto dart)
     (handle-dart here dart(cage.load p.clammed))
   ==
@@ -1032,7 +1038,11 @@
     =.  sand  (put-sub-sand sand dest-path new-sand)
     =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
     ::  Run on-loads top-down (may modify sand and ball)
-    =^  new-sand  new-ball  (run-on-loads dest-path new-sand new-ball)
+    =/  [rol-sand=sand:nexus rol-ball=ball:tarball]
+      (run-on-loads dest-path new-sand new-ball)
+    =:  new-sand  rol-sand
+        new-ball  rol-ball
+    ==
     ::  Validate all cages in loaded ball
     =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
     ::  Put the final sand and ball back
@@ -1189,8 +1199,9 @@
   ?:  &(?=(^ gov) =(path.here u.gov))
     filt
   ::  Check weir at current location
+  =/  weir-here  (~(get of sand) path.here)
   =/  next=filt:nexus
-    (next-filt:nexus filt (filter:nexus jump path.here dest-lane (~(get of sand) path.here)))
+    (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
     [~ |]
   ::  Reached root - stop (handles syscalls which have no governor)
