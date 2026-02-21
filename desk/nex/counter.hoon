@@ -126,12 +126,12 @@
     --
 |%
 ::  Derive URL prefix from nexus root path
-::  e.g. / -> /mister/counters, /foo -> /mister/counters/foo
+::  e.g. / -> /grubbery/counters, /foo -> /grubbery/counters/foo
 ::
 ++  url-prefix
   |=  root=path
   ^-  path
-  (weld /mister/counters root)
+  (weld /grubbery/counters root)
 ::  HTTP response door (road from /ui/requests/* to /ui/main)
 ::
 ++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
@@ -171,7 +171,7 @@
   =/  stream-url=tape  (spud (weld prefix /stream))
   ;html
     ;head
-      ;title: Mister Counters
+      ;title: Grubbery Counters
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;script(src "https://unpkg.com/htmx.org@2.0.3");
@@ -182,7 +182,7 @@
       ==
     ==
     ;body
-      ;h1: Mister Counters
+      ;h1: Grubbery Counters
       ;form.mb2(hx-post base-url, hx-swap "none")
         ;button.p2.b1.br1.hover.pointer(type "submit"): + New Counter
       ==

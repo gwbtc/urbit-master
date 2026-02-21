@@ -91,7 +91,7 @@ update_claude() {
 
     log_info "Updating Claude API credentials..."
 
-    if urbit_post_json "/mister/claude/config" "{\"api-key\":\"$api_key\"}"; then
+    if urbit_post_json "/grubbery/claude/config" "{\"api-key\":\"$api_key\"}"; then
         log_success "Claude API credentials updated successfully"
         return 0
     else

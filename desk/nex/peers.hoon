@@ -20,8 +20,8 @@
 ::        /main      gateway: page → cage, forward to destination
 ::
 ::  Poke flow:
-::    1. Poke arrives at mister with [dest =page]
-::    2. Mister forwards peer-poke to /peers/main
+::    1. Poke arrives at grubbery with [dest =page]
+::    2. Grubbery forwards peer-poke to /peers/main
 ::    3. /peers/main creates /ships/~src/ dir+gateway if absent
 ::    4. /peers/main forwards peer-poke to /ships/~src/main
 ::    5. Gateway converts page to cage: [p.page !>(q.page)]

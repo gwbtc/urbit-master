@@ -14,8 +14,8 @@
 ::    connections:  (map @ta binding:eyre) — eyre-id → owning binding
 ::
 ::  Request flow:
-::    1. Eyre sends %handle-http-request to mister
-::    2. Mister forwards to /server/main
+::    1. Eyre sends %handle-http-request to grubbery
+::    2. Grubbery forwards to /server/main
 ::    3. Server finds longest-prefix binding match
 ::    4. Records connection (eyre-id → binding), forwards to handler rail
 ::    5. Handler pokes back %server-action [%send eyre-id update]

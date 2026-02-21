@@ -146,7 +146,7 @@
 ::  (merged from lib/sse-helpers.hoon)
 ::
 ::  For now, saves chat and returns updated chat.
-::  TODO: wire up SSE notifications once SSE is implemented in mister
+::  TODO: wire up SSE notifications once SSE is implemented in grubbery
 ::
 ++  add-message-to-chat
   |=  $:  chat-id=@ux

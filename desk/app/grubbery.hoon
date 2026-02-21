@@ -63,7 +63,7 @@
   |=  [=mark =vase]
   ^-  (quip card _this)
   ?+    mark  (on-poke:def mark vase)
-      %mister-action
+      %grubbery-action
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
@@ -103,6 +103,10 @@
       [cards this]
     ==
     ::  HTTP request from eyre: forward to /server/main
+    ::
+    ::  NOTE: HTTP requests go directly to /server/main, bypassing /peers.
+    ::  Eyre gestures at treating them as "from a ship" via src.bowl —
+    ::  this feels misleading.
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
@@ -237,7 +241,7 @@
 ++  sys-give
   |=  =wire
   ^-  give:nexus
-  [|+[our.bowl /gall/mister] wire]
+  [|+[our.bowl /gall/grubbery] wire]
 ::  Validate a vase according to a mark, checking nest or scrying for dais
 ::  Pure vase validation given a dais
 ::
@@ -377,7 +381,7 @@
     ::  External - send fact on caller's subscription path, then kick
     =/  src=@ta  (scot %p src.p.from)
     =/  pat=path  (weld /poke/[src] wire)
-    =.  this  (emit-card %give %fact ~[pat] mister-ack+!>(err))
+    =.  this  (emit-card %give %fact ~[pat] grubbery-ack+!>(err))
     (emit-card %give %kick ~[pat] ~)
   ==
 ::

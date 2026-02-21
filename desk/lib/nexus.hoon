@@ -1,13 +1,20 @@
 /+  tarball
 |%
 +$  card  card:agent:gall
-::  Nexus-specific types
+::  A "grub" is the entity that lives at a rail: its file content and
+::  its running process, considered as one thing. You create, delete,
+::  poke, and watch grubs. When the distinction matters, "file" means
+::  the data (content + metadata) and "process" means the running fiber.
+::
+::  Grubs live in directories. Directories hold grubs and other
+::  directories, have a neck (nexus mark), and may have a weir
+::  (sandbox rules).
 ::
 +$  prov  [src=@p sap=path]         :: external provenance
-+$  from  (each rail:tarball prov)  :: source: [%& rail] internal file or [%| prov] external
-+$  give  [=from =wire]             :: return address (from is always a file)
++$  from  (each rail:tarball prov)  :: source: [%& rail] internal grub or [%| prov] external
++$  give  [=from =wire]             :: return address (from is always a grub)
 +$  scry  [=mold =path]
-+$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a file)
++$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a grub)
 ::  SANDBOXING
 ::
 ::  Darts are conceptually emitted by processes and travel up the tree
@@ -55,14 +62,14 @@
 :: dart payload
 ::
 +$  load
-  $%  [%poke =cage]
-      [%make =make]
-      [%cull ~]
-      [%sand weir=(unit weir)]
-      [%load ~]  :: trigger on-load for a nexus (folds only)
-      [%peek ~]
-      [%keep ~]  :: subscribe to changes at dest (file or ball per road)
-      [%drop ~]  :: unsubscribe from dest
+  $%  [%poke =cage]             :: poke a grub
+      [%make =make]             :: create grub or directory
+      [%cull ~]                 :: delete grub or directory
+      [%sand weir=(unit weir)]  :: set weir
+      [%load ~]                 :: trigger on-load for a nexus (folds only)
+      [%peek ~]                 :: read a grub
+      [%keep ~]                 :: subscribe to changes at dest (grub or ball per road)
+      [%drop ~]                 :: unsubscribe from dest
   ==
 ::
 +$  dart
@@ -82,13 +89,13 @@
   ::  Relative source path for pokes
   ::
   ::  Fibers see only relative paths so they don't know their absolute location.
-  ::  [%& bend] = internal source (relative path to a file)
+  ::  [%& bend] = internal source (relative path to a grub)
   ::  [%| prov] = external source (ship + path)
   ::
-  ::  Fiber bends always target files (rail), not directories.
-  ::  Pokes come from files (processes), pokes go to files (processes).
+  ::  Fiber bends always target grubs (rail), not directories.
+  ::  Pokes come from grubs, pokes go to grubs.
   ::
-  +$  bend  (pair @ud rail:tarball)   :: fiber-relative: steps up + target file
+  +$  bend  (pair @ud rail:tarball)   :: fiber-relative: steps up + target grub
   +$  from  (each bend prov)
   ::
   +$  intake
@@ -304,7 +311,7 @@
   $:  fwd=(map lane:tarball (map rail:tarball wire))
       rev=(jug rail:tarball lane:tarball)
   ==
-::  High-water marks per file - NEVER deleted, even when files are deleted.
+::  High-water marks per grub - NEVER deleted, even when grubs are deleted.
 ::  Prevents stale responses and enables subscription ordering.
 ::
 ::  proc: incremented on process spawn/restart
@@ -317,7 +324,7 @@
 ::
 ::  Structure: (axal [tote bags=(map @ta sack)])
 ::    - tote = [weir=cass:clay fold=cass:clay]
-::    - Each directory node has a tote and bags (file sacks)
+::    - Each directory node has a tote and bags (grub sacks)
 ::    - sack = [proc=cass:clay file=cass:clay]
 ::
 ::  Semantics:
@@ -328,7 +335,7 @@
 ::
 ::  All four trigger subscriber notifications via diff-born.
 ::
-::  Lifecycle for new file:
+::  Lifecycle for new grub:
 ::    init      → [0 0]  (file exists)
 ::    bump-proc → [1 0]  (process spawned)
 ::    bump-file → [1 1]  (first content saved)
@@ -736,13 +743,13 @@
   ++  on-load
     |~  [sand ball:tarball]
     [*sand *ball:tarball]
-  :: all files have an associated running process
-  :: all running processes should be able to recover proper
-  ::   operation based on state alone, even when restarted.
-  ::   this is not guaranteed and is a responsibility of the programmer.
+  :: every grub has a running process alongside its file content.
+  :: processes should be able to recover proper operation based on
+  ::   state alone, even when restarted. this is not guaranteed and
+  ::   is a responsibility of the programmer.
   ::
   ++  on-file
     |~  [rail:tarball mark]
-    *spool:fiber :: define spool (initializer) for file at rail
+    *spool:fiber :: define spool (initializer) for grub at rail
   --
 --

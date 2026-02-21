@@ -22,9 +22,9 @@
       ?+    rail  stay:m
           [~ %main]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
-        ~&  >  "%explorer /main: binding /mister/ball"
-        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/ball])
-        ;<  ~  bind:m  (bind-http:nex-server [~ /mister/ball/stream])
+        ~&  >  "%explorer /main: binding /grubbery/ball"
+        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball/stream])
         ~&  >  "%explorer /main: ready"
         (http-dispatch:nex-server %explorer)
           [[%requests ~] @]
@@ -39,7 +39,7 @@
         =/  =request-line:server  (parse-request-line:server url.request.req)
         ::  Extract raw path, resolve through ball tree
         =/  raw-path=path
-          ?.  ?=([%mister %ball *] site.request-line)  ~
+          ?.  ?=([%grubbery %ball *] site.request-line)  ~
           t.t.site.request-line
         ?:  ?=([%stream ~] raw-path)
           =/  watch-path=path
@@ -53,10 +53,11 @@
           (pure:m ~)
         =/  root=ball:tarball  ball.p.root-seen
         =/  root-born=born:nexus  born.p.root-seen
+        =/  root-sand=sand:nexus  sand.p.root-seen
         =/  tree-path=path  (resolve-url-path raw-path root)
         ?:  =('POST' method.request.req)
-          (handle-post eyre-id tree-path req)
-        (handle-get eyre-id tree-path root root-born args.request-line)
+          (handle-post eyre-id tree-path root-sand req)
+        (handle-get eyre-id tree-path root root-born root-sand args.request-line)
       ==
     --
 ::
@@ -67,7 +68,7 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path root=ball:tarball root-born=born:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path root=ball:tarball root-born=born:nexus root-sand=sand:nexus args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
@@ -79,10 +80,10 @@
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (get-mark-conversions-shallow:io u.sub)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born now conversions))
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
-  ::  Not a directory — try as file
+  ::  Not a directory — try as grub
   ?~  tree-path
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
@@ -91,7 +92,7 @@
   =/  parent-ball=ball:tarball  (~(dip ba:tarball root) parent)
   =/  content-data=(unit content:tarball)
     ?~  fil.parent-ball  ~
-    (find-file name u.fil.parent-ball)
+    (find-grub name u.fil.parent-ball)
   ?~  content-data
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
@@ -102,7 +103,7 @@
 ::  Handle POST requests (delete actions)
 ::
 ++  handle-post
-  |=  [eyre-id=@ta tree-path=path req=inbound-request:eyre]
+  |=  [eyre-id=@ta tree-path=path root-sand=sand:nexus req=inbound-request:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  Check for multipart upload
@@ -116,7 +117,7 @@
   =/  args=key-value-list:kv:html-utils  (parse-body:kv:html-utils body.request.req)
   =/  action=(unit @t)  (get-key:kv:html-utils 'action' args)
   =/  redirect-url=tape
-    ?~(tree-path "/mister/ball" "/mister/ball{(trip (spat tree-path))}")
+    ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")
   ?~  action
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing action')])
     (pure:m ~)
@@ -124,7 +125,7 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
       (pure:m ~)
   ::
-      %'delete-file'
+      %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
     ?:  =('' filename)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
@@ -176,6 +177,63 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
     ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%symlink !>(u.sym)])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'add-weir-road'
+    =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
+    =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
+    =/  road-type=@t  (fall (get-key:kv:html-utils 'road-type' args) '')
+    ?:  |(=('' category) =('' road-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing fields')])
+      (pure:m ~)
+    =/  pax=path  (stab road-path)
+    =/  new-road=road:tarball
+      ?:  =('file' road-type)
+        ?~  pax
+          [%& %| /]
+        [%& %& (snip `path`pax) (rear pax)]
+      [%& %| pax]
+    =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
+    =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
+    =/  new=weir:nexus
+      ?+  category  cur
+        %'write'  cur(make (~(put in make.cur) new-road))
+        %'poke'   cur(poke (~(put in poke.cur) new-road))
+        %'read'   cur(peek (~(put in peek.cur) new-road))
+      ==
+    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] `new)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'del-weir-road'
+    =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
+    =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
+    =/  road-type=@t  (fall (get-key:kv:html-utils 'road-type' args) '')
+    ?:  =('' category)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing category')])
+      (pure:m ~)
+    =/  pax=path  (stab road-path)
+    =/  del-road=road:tarball
+      ?:  =('file' road-type)
+        ?~  pax
+          [%& %| /]
+        [%& %& (snip `path`pax) (rear pax)]
+      [%& %| pax]
+    =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
+    =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
+    =/  new=weir:nexus
+      ?+  category  cur
+        %'write'  cur(make (~(del in make.cur) del-road))
+        %'poke'   cur(poke (~(del in poke.cur) del-road))
+        %'read'   cur(peek (~(del in peek.cur) del-road))
+      ==
+    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] `new)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'clear-weir'
+    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ==
@@ -235,7 +293,7 @@
       (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus sub])
     $(dirs t.dirs)
   =/  redirect-url=tape
-    ?~(tree-path "/mister/ball" "/mister/ball{(trip (spat tree-path))}")
+    ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")
   ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
   (pure:m ~)
 ::  Serve a directory as a tarball download
@@ -259,10 +317,10 @@
     ==
   ;<  ~  bind:m  (send-simple:srv eyre-id [[200 headers] `tar-data])
   (pure:m ~)
-::  Find a file by URL segment in a lump
+::  Find a grub by URL segment in a lump
 ::  Matches exact name first, then tries name.mark pattern
 ::
-++  find-file
+++  find-grub
   |=  [seg=@ta =lump:tarball]
   ^-  (unit content:tarball)
   =/  direct  (~(get by contents.lump) seg)
@@ -289,6 +347,11 @@
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
       *born:nexus
     born.p.initial-seen
+  =/  prev-weir=(unit weir:nexus)
+    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
+      ~
+    =/  s  (~(dip of sand.p.initial-seen) watch-path)
+    fil.s
   ;<  ~  bind:m  (keep:io /ball [%& %| ~])
   ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
@@ -304,6 +367,9 @@
     ?.  ?=([%ball *] view.nw)  $
     =/  root=ball:tarball  ball.view.nw
     =/  root-born=born:nexus  born.view.nw
+    =/  root-sand=sand:nexus  sand.view.nw
+    =/  watch-sand=sand:nexus  (~(dip of root-sand) watch-path)
+    =/  new-weir=(unit weir:nexus)  fil.watch-sand
     =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
     =.  prev-born  root-born
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
@@ -327,7 +393,22 @@
       (build-mark-conversions:io changed-marks)
     =/  lanes=(list lane:tarball)  ~(tap in what)
     |-
-    ?~  lanes  ^$
+    ?~  lanes
+      ::  After processing all lanes, check for weir change
+      ?.  =(prev-weir new-weir)
+        =.  prev-weir  new-weir
+        =/  weir-html=tape
+          (zing (turn (render-weir new-weir url-prefix) en-xml:html))
+        =/  =json
+          %-  pairs:enjs:format
+          :~  ['action' s+'weir']
+              ['html' s+(crip weir-html)]
+          ==
+        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
+        =/  data=octs  (sse-encode:http-utils ~[sse-event])
+        ;<  ~  bind:m  (send-data:srv eyre-id `data)
+        ^$
+      ^$
     =/  [parent=path item=@ta is-file=?]
       ?-  -.i.lanes
         %&  [path.p.i.lanes name.p.i.lanes %.y]
@@ -349,7 +430,7 @@
           ?~  fil.par  ""
           =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-file-row item u.ct url-prefix watch-path par-born now.bowl conversions))
+          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
         (en-xml:html (render-dir-row item u.sub url-prefix))
@@ -431,7 +512,7 @@
   |=  [pax=path necks=(map path @ta)]
   ^-  tape
   =/  built=path  ~
-  =/  acc=tape  "/mister/ball"
+  =/  acc=tape  "/grubbery/ball"
   |-
   ?~  pax  acc
   =.  built  (snoc built i.pax)
@@ -470,6 +551,12 @@
       ; .action-row label { font-weight: bold; min-width: 110px; }
       ; .inline-form { display: flex; gap: 4px; align-items: center; }
       ; .inline-form input[type="text"] { padding: 2px 4px; font-family: monospace; font-size: 12px; width: 120px; }
+      ; .weir-system { color: #e36209; font-weight: bold; }
+      ; .weir-label { color: #6a737d; margin-right: 4px; }
+      ; .weir-roads { color: #6f42c1; }
+      ; .weir-road-item { margin-right: 8px; }
+      ; .weir-del { font-size: 10px; padding: 0 4px; margin-left: 2px; color: #cb2431; cursor: pointer; }
+      ; select { padding: 2px 4px; font-family: monospace; font-size: 12px; }
       ; .sortable { cursor: pointer; user-select: none; }
       ; .sortable:hover { background: #f0f0f0; }
       ; .sortable::after { content: ' \2195'; opacity: 0.3; }
@@ -500,7 +587,7 @@
     ?~  got  ""
     ".{(trip u.got)}"
   =/  crumbs=(list manx)
-    :~  ;a/"/mister/ball": {root-neck}/
+    :~  ;a/"/grubbery/ball": {root-neck}/
     ==
   =.  crumbs
     %+  weld  crumbs
@@ -513,7 +600,7 @@
   ==
 ::
 ++  dir-info
-  |=  [b=ball:tarball url-prefix=tape]
+  |=  [b=ball:tarball url-prefix=tape dir-weir=(unit weir:nexus) pax=path]
   ^-  manx
   =/  neck-display=tape
     ?~  fil.b  "-"
@@ -530,7 +617,30 @@
       ;dd: {neck-display}
       ;dt: items
       ;dd: {(scow %ud nkids)}
+      ;dt: sandbox
+      ;dd#sandbox-value
+        ;*  (render-sandbox dir-weir url-prefix pax)
+      ==
     ==
+    ;*  ?.  ?=(^ pax)  ~
+        :~  ;div.action-row
+              ;form.inline-form(method "POST", action url-prefix)
+                ;label: Add to Weir:
+                ;select(name "category")
+                  ;option(value "write"): write
+                  ;option(value "poke"): poke
+                  ;option(value "read"): read
+                ==
+                ;select(name "road-type")
+                  ;option(value "dir"): dir
+                  ;option(value "file"): file
+                ==
+                ;input(type "text", name "road-path", placeholder "/path", required "");
+                ;input(type "hidden", name "action", value "add-weir-road");
+                ;button(type "submit"): Add
+              ==
+            ==
+        ==
     ;div.action-row
       ;label: Download:
       ;a/"{download-url}"
@@ -556,14 +666,14 @@
     ==
     ;div.action-row
       ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload File:
+        ;label: Upload Grub:
         ;input(type "file", name "file");
         ;button(type "submit"): Upload
       ==
     ==
     ;div.action-row
       ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Files:
+        ;label: Upload Grubs:
         ;input(type "file", name "file", multiple "");
         ;button(type "submit"): Upload All
       ==
@@ -577,16 +687,110 @@
     ==
   ==
 ::
+++  render-sandbox
+  |=  [dir-weir=(unit weir:nexus) url-prefix=tape pax=path]
+  ^-  (list manx)
+  ?.  ?=(^ pax)
+    :~  ;span.weir-system: unrestricted
+    ==
+  (render-weir dir-weir url-prefix)
+::
+++  render-weir
+  |=  [dir-weir=(unit weir:nexus) url-prefix=tape]
+  ^-  (list manx)
+  ?~  dir-weir
+    :~  ;span.weir-system: unrestricted
+    ==
+  =/  items=(list manx)
+    ;:  weld
+      (render-weir-category "write" make.u.dir-weir url-prefix)
+      (render-weir-category "poke" poke.u.dir-weir url-prefix)
+      (render-weir-category "read" peek.u.dir-weir url-prefix)
+    ==
+  %+  snoc  items
+  ;form.del-form(method "POST", action url-prefix)
+    ;input(type "hidden", name "action", value "clear-weir");
+    ;button.weir-del(type "submit", onclick "return confirm('Remove weir? This gives unrestricted access.')"): clear weir
+  ==
+::
+++  render-weir-category
+  |=  [label=tape roads=(set road:tarball) url-prefix=tape]
+  ^-  (list manx)
+  =/  road-items=(list manx)
+    %+  turn  ~(tap in roads)
+    |=  =road:tarball
+    ^-  manx
+    =/  display=tape  (render-road road)
+    =/  [road-path=tape road-type=tape]  (road-to-form road)
+    ;span.weir-road-item
+      ;span.weir-roads: {display}
+      ;form.del-form(method "POST", action url-prefix)
+        ;input(type "hidden", name "action", value "del-weir-road");
+        ;input(type "hidden", name "category", value label);
+        ;input(type "hidden", name "road-path", value road-path);
+        ;input(type "hidden", name "road-type", value road-type);
+        ;button.weir-del(type "submit"): x
+      ==
+    ==
+  %+  weld
+    :~  ;span.weir-label: {label}:
+    ==
+  ?~  road-items
+    :~  ;span.weir-roads: -
+        ;br;
+    ==
+  (snoc road-items ;br;)
+::
+++  render-road
+  |=  =road:tarball
+  ^-  tape
+  ?-    -.road
+      %&  (render-lane p.road)
+      %|
+    =/  ups=tape  (reap p.p.road '^')
+    "{ups}{(render-lane q.p.road)}"
+  ==
+::
+++  road-to-form
+  |=  =road:tarball
+  ^-  [path=tape type=tape]
+  ?-    -.road
+      %&
+    ?-  -.p.road
+      %&  [(trip (spat (snoc path.p.p.road name.p.p.road))) "file"]
+      %|  [(trip (spat p.p.road)) "dir"]
+    ==
+      %|
+    ?-  -.q.p.road
+      %&  [(trip (spat (snoc path.p.q.p.road name.p.q.p.road))) "file"]
+      %|  [(trip (spat p.q.p.road)) "dir"]
+    ==
+  ==
+::
+++  render-lane
+  |=  =lane:tarball
+  ^-  tape
+  ?-    -.lane
+      %&
+    =/  dir=tape  (trip (spat path.p.lane))
+    "{dir}/{(trip name.p.lane)}"
+      %|
+    ?~(p.lane "/" (trip (spat p.lane)))
+  ==
+::
 ++  render-dir
   |=  $:  pax=path
           root=ball:tarball
           root-born=born:nexus
+          root-sand=sand:nexus
           now=@da
           conversions=(map mars:clay tube:clay)
       ==
   ^-  manx
   =/  b=ball:tarball  (~(dip ba:tarball root) pax)
   =/  b-born=born:nexus  (~(dip of root-born) pax)
+  =/  dir-sand=sand:nexus  (~(dip of root-sand) pax)
+  =/  dir-weir=(unit weir:nexus)  fil.dir-sand
   =/  necks=(map path @ta)  (get-necks pax root)
   =/  neck-ext=tape
     ?~  fil.b  ""
@@ -607,7 +811,7 @@
     ;body
       ;+  (breadcrumb pax necks)
       ;h1: Index of {path-display}
-      ;+  (dir-info b url-prefix)
+      ;+  (dir-info b url-prefix dir-weir pax)
       ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
@@ -640,14 +844,14 @@
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
           (render-dir-row name sub url-prefix)
-        ::  Files
+        ::  Grubs
         =.  rows
           %+  weld  rows
           %+  turn  files
           |=  name=@ta
           ^-  manx
           =/  =content:tarball  (~(got by file-contents) name)
-          (render-file-row name content url-prefix pax b-born now conversions)
+          (render-grub-row name content url-prefix pax b-born now conversions)
         rows
       ==
       ;script: {(trip sse-script)}
@@ -693,9 +897,14 @@
     var tbl = document.getElementById('listing');
     if (!tbl) return;
     var tb = tbl.querySelector('tbody') || tbl;
-    var es = new EventSource('/mister/ball/stream?path=' + tbl.dataset.path);
+    var es = new EventSource('/grubbery/ball/stream?path=' + tbl.dataset.path);
     es.addEventListener('ball-change', function(e) {
       var d = JSON.parse(e.data);
+      if (d.action === 'weir') {
+        var sb = document.getElementById('sandbox-value');
+        if (sb) sb.innerHTML = d.html;
+        return;
+      }
       var row = tb.querySelector('tr[data-name="' + d.name + '"]');
       if (row) row.remove();
       if (d.action === 'add' && d.html) {
@@ -745,7 +954,7 @@
     ==
   ==
 ::
-++  render-file-row
+++  render-grub-row
   |=  $:  name=@ta
           =content:tarball
           url-prefix=tape
@@ -767,8 +976,8 @@
     =/  sym  !<(symlink:tarball q.cag)
     =/  target-display=tape  (trip (encode-symlink:tarball sym))
     =/  resolved-path=path  (resolve-symlink:tarball sym pax)
-    =/  target-url=tape  "/mister/ball{(trip (spat resolved-path))}"
-    ;tr(data-name (trip name), data-type "file")
+    =/  target-url=tape  "/grubbery/ball{(trip (spat resolved-path))}"
+    ;tr(data-name (trip name), data-type "grub")
       ;td
         ;a/"{target-url}": {(trip name)}
         ;span.symlink-target:  -> {target-display}
@@ -778,7 +987,7 @@
       ;td: {mtime-display}
       ;td
         ;form.del-form(method "POST", action url-prefix)
-          ;input(type "hidden", name "action", value "delete-file");
+          ;input(type "hidden", name "action", value "delete-grub");
           ;input(type "hidden", name "filename", value (trip name));
           ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
         ==
@@ -795,7 +1004,7 @@
     (~(cage-to-mime gen:tarball [now conversions]) cag)
   =/  mime-raw=tape  (trip (spat p.mime))
   =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-  ;tr(data-name (trip name), data-type "file", data-size (scow %ud p.q.mime))
+  ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
     ;td
       ;a/"{file-url}": {display-name}
     ==
@@ -807,7 +1016,7 @@
         ;button(type "button"): Download
       ==
       ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "delete-file");
+        ;input(type "hidden", name "action", value "delete-grub");
         ;input(type "hidden", name "filename", value (trip name));
         ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
       ==

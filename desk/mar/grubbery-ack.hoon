@@ -1,4 +1,4 @@
-::  mister-ack: poke response mark
+::  grubbery-ack: poke response mark
 ::
 /+  nexus
 !: :: turn on stack trace

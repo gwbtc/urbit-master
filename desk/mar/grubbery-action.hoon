@@ -1,4 +1,4 @@
-::  mister-action: unified action mark for mister pokes
+::  grubbery-action: unified action mark for grubbery pokes
 ::
 /+  nexus
 !: :: turn on stack trace
