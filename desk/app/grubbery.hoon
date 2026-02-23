@@ -71,7 +71,7 @@
       ?>  ?=(%& -.dest.action)
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
-        abet:(poke:hc give [/peers %main] peer-poke+!>([p.dest.action page.action]))
+        abet:(poke:hc give [/peers %main] poke-in+!>([p.dest.action page.action]))
       [cards this]
       ::
         %make
@@ -263,7 +263,12 @@
   =/  vale-result=(each vase tang)
     (mule |.((vale:dais q.new)))
   ?:  ?=(%| -.vale-result)
-    |+[leaf+"vale failed" p.vale-result]
+    =/  err=tang
+      :~  leaf+"vale failed"
+          leaf+"got:"
+          (skol p.new)
+      ==
+    |+(weld err p.vale-result)
   &+p.vale-result
 ::  Validate file content: handles %temp, empty-mime, scries for dais
 ::
@@ -348,7 +353,8 @@
 ++  delete
   |=  [dir=path name=@ta]
   ^+  this
-  ?>  ?=(^ (~(get ba:tarball ball) [dir name]))
+  ~?  >>  ?=(^ (~(get ba:tarball ball) [dir name]))
+    "no grub at {(spud (weld dir /[name]))}"
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
   ::  Remove from ball BEFORE notify so subscribers see deletion

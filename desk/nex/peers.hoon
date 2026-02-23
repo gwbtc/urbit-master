@@ -1,13 +1,12 @@
 ::  peers nexus: external ship gateway + role-based access control
 ::
 ::  All foreign ship interaction enters through /peers. Each ship gets
-::  a gateway process at /ships/~ship/main that receives pokes as pages,
-::  converts them to cages, and forwards them into the tree. Usergroups
-::  provide role-based weir management: group membership determines what
-::  each ship can reach.
+::  a gateway process at /ships/~ship/main that handles bidirectional
+::  pokes. Usergroups provide role-based weir management: group
+::  membership determines what each ship can reach.
 ::
 ::  /peers/
-::    /main          poke router + weir manager
+::    /main          inbound poke router + weir manager
 ::    /usergroups/   role-based access data
 ::      /who/        group → members: /who/admins → (set @p)
 ::                     hierarchical: /who/acme/eng/leads → (set @p)
@@ -17,21 +16,31 @@
 ::                     our own ship lives here too, with full tree access
 ::                     (skips usergroup lookup entirely)
 ::      /~zod/       weir derived from union of group weir templates
-::        /main      gateway: page → cage, forward to destination
+::        /main      gateway: bidirectional poke mediator
 ::
-::  Poke flow:
-::    1. Poke arrives at grubbery with [dest =page]
-::    2. Grubbery forwards peer-poke to /peers/main
+::  Inbound poke flow (%poke-in):
+::    1. Foreign ship pokes grubbery with [dest =page]
+::    2. Grubbery forwards %poke-in to /peers/main
 ::    3. /peers/main creates /ships/~src/ dir+gateway if absent
-::    4. /peers/main forwards peer-poke to /ships/~src/main
-::    5. Gateway converts page to cage: [p.page !>(q.page)]
-::    6. Forwards to dest — weir controls reachability, clams at boundary
+::    4. /peers/main forwards %poke-in to /ships/~src/main
+::    5. Gateway asserts from is /peers/main (trusted router)
+::    6. Converts page to cage, forwards to dest in tree
+::
+::  Outbound poke flow (%poke-out):
+::    1. Tree process pokes /peers/ships/~ship/main with %poke-out
+::    2. Gateway extracts [dude cage], pokes [~ship dude] via Gall
 ::
 ::  Weir strategy:
 ::    /peers/ has a permissive weir (full tree, no syscalls). Anything
 ::    leaving /peers/ gets clammed. Ship dirs have tighter weirs derived
 ::    from usergroup membership. /peers/main watches /who, /how, and
 ::    /ships, recalculating and %sand'ing weirs reactively.
+::
+::  Security:
+::    The gateway enforces provenance. %poke-in is only accepted from
+::    /peers/main (the trusted inbound router). %poke-out is accepted
+::    from any tree process with weir access to the gateway. This means
+::    grubs can poke outward but cannot forge inbound pokes.
 ::
 /+  nexus, tarball, io=fiberio
 !: :: turn on stack trace
@@ -73,7 +82,7 @@
       ::
       ?+    rail  stay:m
         ::  /main: poke router + weir manager
-        ::  Routes incoming peer-pokes to per-ship gateways,
+        ::  Routes inbound %poke-in to per-ship gateways,
         ::  lazily creating ship directories on first contact.
         ::  Watches /who, /how, and /ships for changes, re-syncs all
         ::  ship weirs on any change. /ships is watched to prevent
@@ -103,7 +112,7 @@
             ~&  >  [%peers-main %sync]
             ;<  ~  bind:m  sync-all-weirs
             $
-              %peer-poke
+              %poke-in
             ?.  ?=(%| -.from)
               ~&  >  [%peers-main %internal-poke-rejected]
               $
@@ -130,8 +139,8 @@
           $
         ==
         ::  /ships/*/main: per-ship gateway
-        ::  Receives peer-poke [dest=rail =page], forwards cage to dest.
-        ::  Weir handles auth and clamming at boundary.
+        ::  Bidirectional gateway: handles %poke-in (inbound from foreign
+        ::  ship) and %poke-out (outbound to foreign ship's agent).
         ::
           [[%ships @ ~] %main]
         ?>  ?=(%sig mark)
@@ -140,15 +149,31 @@
         ~&  >  [%peers-gateway ship-name %ready]
         |-
         ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?.  ?=(%peer-poke p.cage)
+        ?+    p.cage
           ~&  >  [%peers-gateway ship-name %unknown-mark p.cage]
           $
-        =/  [dest=rail:tarball =page]
-          !<([rail:tarball page] q.cage)
-        ~&  >  [%peers-gateway ship-name %forward dest p.page]
-        =/  payload=^cage  [p.page !>(q.page)]
-        ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
-        $
+        ::  Inbound: only accepted from /peers/main (trusted router)
+        ::
+            %poke-in
+          ?>  ?&  ?=(%& -.from)
+                  =(p.from [2 [/ %main]])
+              ==
+          =/  [dest=rail:tarball =page]
+            !<([rail:tarball page] q.cage)
+          ~&  >  [%peers-gateway ship-name %inbound dest p.page]
+          =/  payload=^cage  [p.page !>(q.page)]
+          ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
+          $
+        ::  Outbound: any tree process with weir access can send
+        ::
+            %poke-out
+          =/  [=dude:gall payload=^cage]
+            !<([dude:gall ^cage] q.cage)
+          =/  ship-p=@p  (slav %p ship-name)
+          ~&  >  [%peers-gateway ship-name %outbound dude]
+          ;<  ~  bind:m  (gall-poke:io /outbound [ship-p dude] payload)
+          $
+        ==
           [[%usergroups %who *] @]
         ?>  ?=(%ships mark)  who-file
           [[%usergroups %how *] @]

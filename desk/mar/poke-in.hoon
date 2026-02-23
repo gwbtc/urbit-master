@@ -1,4 +1,4 @@
-::  peer-poke: foreign ship poke routed through gateway
+::  poke-in: inbound poke from foreign ship, routed through /peers/main
 ::
 ::  Destination rail + untyped payload (page = [mark noun]).
 ::  The gateway at /peers/ships/~ship/main converts the page

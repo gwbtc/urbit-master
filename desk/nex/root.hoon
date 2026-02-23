@@ -28,6 +28,9 @@
   ::  Create /tools directory with neck=%tools
   =?  ball  =(~ (~(get of ball) /tools))
     (~(put of ball) /tools [~ `%tools ~])
+  ::  Create /mcp directory with neck=%mcp
+  =?  ball  =(~ (~(get of ball) /mcp))
+    (~(put of ball) /mcp [~ `%mcp ~])
   [sand ball]
 ::
 ++  on-file
