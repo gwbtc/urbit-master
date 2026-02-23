@@ -444,27 +444,58 @@
     =/  status=tape  ?:(pub "public" "private")
     (pure:m [%text (crip "Set %{(trip dek)}{(spud pax)} to {status}")])
   --
-::  Collect dill logs until main timeout fires.
-::  Uses raw fiber form to multiplex dill logs and behn wakes.
+::  Collect dill logs with debounce: returns ~1s after last log.
+::  Each log spawns a quiet timer tagged with log count. If 1s passes
+::  with no new logs, we're done. Main timeout is the hard backstop.
+::
++$  commit-event
+  $%  [%timeout ~]
+      [%quiet count=@ud]
+      [%log =told:dill]
+  ==
+::
+++  take-commit-event
+  =/  m  (fiber:fiber:nexus ,commit-event)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %arvo [%commit-timeout ~] %behn %wake *]
+    [%done %timeout ~]
+      [~ %arvo [%commit-quiet @ ~] %behn %wake *]
+    [%done %quiet (slav %ud i.t.wire.u.in)]
+      [~ %arvo [%dill-logs ~] %dill %logs *]
+    [%done %log told.sign.u.in]
+  ==
 ::
 ++  collect-logs
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  |=  input:fiber:nexus
-  =/  jon=json  !<(json state)
-  ?+  in  [~ state %skip ~]
-      ~  [~ state %wait ~]
-      ::  Main timeout expired — done
-      [~ %arvo [%commit-timeout ~] %behn %wake *]
-    [~ state %done ~]
-      ::  Got a dill log — store it
-      [~ %arvo [%dill-logs ~] %dill %logs *]
-    =/  log-text=tape  (format-told told.sign.u.in)
+  |-
+  ;<  =commit-event  bind:m  take-commit-event
+  ?-    -.commit-event
+      %timeout  (pure:m ~)
+      %quiet
+    ;<  jon=json  bind:m  (get-state-as:io ,json)
     =/  logs=(list json)
       (~(dug jo:json-utils jon) /logs (ar:dejs:format same:dejs:format) ~)
+    ?.  =(count.commit-event (lent logs))
+      $  :: stale timer, keep waiting
+    (pure:m ~)
+      %log
+    ;<  jon=json  bind:m  (get-state-as:io ,json)
+    =/  logs=(list json)
+      (~(dug jo:json-utils jon) /logs (ar:dejs:format same:dejs:format) ~)
+    =/  log-text=tape  (format-told told.commit-event)
     =/  updated-jon=json
       (~(put jo:json-utils jon) /logs a+[s+(crip log-text) logs])
-    [~ !>(updated-jon) %cont collect-logs]
+    =/  new-count=@ud  +((lent logs))
+    ;<  ~  bind:m  (replace:io !>(updated-jon))
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  ~  bind:m
+      (send-card:io %pass /commit-quiet/(scot %ud new-count) %arvo %b %wait (add now.bowl ~s1))
+    $
   ==
 ::  Format a dill told to text
 ::
