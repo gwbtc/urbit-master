@@ -16,7 +16,7 @@
 ::                     our own ship lives here too, with full tree access
 ::                     (skips usergroup lookup entirely)
 ::      /~zod/       weir derived from union of group weir templates
-::        /main      gateway: bidirectional poke mediator
+::        /main      inbound gateway: page → cage, forward to tree
 ::
 ::  Inbound poke flow (%poke-in):
 ::    1. Foreign ship pokes grubbery with [dest =page]
@@ -27,8 +27,8 @@
 ::    6. Converts page to cage, forwards to dest in tree
 ::
 ::  Outbound poke flow (%poke-out):
-::    1. Tree process pokes /peers/ships/~ship/main with %poke-out
-::    2. Gateway extracts [dude cage], pokes [~ship dude] via Gall
+::    1. Tree process pokes /peers/main with %poke-out [ship dude page]
+::    2. /peers/main sends Gall poke to [ship dude] (has syscall access)
 ::
 ::  Weir strategy:
 ::    /peers/ has a permissive weir (full tree, no syscalls). Anything
@@ -37,10 +37,10 @@
 ::    /ships, recalculating and %sand'ing weirs reactively.
 ::
 ::  Security:
-::    The gateway enforces provenance. %poke-in is only accepted from
-::    /peers/main (the trusted inbound router). %poke-out is accepted
-::    from any tree process with weir access to the gateway. This means
-::    grubs can poke outward but cannot forge inbound pokes.
+::    The gateway enforces provenance on %poke-in: only accepted from
+::    /peers/main (the trusted inbound router). Grubs cannot forge
+::    inbound pokes. %poke-out goes through /peers/main which has
+::    syscall access (ship gateways don't — weirs block syscalls).
 ::
 /+  nexus, tarball, io=fiberio
 !: :: turn on stack trace
@@ -122,6 +122,12 @@
             ;<  ~  bind:m
               (poke:io /forward [%| 0 %& [/ships/[(scot %p src)] %main]] cage)
             $
+              %poke-out
+            =/  [=ship =dude:gall =page]
+              !<([@p dude:gall page] q.cage)
+            ~&  >  [%peers-main %outbound (scot %p ship) dude]
+            ;<  ~  bind:m  (gall-poke:io /outbound [ship dude] [p.page !>(q.page)])
+            $
           ==
         ::
             %news
@@ -139,8 +145,8 @@
           $
         ==
         ::  /ships/*/main: per-ship gateway
-        ::  Bidirectional gateway: handles %poke-in (inbound from foreign
-        ::  ship) and %poke-out (outbound to foreign ship's agent).
+        ::  Per-ship gateway: receives %poke-in from /peers/main,
+        ::  converts page to cage, forwards into the tree.
         ::
           [[%ships @ ~] %main]
         ?>  ?=(%sig mark)
@@ -149,31 +155,18 @@
         ~&  >  [%peers-gateway ship-name %ready]
         |-
         ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?+    p.cage
+        ?.  ?=(%poke-in p.cage)
           ~&  >  [%peers-gateway ship-name %unknown-mark p.cage]
           $
-        ::  Inbound: only accepted from /peers/main (trusted router)
-        ::
-            %poke-in
-          ?>  ?&  ?=(%& -.from)
-                  =(p.from [2 [/ %main]])
-              ==
-          =/  [dest=rail:tarball =page]
-            !<([rail:tarball page] q.cage)
-          ~&  >  [%peers-gateway ship-name %inbound dest p.page]
-          =/  payload=^cage  [p.page !>(q.page)]
-          ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
-          $
-        ::  Outbound: any tree process with weir access can send
-        ::
-            %poke-out
-          =/  [=dude:gall payload=^cage]
-            !<([dude:gall ^cage] q.cage)
-          =/  ship-p=@p  (slav %p ship-name)
-          ~&  >  [%peers-gateway ship-name %outbound dude]
-          ;<  ~  bind:m  (gall-poke:io /outbound [ship-p dude] payload)
-          $
-        ==
+        ?>  ?&  ?=(%& -.from)
+                =(p.from [2 [/ %main]])
+            ==
+        =/  [dest=rail:tarball =page]
+          !<([rail:tarball page] q.cage)
+        ~&  >  [%peers-gateway ship-name %inbound dest p.page]
+        =/  payload=^cage  [p.page !>(q.page)]
+        ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
+        $
           [[%usergroups %who *] @]
         ?>  ?=(%ships mark)  who-file
           [[%usergroups %how *] @]

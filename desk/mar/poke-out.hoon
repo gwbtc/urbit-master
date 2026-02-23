@@ -1,17 +1,17 @@
-::  poke-out: outbound poke to agent on foreign ship
+::  poke-out: outbound poke to agent on remote ship
 ::
-::  Target agent name + cage payload. The gateway at
-::  /peers/ships/~ship/main sends the poke via Gall.
+::  Target ship, agent, and untyped payload (page = [mark noun]).
+::  Handled by /peers/main which has syscall access to send Gall pokes.
 ::
 !: :: turn on stack trace
-|_  [=dude:gall =cage]
+|_  [=ship =dude:gall =page]
 ++  grab
   |%
-  ++  noun  ,[dude:gall ^cage]
+  ++  noun  ,[@p dude:gall ^page]
   --
 ++  grow
   |%
-  ++  noun  [dude cage]
+  ++  noun  [ship dude page]
   --
 ++  grad  %noun
 --
